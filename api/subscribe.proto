@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protocol;
+
+option go_package = "./protocol/subscribe;subscribe";
+
+//订阅
+message Subscribe {
+  uint32 sessionId = 1;
+  string topic = 2;
+}

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "./protocol/multicast;multicast";
+
+//组播
+message Multicast {
+  repeated uint32 sessionIds = 1;
+  bytes data = 2;
+}

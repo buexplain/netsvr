@@ -2,9 +2,9 @@ package customer
 
 import (
 	"context"
-	"github.com/buexplain/gateway-ws/internal/customer/manager"
-	"github.com/buexplain/gateway-ws/internal/customer/session"
-	"github.com/buexplain/gateway-ws/pkg/quit"
+	"github.com/buexplain/netsvr/internal/customer/manager"
+	"github.com/buexplain/netsvr/internal/customer/session"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"

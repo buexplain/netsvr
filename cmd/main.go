@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/buexplain/gateway-ws/internal/customer"
-	"github.com/buexplain/gateway-ws/internal/worker"
-	"github.com/buexplain/gateway-ws/pkg/quit"
+	"github.com/buexplain/netsvr/internal/customer"
+	"github.com/buexplain/netsvr/internal/worker"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
+	_ "github.com/panjf2000/ants/v2"
 	"os"
 )
 

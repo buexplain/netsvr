@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "./protocol/unsubscribe;unsubscribe";
+
+//取消订阅
+message Unsubscribe {
+  uint32 sessionId = 1;
+  string topic = 2;
+}

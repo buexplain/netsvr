@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "./protocol/publish;publish";
+
+//发布
+message Publish {
+  string topic = 1;
+  bytes data = 2;
+}

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "./protocol/business;business";
+
+//单播
+message SingleCast {
+  uint32 sessionId = 1;
+  bytes data = 2;
+}
