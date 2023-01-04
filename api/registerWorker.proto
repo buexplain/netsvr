@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protocol;
+
+option go_package = "./protocol/registerWorker;registerWorker";
+
+//注册工作进程
+message RegisterWorker {
+  //服务编号，取值范围是 1~999,业务层可以自己随意安排
+  int32 Id = 1;
+}

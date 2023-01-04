@@ -1,14 +1,21 @@
 package customer
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"github.com/buexplain/netsvr/internal/customer/heartbeat"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/customer/session"
+	"github.com/buexplain/netsvr/internal/protocol/transferToWorker"
+	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
+	"google.golang.org/protobuf/proto"
 	"net/http"
+	"strconv"
 )
 
 var server *nbhttp.Server
@@ -67,8 +74,34 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 		logging.Debug("Customer websocket close: %v, session: %#v", err, info)
 	})
-	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, bytes []byte) {
-		_ = conn.WriteMessage(messageType, bytes)
+	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
+		//检查是否为心跳消息
+		if messageType == websocket.PingMessage || bytes.Equal(data, heartbeat.PingMessage) {
+			err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
+			if err != nil {
+				logging.Debug("Failed to send pong %#v", err)
+				_ = conn.Close()
+				return
+			}
+			return
+		}
+		//读取前三个字节，转成工作进程的id
+		workerId, _ := strconv.Atoi(string(data[0:3]))
+		worker := workerManager.Manager.Get(workerId)
+		if worker == nil {
+			logging.Error("Not found worker by id: %d", workerId)
+			return
+		}
+		//转发数据到工作进程
+		info, _ := conn.Session().(*session.Info)
+		transfer := &transferToWorker.TransferToWorker{}
+		transfer.Data = data[3:]
+		transfer.SessionId = info.Id
+		data, _ = proto.Marshal(transfer)
+		//这里采用大端序
+		if err := binary.Write(worker, binary.BigEndian, uint32(len(data))); err == nil {
+			_, _ = worker.Write(data)
+		}
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {

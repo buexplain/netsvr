@@ -5,7 +5,6 @@ import (
 	"github.com/buexplain/netsvr/internal/worker"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
-	_ "github.com/panjf2000/ants/v2"
 	"os"
 )
 

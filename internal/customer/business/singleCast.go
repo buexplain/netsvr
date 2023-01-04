@@ -4,6 +4,7 @@ import (
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/protocol/singleCast"
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 )
 
 var singleCastCh chan *singleCast.SingleCast
@@ -29,7 +30,9 @@ func consumer() {
 	for v := range singleCastCh {
 		conn := manager.Manager.Get(v.SessionId)
 		if conn != nil {
-			_, _ = conn.Write(v.Data)
+			if err := conn.WriteMessage(websocket.TextMessage, v.Data); err != nil {
+				logging.Debug("Error singleCast: %#v", err)
+			}
 		}
 	}
 }

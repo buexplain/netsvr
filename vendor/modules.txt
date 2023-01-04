@@ -22,10 +22,8 @@ github.com/lesismal/nbio/timer
 # github.com/mschoch/smat v0.2.0
 ## explicit; go 1.13
 github.com/mschoch/smat
-# github.com/panjf2000/ants/v2 v2.7.1
+# github.com/stretchr/testify v1.8.1
 ## explicit; go 1.13
-github.com/panjf2000/ants/v2
-github.com/panjf2000/ants/v2/internal
 # golang.org/x/crypto v0.0.0-20210513122933-cd7d49e622d5
 ## explicit; go 1.17
 golang.org/x/crypto/chacha20
