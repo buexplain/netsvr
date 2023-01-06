@@ -37,6 +37,9 @@ const managerLen = 8
 type manager [managerLen]*collect
 
 func (r manager) Get(sessionId uint32) *websocket.Conn {
+	//根据session id取模，将连接分布在不同的集合中
+	//1. 避免单个map的连接数太多，导致gc抖动
+	//2. 避免锁集中
 	index := sessionId % managerLen
 	return r[index].Get(sessionId)
 }

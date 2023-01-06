@@ -4,15 +4,15 @@ const (
 	// RegisterWorker 注册工作进程
 	RegisterWorker uint16 = 1
 	// BroadCast 广播
-	BroadCast uint16 = 2
+	BroadCast uint16 = 3
 	// Multicast 组播
-	Multicast uint16 = 3
+	Multicast uint16 = 4
 	// SingleCast 单播
-	SingleCast uint16 = 4
+	SingleCast uint16 = 5
 	// Subscribe 订阅
-	Subscribe uint16 = 5
+	Subscribe uint16 = 6
 	// Unsubscribe 取消订阅
-	Unsubscribe uint16 = 6
+	Unsubscribe uint16 = 7
 	// Publish 发布
-	Publish uint16 = 7
+	Publish uint16 = 8
 )

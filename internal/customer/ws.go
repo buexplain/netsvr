@@ -3,7 +3,6 @@ package customer
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"github.com/buexplain/netsvr/internal/customer/heartbeat"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/customer/session"
@@ -87,21 +86,19 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 		//读取前三个字节，转成工作进程的id
 		workerId, _ := strconv.Atoi(string(data[0:3]))
+		//编码数据成工作进程需要的格式
+		info, _ := conn.Session().(*session.Info)
+		transfer := &transferToWorker.TransferToWorker{}
+		transfer.Data = data[3:]
+		transfer.SessionId = info.Id
+		data, _ = proto.Marshal(transfer)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
 			logging.Error("Not found worker by id: %d", workerId)
 			return
 		}
 		//转发数据到工作进程
-		info, _ := conn.Session().(*session.Info)
-		transfer := &transferToWorker.TransferToWorker{}
-		transfer.Data = data[3:]
-		transfer.SessionId = info.Id
-		data, _ = proto.Marshal(transfer)
-		//这里采用大端序
-		if err := binary.Write(worker, binary.BigEndian, uint32(len(data))); err == nil {
-			_, _ = worker.Write(data)
-		}
+		_, _ = worker.Write(data)
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {

@@ -1,19 +1,18 @@
 package manager
 
 import (
-	"net"
 	"sync"
 )
 
 type collect struct {
-	conn  []net.Conn
+	conn  []*connection
 	index int
-	lock  sync.RWMutex
+	lock  sync.Mutex
 }
 
-func (r *collect) Get() net.Conn {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
+func (r *collect) Get() *connection {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	if len(r.conn) == 0 {
 		return nil
 	}
@@ -24,7 +23,7 @@ func (r *collect) Get() net.Conn {
 	return r.conn[r.index]
 }
 
-func (r *collect) Set(conn net.Conn) {
+func (r *collect) Set(conn *connection) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	exist := false
@@ -39,7 +38,7 @@ func (r *collect) Set(conn net.Conn) {
 	}
 }
 
-func (r *collect) Del(conn net.Conn) {
+func (r *collect) Del(conn *connection) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	for k, v := range r.conn {
@@ -55,20 +54,20 @@ const MinWorkerId = 1
 
 type manager map[int]*collect
 
-func (r manager) Get(workerId int) net.Conn {
+func (r manager) Get(workerId int) *connection {
 	if c, ok := r[workerId]; ok {
 		return c.Get()
 	}
 	return nil
 }
 
-func (r manager) Set(workerId int, conn net.Conn) {
+func (r manager) Set(workerId int, conn *connection) {
 	if c, ok := r[workerId]; ok {
 		c.Set(conn)
 	}
 }
 
-func (r manager) Del(workerId int, conn net.Conn) {
+func (r manager) Del(workerId int, conn *connection) {
 	if c, ok := r[workerId]; ok {
 		c.Del(conn)
 	}
@@ -79,6 +78,6 @@ var Manager manager
 func init() {
 	Manager = manager{}
 	for i := MinWorkerId; i <= MaxWorkerId; i++ {
-		Manager[i] = &collect{conn: []net.Conn{}, index: 0, lock: sync.RWMutex{}}
+		Manager[i] = &collect{conn: []*connection{}, index: 0, lock: sync.Mutex{}}
 	}
 }

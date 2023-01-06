@@ -1,7 +1,17 @@
+# github.com/BurntSushi/toml v1.2.1
+## explicit; go 1.16
+github.com/BurntSushi/toml
+github.com/BurntSushi/toml/internal
 # github.com/RoaringBitmap/roaring v1.2.1
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
 github.com/RoaringBitmap/roaring/internal
+# github.com/antlabs/stl v0.0.1
+## explicit; go 1.13
+github.com/antlabs/stl/list
+# github.com/antlabs/timer v0.0.10
+## explicit; go 1.19
+github.com/antlabs/timer
 # github.com/bits-and-blooms/bitset v1.2.0
 ## explicit; go 1.14
 github.com/bits-and-blooms/bitset

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"github.com/buexplain/netsvr/internal/protocol/cmd"
 	"github.com/buexplain/netsvr/internal/protocol/registerWorker"
 	"github.com/buexplain/netsvr/internal/protocol/singleCast"
 	"github.com/buexplain/netsvr/internal/protocol/transferToWorker"
+	"github.com/buexplain/netsvr/internal/worker/heartbeat"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -14,7 +17,15 @@ import (
 )
 
 func main() {
-	conn, _ := net.Dial("tcp", "localhost:8888")
+	conn, err := net.Dial("tcp", "localhost:8888")
+	if err != nil {
+		logging.Error("连接服务端失败，%#v", err)
+		os.Exit(1)
+	}
+	go func() {
+		<-quit.ClosedCh
+		_ = conn.Close()
+	}()
 	//注册工作进程
 	reg := &registerWorker.RegisterWorker{}
 	reg.Id = 1
@@ -24,7 +35,7 @@ func main() {
 	}
 	_ = binary.Write(conn, binary.BigEndian, cmd.RegisterWorker)
 	_, _ = conn.Write(data)
-	logging.Info("注册工作进程 ok")
+	logging.Info("注册工作进程 %d ok", reg.Id)
 	//开始工作
 	dataLenBuf := make([]byte, 4)
 	for {
@@ -49,6 +60,19 @@ func main() {
 		dataBuf := make([]byte, dataLen)
 		if _, err := io.ReadFull(conn, dataBuf); err != nil {
 			logging.Error("%#v", err)
+			continue
+		}
+		//服务端响应心跳
+		if bytes.Equal(dataBuf, heartbeat.PongMessage) {
+			logging.Info("服务端响应心跳")
+			continue
+		}
+		//服务端发来心跳
+		if bytes.Equal(dataBuf, heartbeat.PingMessage) {
+			logging.Info("服务端发来心跳")
+			if err := binary.Write(conn, binary.BigEndian, uint32(len(heartbeat.PongMessage))); err == nil {
+				_, _ = conn.Write(heartbeat.PongMessage)
+			}
 			continue
 		}
 		transfer := &transferToWorker.TransferToWorker{}

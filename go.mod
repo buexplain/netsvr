@@ -9,6 +9,9 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v1.2.1 // indirect
+	github.com/antlabs/stl v0.0.1 // indirect
+	github.com/antlabs/timer v0.0.10 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/lesismal/llib v1.1.10 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
