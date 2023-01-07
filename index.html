@@ -26,6 +26,10 @@
                     ws = null;
                 }
                 ws.onmessage = function (evt) {
+                    if (evt.data === '~H27890027B~') {
+                        ws.send('~H278a0027B~');
+                        return;
+                    }
                     print("RESPONSE: " + evt.data);
                 }
                 ws.onerror = function (evt) {

@@ -3,18 +3,21 @@ package customer
 import (
 	"bytes"
 	"context"
+	"github.com/antlabs/timer"
+	"github.com/buexplain/netsvr/configs"
 	"github.com/buexplain/netsvr/internal/customer/heartbeat"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/customer/session"
 	"github.com/buexplain/netsvr/internal/protocol/transferToWorker"
 	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
+	"github.com/buexplain/netsvr/pkg/utils"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"net/http"
-	"strconv"
+	"time"
 )
 
 var server *nbhttp.Server
@@ -75,17 +78,26 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		//检查是否为心跳消息
-		if messageType == websocket.PingMessage || bytes.Equal(data, heartbeat.PingMessage) {
+		if bytes.Equal(data, heartbeat.PingMessage) {
+			//响应客户端心跳
+			err := conn.WriteMessage(websocket.TextMessage, heartbeat.PongMessage)
+			if err != nil {
+				_ = conn.Close()
+			}
+			return
+		} else if bytes.Equal(data, heartbeat.PongMessage) {
+			//客户端响应了服务端的心跳
+			return
+		} else if messageType == websocket.PingMessage {
+			//响应客户端心跳
 			err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
 			if err != nil {
-				logging.Debug("Failed to send pong %#v", err)
 				_ = conn.Close()
-				return
 			}
 			return
 		}
 		//读取前三个字节，转成工作进程的id
-		workerId, _ := strconv.Atoi(string(data[0:3]))
+		workerId := utils.BytesToInt(data, 3)
 		//编码数据成工作进程需要的格式
 		info, _ := conn.Session().(*session.Info)
 		transfer := &transferToWorker.TransferToWorker{}
@@ -105,10 +117,22 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		logging.Error("Customer websocket upgrade failed: %v", err)
 		return
 	}
-	select {
-	case <-quit.Ctx.Done():
-		_ = conn.Close()
-	default:
-		logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
+	wsConn := conn.(*websocket.Conn)
+	if err := wsConn.SetReadDeadline(time.Time{}); err != nil {
+		logging.Error("Customer websocket SetReadDeadline failed: %v", err)
+		return
 	}
+	var heartbeatNode timer.TimeNoder
+	heartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
+		//超过活跃期，服务端主动发送心跳
+		if err := wsConn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err != nil {
+			if heartbeatNode != nil {
+				heartbeatNode.Stop()
+				heartbeatNode = nil
+			}
+			_ = conn.Close()
+			logging.Error("Customer write error: %#v", err)
+		}
+	})
+	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
 }

@@ -16,6 +16,8 @@ type config struct {
 	WorkerHeartbeatIntervalSecond int64
 	//工作进程读取包大小（单位：字节）
 	WorkerReadPackLimit uint32
+	//客户连接的心跳检查时间间隔（单位：秒）
+	CustomerHeartbeatIntervalSecond int64
 }
 
 // rootPath 程序根目录
@@ -71,11 +73,15 @@ func init() {
 		os.Exit(1)
 	}
 	if Config.WorkerHeartbeatIntervalSecond <= 0 {
-		//默认120秒
-		Config.WorkerHeartbeatIntervalSecond = 120
+		//默认55秒
+		Config.WorkerHeartbeatIntervalSecond = 55
 	}
 	if Config.WorkerReadPackLimit <= 0 {
 		//默认2MB
 		Config.WorkerReadPackLimit = 2 * 1024 * 1024
+	}
+	if Config.CustomerHeartbeatIntervalSecond <= 0 {
+		//默认55秒
+		Config.CustomerHeartbeatIntervalSecond = 55
 	}
 }

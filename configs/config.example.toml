@@ -1,6 +1,8 @@
 # 当前网关服务器编号，从1开始自增，用于计算session id的范围
 NetServerId = 1
 # 工作进程的心跳检查时间间隔（单位：秒）
-WorkerHeartbeatIntervalSecond = 120
+WorkerHeartbeatIntervalSecond = 55
 # 工作进程读取包大小（单位：字节）
 WorkerReadPackLimit = 60
+# 客户连接的心跳检查时间间隔（单位：秒）
+CustomerHeartbeatIntervalSecond = 55

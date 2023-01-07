@@ -2,6 +2,7 @@ package worker
 
 import (
 	"github.com/buexplain/netsvr/internal/worker/manager"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"net"
 	"time"
 )
@@ -28,6 +29,11 @@ func (r *Server) Start() {
 				continue
 			}
 			return
+		}
+		select {
+		case <-quit.Ctx.Done():
+			continue
+		default:
 		}
 		c := manager.NewConnection(conn)
 		go c.Read()
