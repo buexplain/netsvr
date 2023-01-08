@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package toWorkerTransfer;
+
+option go_package = "./protocol/toWorker/connClose;connClose";
+
+//转发客户连接关闭的信息到工作进程
+message ConnClose {
+  //当前连接的id
+  uint32 sessionId = 1;
+  //连接的远程ip地址
+  string remoteAddr = 2;
+  //用户信息
+  bytes User = 3;
+}

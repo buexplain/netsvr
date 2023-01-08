@@ -8,6 +8,8 @@ import (
 	"github.com/buexplain/netsvr/internal/customer/heartbeat"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/customer/session"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
 	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
@@ -63,18 +65,55 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
+		//分配session id，并将添加到管理器中
 		info := &session.Info{}
 		info.Id = session.Id.Get()
 		conn.SetSession(info)
 		manager.Manager.Set(info.Id, conn)
+		//连接打开消息回传给工作进程
+		workerId := workerManager.GetProcessConnOpenWorkerId()
+		worker := workerManager.Manager.Get(workerId)
+		if worker == nil {
+			logging.Debug("Not found process conn open worker by id: %d", workerId)
+			return
+		}
+		toWorkerRoute := &toWorkerRouter.Router{}
+		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnOpen
+		co := &connOpen.ConnOpen{}
+		co.SessionId = info.Id
+		co.RemoteAddr = conn.RemoteAddr().String()
+		toWorkerRoute.Data, _ = proto.Marshal(co)
+		//转发数据到工作进程
+		data, _ := proto.Marshal(toWorkerRoute)
+		_, _ = worker.Write(data)
 		logging.Debug("Customer websocket open, session: %#v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
 		info, ok := conn.Session().(*session.Info)
-		if ok {
-			session.Id.Put(info.Id)
-			manager.Manager.Del(info.Id)
+		if !ok {
+			return
 		}
+		//回收session id
+		session.Id.Put(info.Id)
+		//连接管理中剔除该连接
+		manager.Manager.Del(info.Id)
+		//连接关闭消息回传给工作进程
+		workerId := workerManager.GetProcessConnCloseWorkerId()
+		worker := workerManager.Manager.Get(workerId)
+		if worker == nil {
+			logging.Debug("Not found process conn close worker by id: %d", workerId)
+			return
+		}
+		toWorkerRoute := &toWorkerRouter.Router{}
+		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnClose
+		cls := &connClose.ConnClose{}
+		cls.SessionId = info.Id
+		cls.User = info.User
+		cls.RemoteAddr = conn.RemoteAddr().String()
+		toWorkerRoute.Data, _ = proto.Marshal(cls)
+		//转发数据到工作进程
+		data, _ := proto.Marshal(toWorkerRoute)
+		_, _ = worker.Write(data)
 		logging.Debug("Customer websocket close: %v, session: %#v", err, info)
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
@@ -106,10 +145,11 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		tf.Data = data[3:]
 		info, _ := conn.Session().(*session.Info)
 		tf.SessionId = info.Id
+		tf.User = info.User
 		toWorkerRoute.Data, _ = proto.Marshal(tf)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Error("Not found worker by id: %d", workerId)
+			logging.Debug("Not found worker by id: %d", workerId)
 			return
 		}
 		//转发数据到工作进程
@@ -126,6 +166,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		logging.Error("Customer websocket SetReadDeadline failed: %v", err)
 		return
 	}
+	//设置心跳
 	var heartbeatNode timer.TimeNoder
 	heartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
 		//超过活跃期，服务端主动发送心跳
@@ -135,7 +176,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 				heartbeatNode = nil
 			}
 			_ = conn.Close()
-			logging.Error("Customer write error: %#v", err)
+			logging.Debug("Customer write error: %#v", err)
 		}
 	})
 	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())

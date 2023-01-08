@@ -6,6 +6,8 @@ import (
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
 	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
@@ -145,6 +147,20 @@ func (r *Connection) Read() {
 			dataBuf, _ = proto.Marshal(toServerRoute)
 			_, _ = r.Write(dataBuf)
 			logging.Info(string(ret.Data))
+		} else if toWorkerRoute.Cmd == toWorkerRouter.Cmd_ConnClose {
+			cls := &connClose.ConnClose{}
+			if err := proto.Unmarshal(toWorkerRoute.Data, cls); err != nil {
+				logging.Error("解压出具体的业务数据失败: %#v", err)
+				continue
+			}
+			logging.Info("客户端连接关闭 %s --> %d", cls.RemoteAddr, cls.SessionId)
+		} else if toWorkerRoute.Cmd == toWorkerRouter.Cmd_ConnOpen {
+			co := &connOpen.ConnOpen{}
+			if err := proto.Unmarshal(toWorkerRoute.Data, co); err != nil {
+				logging.Error("解压出具体的业务数据失败: %#v", err)
+				continue
+			}
+			logging.Info("客户端连接打开 %s --> %d", co.RemoteAddr, co.SessionId)
 		}
 	}
 }
@@ -164,6 +180,8 @@ func main() {
 	toServerRoute.Cmd = toServerRouter.Cmd_RegisterWorker
 	reg := &registerWorker.RegisterWorker{}
 	reg.Id = 1
+	reg.ProcessConnClose = true
+	reg.ProcessConnOpen = true
 	toServerRoute.Data, _ = proto.Marshal(reg)
 	data, _ := proto.Marshal(toServerRoute)
 	if err := binary.Write(conn, binary.BigEndian, uint32(len(data))); err != nil {

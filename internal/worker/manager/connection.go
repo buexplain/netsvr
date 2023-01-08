@@ -156,6 +156,12 @@ func (r *connection) Read() {
 			}
 			workerId = int(data.Id)
 			Manager.Set(workerId, r)
+			if data.ProcessConnClose {
+				SetProcessConnCloseWorkerId(data.Id)
+			}
+			if data.ProcessConnOpen {
+				SetProcessConnOpenWorkerId(data.Id)
+			}
 			logging.Info("Register a worker by id: %d", workerId)
 		} else if toServerRoute.Cmd == toServerRouter.Cmd_SingleCast {
 			//单播

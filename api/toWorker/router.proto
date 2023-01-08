@@ -6,8 +6,12 @@ option go_package = "./protocol/toWorker/router;router";
 
 //服务器发给工作进程的各种指令
 enum Cmd {
-  // Transfer 透传用户数据
+  //透传用户数据
   Transfer = 0;
+  //连接关闭
+  ConnClose = 1;
+  //连接打开
+  ConnOpen = 2;
 }
 
 //路由

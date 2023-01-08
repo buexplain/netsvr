@@ -2,6 +2,7 @@ package manager
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type collect struct {
@@ -73,6 +74,7 @@ func (r manager) Del(workerId int, conn *connection) {
 	}
 }
 
+// Manager 管理所有的工作进程
 var Manager manager
 
 func init() {
@@ -80,4 +82,32 @@ func init() {
 	for i := MinWorkerId; i <= MaxWorkerId; i++ {
 		Manager[i] = &collect{conn: []*connection{}, index: 0, lock: sync.Mutex{}}
 	}
+}
+
+// 处理客户连接关闭的工作进程编号
+var processConnCloseWorkerId *int32
+
+func SetProcessConnCloseWorkerId(workerId int32) {
+	atomic.StoreInt32(processConnCloseWorkerId, workerId)
+}
+func GetProcessConnCloseWorkerId() int {
+	return int(atomic.LoadInt32(processConnCloseWorkerId))
+}
+func init() {
+	var currentProcessConnCloseWorkerId int32 = 0
+	processConnCloseWorkerId = &currentProcessConnCloseWorkerId
+}
+
+// 处理客户连接关闭的工作进程编号
+var processConnOpenWorkerId *int32
+
+func SetProcessConnOpenWorkerId(workerId int32) {
+	atomic.StoreInt32(processConnOpenWorkerId, workerId)
+}
+func GetProcessConnOpenWorkerId() int {
+	return int(atomic.LoadInt32(processConnOpenWorkerId))
+}
+func init() {
+	var currentProcessConnOpenWorkerId int32 = 0
+	processConnOpenWorkerId = &currentProcessConnOpenWorkerId
 }

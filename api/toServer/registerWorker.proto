@@ -6,6 +6,10 @@ option go_package = "./protocol/toServer/registerWorker;registerWorker";
 
 //注册工作进程
 message RegisterWorker {
-  //服务编号，取值范围是 1~999,业务层可以自己随意安排
+  //服务编号，取值范围是 1~999,业务层可以自己随意安排，多个工作进程共用一个服务编号，则在数据转发的过程中是轮询转发的
   int32 Id = 1;
+  //该工作进程是否处理客户端连接关闭
+  bool ProcessConnClose = 2;
+  //该工作进程是否处理客户端连接开启
+  bool ProcessConnOpen = 3;
 }
