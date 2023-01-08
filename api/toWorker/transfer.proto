@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package protocol;
+package toWorkerTransfer;
 
-option go_package = "./protocol/transferToWorker;transferToWorker";
+option go_package = "./protocol/toWorker/transfer;transfer";
 
 //转发客户的信息到工作进程
-message TransferToWorker {
+message Transfer {
   //当前连接的id
   uint32 sessionId = 1;
   //当前连接发过来的数据

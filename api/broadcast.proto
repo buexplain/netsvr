@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-option go_package = "./protocol/broadcast;broadcast";
-
-//广播
-message Broadcast {
-  bytes data = 1;
-}

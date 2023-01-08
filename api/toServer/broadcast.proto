@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package toServerBroadcast;
+
+option go_package = "./protocol/toServer/broadcast;broadcast";
+
+//广播
+message Broadcast {
+  bytes data = 1;
+}

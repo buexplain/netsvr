@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package protocol;
+package toServerRegisterWorker;
 
-option go_package = "./protocol/registerWorker;registerWorker";
+option go_package = "./protocol/toServer/registerWorker;registerWorker";
 
 //注册工作进程
 message RegisterWorker {

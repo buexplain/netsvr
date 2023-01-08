@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-option go_package = "./protocol/business;business";
+package toServerSingleCast;
+
+option go_package = "./protocol/toServer/singleCast;singleCast";
 
 //单播
 message SingleCast {

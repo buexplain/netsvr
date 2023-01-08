@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/buexplain/netsvr/internal/protocol/cmd"
-	"github.com/buexplain/netsvr/internal/protocol/registerWorker"
-	"github.com/buexplain/netsvr/internal/protocol/singleCast"
-	"github.com/buexplain/netsvr/internal/protocol/transferToWorker"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
+	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
+	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"time"
 )
 
 type Connection struct {
@@ -25,6 +27,18 @@ type Connection struct {
 func NewConnection(conn net.Conn) *Connection {
 	tmp := &Connection{conn: conn, writeCh: make(chan []byte, 10), closeCh: make(chan struct{})}
 	return tmp
+}
+
+func (r *Connection) Heartbeat() {
+	t := time.NewTicker(time.Duration(55) * time.Second)
+	defer func() {
+		t.Stop()
+	}()
+	for {
+		<-t.C
+		_, _ = r.Write(heartbeat.PingMessage)
+		logging.Info("主动发送心跳")
+	}
 }
 
 func (r *Connection) Send() {
@@ -105,19 +119,32 @@ func (r *Connection) Read() {
 			_, _ = r.Write(heartbeat.PongMessage)
 			continue
 		}
-		transfer := &transferToWorker.TransferToWorker{}
-		_ = proto.Unmarshal(dataBuf, transfer)
-		//构造单播数据
-		ret := &singleCast.SingleCast{}
-		ret.Data = transfer.Data
-		ret.SessionId = transfer.SessionId
-		result, _ := proto.Marshal(ret)
-		//回写给服务器
-		//TODO 设计一个 cmd data的结构体，用于包裹cmd.SingleCast命令
-		if err := binary.Write(r.conn, binary.BigEndian, uint32(len(result))+2); err == nil {
-			_ = binary.Write(r.conn, binary.BigEndian, cmd.SingleCast)
-			_, _ = r.Write(result)
-			logging.Info(string(dataBuf))
+		//解压看看服务端传递了什么
+		toWorkerRoute := &toWorkerRouter.Router{}
+		if err := proto.Unmarshal(dataBuf, toWorkerRoute); err != nil {
+			logging.Error("解压服务端数据失败: %#v", err)
+			continue
+		}
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_Transfer {
+			//解压出具体的业务数据
+			tf := &transfer.Transfer{}
+			if err := proto.Unmarshal(toWorkerRoute.Data, tf); err != nil {
+				logging.Error("解压出具体的业务数据失败: %#v", err)
+				continue
+			}
+			//构造一个发给服务端的路由
+			toServerRoute := &toServerRouter.Router{}
+			toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+			//构造单播数据
+			ret := &singleCast.SingleCast{}
+			ret.Data = tf.Data //原模原样的把数据返回给客户端
+			ret.SessionId = tf.SessionId
+			//将业务数据放到路由上
+			toServerRoute.Data, _ = proto.Marshal(ret)
+			//回写给服务器
+			dataBuf, _ = proto.Marshal(toServerRoute)
+			_, _ = r.Write(dataBuf)
+			logging.Info(string(ret.Data))
 		}
 	}
 }
@@ -133,16 +160,19 @@ func main() {
 		_ = conn.Close()
 	}()
 	//注册工作进程
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_RegisterWorker
 	reg := &registerWorker.RegisterWorker{}
 	reg.Id = 1
-	data, _ := proto.Marshal(reg)
-	if err := binary.Write(conn, binary.BigEndian, uint32(len(data))+2); err != nil {
+	toServerRoute.Data, _ = proto.Marshal(reg)
+	data, _ := proto.Marshal(toServerRoute)
+	if err := binary.Write(conn, binary.BigEndian, uint32(len(data))); err != nil {
 		os.Exit(1)
 	}
-	_ = binary.Write(conn, binary.BigEndian, cmd.RegisterWorker)
 	_, _ = conn.Write(data)
 	logging.Info("注册工作进程 %d ok", reg.Id)
 	c := NewConnection(conn)
 	go c.Send()
+	go c.Heartbeat()
 	c.Read()
 }

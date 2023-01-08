@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package toWorkerRouter;
+
+option go_package = "./protocol/toWorker/router;router";
+
+//服务器发给工作进程的各种指令
+enum Cmd {
+  // Transfer 透传用户数据
+  Transfer = 0;
+}
+
+//路由
+message Router {
+  //命令
+  Cmd cmd = 1;
+  //命令携带的数据
+  bytes data = 2;
+}

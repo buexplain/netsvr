@@ -2,7 +2,7 @@ package business
 
 import (
 	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/protocol/singleCast"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 )

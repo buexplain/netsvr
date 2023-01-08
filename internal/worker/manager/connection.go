@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"github.com/buexplain/netsvr/configs"
 	"github.com/buexplain/netsvr/internal/customer/business"
-	"github.com/buexplain/netsvr/internal/protocol/cmd"
-	"github.com/buexplain/netsvr/internal/protocol/registerWorker"
-	"github.com/buexplain/netsvr/internal/protocol/singleCast"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
+	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
 	"github.com/buexplain/netsvr/pkg/timecache"
 	"github.com/lesismal/nbio/logging"
@@ -129,22 +129,23 @@ func (r *connection) Read() {
 		//客户端发来心跳
 		if bytes.Equal(heartbeat.PingMessage, dataBuf) {
 			//响应客户端的心跳
-			if err := binary.Write(r, binary.BigEndian, uint32(len(heartbeat.PongMessage))); err == nil {
-				_, _ = r.Write(heartbeat.PongMessage)
-			}
+			_, _ = r.Write(heartbeat.PongMessage)
 			continue
 		}
 		//客户端响应心跳
 		if bytes.Equal(heartbeat.PongMessage, dataBuf) {
 			continue
 		}
-		//解析前2个字节，确定是什么业务命令
-		currentCmd := binary.BigEndian.Uint16(dataBuf[0:2])
-		logging.Debug("Receive worker command: %d", currentCmd)
-		if currentCmd == cmd.RegisterWorker {
+		toServerRoute := &toServerRouter.Router{}
+		if err := proto.Unmarshal(dataBuf, toServerRoute); err != nil {
+			logging.Error("%#v", err)
+			continue
+		}
+		logging.Debug("Receive worker command: %d", toServerRoute.Cmd)
+		if toServerRoute.Cmd == toServerRouter.Cmd_RegisterWorker {
 			//注册工作进程
 			data := &registerWorker.RegisterWorker{}
-			if err := proto.Unmarshal(dataBuf[2:], data); err != nil {
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
 				logging.Error("%#v", err)
 				continue
 			}
@@ -156,15 +157,14 @@ func (r *connection) Read() {
 			workerId = int(data.Id)
 			Manager.Set(workerId, r)
 			logging.Info("Register a worker by id: %d", workerId)
-		} else if currentCmd == cmd.SingleCast {
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_SingleCast {
 			//单播
-			r := &singleCast.SingleCast{}
-			if err := proto.Unmarshal(dataBuf[2:], r); err != nil {
+			data := &singleCast.SingleCast{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
 				logging.Error("%#v", err)
 				continue
 			}
-			business.SingleCast(r)
-			continue
+			business.SingleCast(data)
 		}
 	}
 }

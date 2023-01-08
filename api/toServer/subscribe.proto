@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package protocol;
+package toServerSubscribe;
 
-option go_package = "./protocol/subscribe;subscribe";
+option go_package = "./protocol/toServer/subscribe;subscribe";
 
 //订阅
 message Subscribe {

@@ -8,7 +8,8 @@ import (
 	"github.com/buexplain/netsvr/internal/customer/heartbeat"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/transferToWorker"
+	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/buexplain/netsvr/pkg/utils"
@@ -99,17 +100,20 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//读取前三个字节，转成工作进程的id
 		workerId := utils.BytesToInt(data, 3)
 		//编码数据成工作进程需要的格式
+		toWorkerRoute := &toWorkerRouter.Router{}
+		toWorkerRoute.Cmd = toWorkerRouter.Cmd_Transfer
+		tf := &transfer.Transfer{}
+		tf.Data = data[3:]
 		info, _ := conn.Session().(*session.Info)
-		transfer := &transferToWorker.TransferToWorker{}
-		transfer.Data = data[3:]
-		transfer.SessionId = info.Id
-		data, _ = proto.Marshal(transfer)
+		tf.SessionId = info.Id
+		toWorkerRoute.Data, _ = proto.Marshal(tf)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
 			logging.Error("Not found worker by id: %d", workerId)
 			return
 		}
 		//转发数据到工作进程
+		data, _ = proto.Marshal(toWorkerRoute)
 		_, _ = worker.Write(data)
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)

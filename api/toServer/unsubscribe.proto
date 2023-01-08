@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-option go_package = "./protocol/unsubscribe;unsubscribe";
+package toServerUnsubscribe;
+
+option go_package = "./protocol/toServer/unsubscribe;unsubscribe";
 
 //取消订阅
 message Unsubscribe {
