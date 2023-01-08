@@ -12,7 +12,7 @@ var singleCastCh chan *singleCast.SingleCast
 func init() {
 	singleCastCh = make(chan *singleCast.SingleCast, 1000)
 	for i := 0; i < 10; i++ {
-		go consumer()
+		go singleCastChConsumer()
 	}
 }
 
@@ -20,11 +20,11 @@ func SingleCast(singleCast *singleCast.SingleCast) {
 	singleCastCh <- singleCast
 }
 
-func consumer() {
+func singleCastChConsumer() {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Error("%#v", r)
-			go consumer()
+			go singleCastChConsumer()
 		}
 	}()
 	for v := range singleCastCh {

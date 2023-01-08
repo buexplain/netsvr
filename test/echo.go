@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatusOk"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
@@ -134,19 +135,30 @@ func (r *Connection) Read() {
 				logging.Error("解压出具体的业务数据失败: %#v", err)
 				continue
 			}
-			//构造一个发给服务端的路由
 			toServerRoute := &toServerRouter.Router{}
-			toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
-			//构造单播数据
-			ret := &singleCast.SingleCast{}
-			ret.Data = tf.Data //原模原样的把数据返回给客户端
-			ret.SessionId = tf.SessionId
-			//将业务数据放到路由上
-			toServerRoute.Data, _ = proto.Marshal(ret)
+			if string(tf.Data) == "发送登录指令" {
+				//客户端发送了登录指令
+				toServerRoute.Cmd = toServerRouter.Cmd_SetUserLoginStatusOk
+				ret := &setUserLoginStatusOk.SetUserLoginStatusOk{}
+				ret.Data = []byte("登录成功")
+				ret.UserInfo = []byte("用户名:刘备,用户Id:1")
+				ret.SessionId = tf.SessionId
+				//将业务数据放到路由上
+				toServerRoute.Data, _ = proto.Marshal(ret)
+			} else {
+				//构造一个发给服务端的路由
+				toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+				//构造单播数据
+				ret := &singleCast.SingleCast{}
+				ret.Data = tf.Data //原模原样的把数据返回给客户端
+				ret.SessionId = tf.SessionId
+				//将业务数据放到路由上
+				toServerRoute.Data, _ = proto.Marshal(ret)
+				logging.Info(string(tf.User) + " --> " + string(ret.Data))
+			}
 			//回写给服务器
 			dataBuf, _ = proto.Marshal(toServerRoute)
 			_, _ = r.Write(dataBuf)
-			logging.Info(string(ret.Data))
 		} else if toWorkerRoute.Cmd == toWorkerRouter.Cmd_ConnClose {
 			cls := &connClose.ConnClose{}
 			if err := proto.Unmarshal(toWorkerRoute.Data, cls); err != nil {

@@ -66,10 +66,15 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
 		//分配session id，并将添加到管理器中
-		info := &session.Info{}
-		info.Id = session.Id.Get()
+		info := session.NewInfo(session.Id.Get())
 		conn.SetSession(info)
-		manager.Manager.Set(info.Id, conn)
+		manager.Manager.Set(info.GetSessionId(), conn)
+		//设定倒计时，检查登录是否成功，不成功的，就关闭客户端连接
+		heartbeat.Timer.AfterFunc(40*time.Second, func() {
+			if info, ok := conn.Session().(*session.Info); ok && info.GetLoginStatus() != session.LoginStatusOk {
+				_ = conn.Close()
+			}
+		})
 		//连接打开消息回传给工作进程
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -80,7 +85,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute := &toWorkerRouter.Router{}
 		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnOpen
 		co := &connOpen.ConnOpen{}
-		co.SessionId = info.Id
+		co.SessionId = info.GetSessionId()
 		co.RemoteAddr = conn.RemoteAddr().String()
 		toWorkerRoute.Data, _ = proto.Marshal(co)
 		//转发数据到工作进程
@@ -93,10 +98,10 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+		//先在连接管理中剔除该连接
+		manager.Manager.Del(info.GetSessionId())
 		//回收session id
-		session.Id.Put(info.Id)
-		//连接管理中剔除该连接
-		manager.Manager.Del(info.Id)
+		session.Id.Put(info.GetSessionId())
 		//连接关闭消息回传给工作进程
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -107,14 +112,13 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute := &toWorkerRouter.Router{}
 		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnClose
 		cls := &connClose.ConnClose{}
-		cls.SessionId = info.Id
-		cls.User = info.User
+		cls.SessionId = info.GetSessionId()
+		cls.User = info.GetUser()
 		cls.RemoteAddr = conn.RemoteAddr().String()
 		toWorkerRoute.Data, _ = proto.Marshal(cls)
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
 		_, _ = worker.Write(data)
-		logging.Debug("Customer websocket close: %v, session: %#v", err, info)
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		//检查是否为心跳消息
@@ -136,6 +140,29 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		info, ok := conn.Session().(*session.Info)
+		if !ok {
+			return
+		}
+		//判断登录状态
+		loginStatus := info.GetLoginStatus()
+		if loginStatus == session.LoginStatusOk {
+			goto label
+		} else if loginStatus == session.LoginStatusWait {
+			//等待登录，允许客户端发送数据到工作进程，进行登录操作
+			info.SetLoginStatus(session.LoginStatusIng)
+			//设定倒计时，检查登录是否成功，不成功的，就关闭客户端连接
+			heartbeat.Timer.AfterFunc(30*time.Second, func() {
+				if info, ok := conn.Session().(*session.Info); ok && info.GetLoginStatus() != session.LoginStatusOk {
+					_ = conn.Close()
+				}
+			})
+			goto label
+		} else if loginStatus == session.LoginStatusIng {
+			//登录中，不允许客户端发送任何数据
+			return
+		}
+	label:
 		//读取前三个字节，转成工作进程的id
 		workerId := utils.BytesToInt(data, 3)
 		//编码数据成工作进程需要的格式
@@ -143,9 +170,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute.Cmd = toWorkerRouter.Cmd_Transfer
 		tf := &transfer.Transfer{}
 		tf.Data = data[3:]
-		info, _ := conn.Session().(*session.Info)
-		tf.SessionId = info.Id
-		tf.User = info.User
+		tf.SessionId = info.GetSessionId()
+		tf.User = info.GetUser()
 		toWorkerRoute.Data, _ = proto.Marshal(tf)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {

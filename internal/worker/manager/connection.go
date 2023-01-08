@@ -7,6 +7,7 @@ import (
 	"github.com/buexplain/netsvr/internal/customer/business"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatusOk"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
 	"github.com/buexplain/netsvr/pkg/timecache"
@@ -18,20 +19,20 @@ import (
 	"time"
 )
 
-type connection struct {
+type Connection struct {
 	conn           net.Conn
 	writeCh        chan []byte
 	lastActiveTime *int64
 	closeCh        chan struct{}
 }
 
-func NewConnection(conn net.Conn) *connection {
+func NewConnection(conn net.Conn) *Connection {
 	var lastActiveTime int64 = 0
-	tmp := &connection{conn: conn, writeCh: make(chan []byte, 10), lastActiveTime: &lastActiveTime, closeCh: make(chan struct{})}
+	tmp := &Connection{conn: conn, writeCh: make(chan []byte, 10), lastActiveTime: &lastActiveTime, closeCh: make(chan struct{})}
 	return tmp
 }
 
-func (r *connection) Send() {
+func (r *Connection) Send() {
 	defer func() {
 		//收集异常退出的信息
 		if err := recover(); err != nil {
@@ -60,7 +61,7 @@ func (r *connection) Send() {
 	}
 }
 
-func (r *connection) Write(data []byte) (n int, err error) {
+func (r *Connection) Write(data []byte) (n int, err error) {
 	select {
 	case <-r.closeCh:
 		return 0, nil
@@ -70,7 +71,7 @@ func (r *connection) Write(data []byte) (n int, err error) {
 	}
 }
 
-func (r *connection) Read() {
+func (r *Connection) Read() {
 	var workerId = 0
 	heartbeatNode := heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.WorkerHeartbeatIntervalSecond)*time.Second, func() {
 		if timecache.Unix()-atomic.LoadInt64(r.lastActiveTime) < configs.Config.WorkerHeartbeatIntervalSecond {
@@ -163,6 +164,14 @@ func (r *connection) Read() {
 				SetProcessConnOpenWorkerId(data.Id)
 			}
 			logging.Info("Register a worker by id: %d", workerId)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_SetUserLoginStatusOk {
+			//用户登录成功
+			data := &setUserLoginStatusOk.SetUserLoginStatusOk{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.SetUserLoginStatusOk(data)
 		} else if toServerRoute.Cmd == toServerRouter.Cmd_SingleCast {
 			//单播
 			data := &singleCast.SingleCast{}

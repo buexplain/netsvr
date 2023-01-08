@@ -6,20 +6,22 @@ option go_package = "./protocol/toServer/router;router";
 
 //工作进程，发给服务器的各种指令
 enum Cmd {
-  // RegisterWorker 注册工作进程
+  //RegisterWorker 注册工作进程
   RegisterWorker = 0;
-  // BroadCast 广播
-  BroadCast = 1;
-  // Multicast 组播
-  Multicast = 2;
-  // SingleCast 单播
-  SingleCast = 3;
-  // Subscribe 订阅
-  Subscribe = 4;
-  // Unsubscribe 取消订阅
-  Unsubscribe = 5;
-  // Publish 发布
-  Publish = 6;
+  //SetUserLoginStatusOk 设置用户登录状态为成功
+  SetUserLoginStatusOk = 1;
+  //BroadCast 广播
+  BroadCast = 2;
+  //Multicast 组播
+  Multicast = 3;
+  //SingleCast 单播
+  SingleCast = 4;
+  //Subscribe 订阅
+  Subscribe = 5;
+  //Unsubscribe 取消订阅
+  Unsubscribe = 6;
+  //Publish 发布
+  Publish = 7;
 }
 
 //路由
