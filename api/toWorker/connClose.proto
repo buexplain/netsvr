@@ -11,5 +11,5 @@ message ConnClose {
   //连接的远程ip地址
   string remoteAddr = 2;
   //用户信息
-  bytes User = 3;
+  string User = 3;
 }

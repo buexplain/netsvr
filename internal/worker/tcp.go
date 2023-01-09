@@ -3,6 +3,7 @@ package worker
 import (
 	"github.com/buexplain/netsvr/internal/worker/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
+	"github.com/lesismal/nbio/logging"
 	"net"
 	"time"
 )
@@ -12,6 +13,9 @@ type Server struct {
 }
 
 func (r *Server) Start() {
+	defer func() {
+		logging.Debug("Worker tcp stop accept")
+	}()
 	var delay int64 = 0
 	for {
 		conn, err := r.listener.Accept()
@@ -32,12 +36,15 @@ func (r *Server) Start() {
 		}
 		select {
 		case <-quit.Ctx.Done():
+			//进程即将停止，不再受理新的连接
+			_ = conn.Close()
 			continue
 		default:
+			c := manager.NewConnection(conn)
+			go c.Read()
+			quit.Wg.Add(1)
+			go c.Send()
 		}
-		c := manager.NewConnection(conn)
-		go c.Read()
-		go c.Send()
 	}
 }
 
@@ -55,5 +62,10 @@ func Start() {
 }
 
 func Shutdown() {
-	_ = server.listener.Close()
+	err := server.listener.Close()
+	if err != nil {
+		logging.Error("Worker tcp shutdown failed: %v", err)
+		return
+	}
+	logging.Info("Worker tcp shutdown")
 }

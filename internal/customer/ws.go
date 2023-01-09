@@ -55,6 +55,7 @@ func Shutdown() {
 func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-quit.Ctx.Done():
+		//进程即将关闭，不再受理新的连接
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
 		return
@@ -69,12 +70,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		info := session.NewInfo(session.Id.Get())
 		conn.SetSession(info)
 		manager.Manager.Set(info.GetSessionId(), conn)
-		//设定倒计时，检查登录是否成功，不成功的，就关闭客户端连接
-		heartbeat.Timer.AfterFunc(40*time.Second, func() {
-			if info, ok := conn.Session().(*session.Info); ok && info.GetLoginStatus() != session.LoginStatusOk {
-				_ = conn.Close()
-			}
-		})
 		//连接打开消息回传给工作进程
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -151,12 +146,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		} else if loginStatus == session.LoginStatusWait {
 			//等待登录，允许客户端发送数据到工作进程，进行登录操作
 			info.SetLoginStatus(session.LoginStatusIng)
-			//设定倒计时，检查登录是否成功，不成功的，就关闭客户端连接
-			heartbeat.Timer.AfterFunc(30*time.Second, func() {
-				if info, ok := conn.Session().(*session.Info); ok && info.GetLoginStatus() != session.LoginStatusOk {
-					_ = conn.Close()
-				}
-			})
 			goto label
 		} else if loginStatus == session.LoginStatusIng {
 			//登录中，不允许客户端发送任何数据

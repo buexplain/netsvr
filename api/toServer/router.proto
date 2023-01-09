@@ -8,8 +8,8 @@ option go_package = "./protocol/toServer/router;router";
 enum Cmd {
   //RegisterWorker 注册工作进程
   RegisterWorker = 0;
-  //SetUserLoginStatusOk 设置用户登录状态为成功
-  SetUserLoginStatusOk = 1;
+  //SetUserLoginStatus 设置用户登录状态
+  SetUserLoginStatus = 1;
   //BroadCast 广播
   BroadCast = 2;
   //Multicast 组播

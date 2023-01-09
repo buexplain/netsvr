@@ -7,9 +7,10 @@ import (
 	"github.com/buexplain/netsvr/internal/customer/business"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatusOk"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/buexplain/netsvr/pkg/timecache"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
@@ -28,12 +29,57 @@ type Connection struct {
 
 func NewConnection(conn net.Conn) *Connection {
 	var lastActiveTime int64 = 0
-	tmp := &Connection{conn: conn, writeCh: make(chan []byte, 10), lastActiveTime: &lastActiveTime, closeCh: make(chan struct{})}
+	tmp := &Connection{conn: conn, writeCh: make(chan []byte, 100), lastActiveTime: &lastActiveTime, closeCh: make(chan struct{})}
 	return tmp
+}
+
+func (r *Connection) done() {
+	//处理通道中的剩余数据
+	for {
+		for i := len(r.writeCh); i > 0; i-- {
+			v := <-r.writeCh
+			r.execute(v)
+		}
+		if len(r.writeCh) == 0 {
+			break
+		}
+	}
+	//再次处理通道中的剩余数据，直到超时退出
+	for {
+		select {
+		case v := <-r.writeCh:
+			r.execute(v)
+		case <-time.After(3 * time.Second):
+			return
+		}
+	}
+}
+
+func (r *Connection) execute(data []byte) {
+	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
+		if _, err = r.conn.Write(data); err == nil {
+			atomic.StoreInt64(r.lastActiveTime, timecache.Unix())
+		} else {
+			logging.Error("Worker write error: %#v", err)
+		}
+	} else {
+		logging.Error("Worker write error: %#v", err)
+	}
+}
+func (r *Connection) close() {
+	select {
+	case <-r.closeCh:
+	default:
+		close(r.closeCh)
+		_ = r.conn.Close()
+	}
 }
 
 func (r *Connection) Send() {
 	defer func() {
+		//写协程退出，直接关闭连接
+		r.close()
+		quit.Wg.Done()
 		//收集异常退出的信息
 		if err := recover(); err != nil {
 			logging.Error("Abnormal exit a worker, error: %#v", err)
@@ -44,19 +90,15 @@ func (r *Connection) Send() {
 	for {
 		select {
 		case _ = <-r.closeCh:
+			//连接已被关闭，丢弃所有的数据
+			close(r.writeCh)
+			return
+		case <-quit.Ctx.Done():
+			//进程即将停止，处理通道中剩余数据，尽量保证用户消息转发到工作进程
+			r.done()
 			return
 		case data := <-r.writeCh:
-			if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
-				if _, err = r.conn.Write(data); err == nil {
-					atomic.StoreInt64(r.lastActiveTime, timecache.Unix())
-				} else {
-					logging.Error("Worker write error: %#v", err)
-					continue
-				}
-			} else {
-				logging.Error("Worker write error: %#v", err)
-				continue
-			}
+			r.execute(data)
 		}
 	}
 }
@@ -64,6 +106,10 @@ func (r *Connection) Send() {
 func (r *Connection) Write(data []byte) (n int, err error) {
 	select {
 	case <-r.closeCh:
+		//工作进程即将关闭，停止转发消息到工作进程
+		return 0, nil
+	case <-quit.Ctx.Done():
+		//进程即将关闭，停止转发消息到工作进程
 		return 0, nil
 	default:
 		r.writeCh <- data
@@ -102,10 +148,8 @@ func (r *Connection) Read() {
 		dataLenBuf[3] = 0
 		//获取前4个字节，确定数据包长度
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
-			//读失败了，直接干掉这个连接，让客户端重新连接进来
-			close(r.closeCh)
-			_ = r.conn.Close()
-			logging.Error("Worker read error: %#v", err)
+			//读失败了，直接干掉这个连接，让客户端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
+			r.close()
 			break
 		}
 		if len(dataLenBuf) != 4 {
@@ -120,8 +164,7 @@ func (r *Connection) Read() {
 		//获取数据包
 		dataBuf := make([]byte, dataLen)
 		if _, err := io.ReadFull(r.conn, dataBuf); err != nil {
-			close(r.closeCh)
-			_ = r.conn.Close()
+			r.close()
 			logging.Error("Worker read error: %#v", err)
 			break
 		}
@@ -151,8 +194,8 @@ func (r *Connection) Read() {
 				continue
 			}
 			if MinWorkerId > data.Id || data.Id > MaxWorkerId {
+				r.close()
 				logging.Error("Wrong work id %d not in range: %d ~ %d", data.Id, MinWorkerId, MaxWorkerId)
-				_ = r.conn.Close()
 				break
 			}
 			workerId = int(data.Id)
@@ -164,14 +207,14 @@ func (r *Connection) Read() {
 				SetProcessConnOpenWorkerId(data.Id)
 			}
 			logging.Info("Register a worker by id: %d", workerId)
-		} else if toServerRoute.Cmd == toServerRouter.Cmd_SetUserLoginStatusOk {
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_SetUserLoginStatus {
 			//用户登录成功
-			data := &setUserLoginStatusOk.SetUserLoginStatusOk{}
+			data := &setUserLoginStatus.SetUserLoginStatus{}
 			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
 				logging.Error("%#v", err)
 				continue
 			}
-			business.SetUserLoginStatusOk(data)
+			business.SetUserLoginStatus.Send(data)
 		} else if toServerRoute.Cmd == toServerRouter.Cmd_SingleCast {
 			//单播
 			data := &singleCast.SingleCast{}
@@ -179,7 +222,7 @@ func (r *Connection) Read() {
 				logging.Error("%#v", err)
 				continue
 			}
-			business.SingleCast(data)
+			business.SingleCast.Send(data)
 		}
 	}
 }

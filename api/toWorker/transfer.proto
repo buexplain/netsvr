@@ -9,7 +9,7 @@ message Transfer {
   //当前连接的id
   uint32 sessionId = 1;
   //用户信息
-  bytes User = 3;
+  string User = 3;
   //当前连接发过来的数据
   bytes data = 2;
 }

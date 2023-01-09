@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatusOk"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
@@ -136,15 +136,28 @@ func (r *Connection) Read() {
 				continue
 			}
 			toServerRoute := &toServerRouter.Router{}
-			if string(tf.Data) == "发送登录指令" {
-				//客户端发送了登录指令
-				toServerRoute.Cmd = toServerRouter.Cmd_SetUserLoginStatusOk
-				ret := &setUserLoginStatusOk.SetUserLoginStatusOk{}
+			if string(tf.Data) == "loginOk" {
+				//客户端发送正确的账号密码进行登录
+				toServerRoute.Cmd = toServerRouter.Cmd_SetUserLoginStatus
+				ret := &setUserLoginStatus.SetUserLoginStatus{}
+				ret.LoginStatus = true
 				ret.Data = []byte("登录成功")
-				ret.UserInfo = []byte("用户名:刘备,用户Id:1")
+				ret.UserInfo = "用户名:刘备,用户Id:1"
 				ret.SessionId = tf.SessionId
 				//将业务数据放到路由上
 				toServerRoute.Data, _ = proto.Marshal(ret)
+				logging.Info("登录成功")
+			} else if string(tf.Data) == "loginFail" {
+				//客户端发送错误的账号密码进行登录
+				toServerRoute.Cmd = toServerRouter.Cmd_SetUserLoginStatus
+				ret := &setUserLoginStatus.SetUserLoginStatus{}
+				ret.LoginStatus = false
+				ret.UserInfo = ""
+				ret.Data = []byte("登录失败")
+				ret.SessionId = tf.SessionId
+				//将业务数据放到路由上
+				toServerRoute.Data, _ = proto.Marshal(ret)
+				logging.Info("登录失败")
 			} else {
 				//构造一个发给服务端的路由
 				toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
@@ -154,7 +167,7 @@ func (r *Connection) Read() {
 				ret.SessionId = tf.SessionId
 				//将业务数据放到路由上
 				toServerRoute.Data, _ = proto.Marshal(ret)
-				logging.Info(string(tf.User) + " --> " + string(ret.Data))
+				logging.Info(tf.User + " --> " + string(ret.Data))
 			}
 			//回写给服务器
 			dataBuf, _ = proto.Marshal(toServerRoute)
@@ -165,7 +178,7 @@ func (r *Connection) Read() {
 				logging.Error("解压出具体的业务数据失败: %#v", err)
 				continue
 			}
-			logging.Info("客户端连接关闭 %s --> %d", cls.RemoteAddr, cls.SessionId)
+			logging.Info("客户端连接关闭 %s --> %s --> %d", cls.User, cls.RemoteAddr, cls.SessionId)
 		} else if toWorkerRoute.Cmd == toWorkerRouter.Cmd_ConnOpen {
 			co := &connOpen.ConnOpen{}
 			if err := proto.Unmarshal(toWorkerRoute.Data, co); err != nil {

@@ -19,9 +19,13 @@ func main() {
 	go customer.Start()
 	select {
 	case <-quit.ClosedCh:
+		//先发出关闭信号，通知所有协程
 		quit.Cancel()
+		//等待协程退出
 		quit.Wg.Wait()
+		//关闭工作进程服务器
 		worker.Shutdown()
+		//关闭客户服务器
 		customer.Shutdown()
 		logging.Info("关闭进程成功: pid --> %d", os.Getpid())
 		os.Exit(0)

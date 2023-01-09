@@ -6,7 +6,7 @@ type Info struct {
 	//网关session id，初次设定后便是只读，所以可以导出
 	sessionId uint32
 	//用户信息
-	user []byte
+	user string
 	//登录状态
 	loginStatus int8
 	mux         sync.RWMutex
@@ -24,13 +24,13 @@ func (r *Info) GetSessionId() uint32 {
 	return r.sessionId
 }
 
-func (r *Info) GetUser() []byte {
+func (r *Info) GetUser() string {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	return r.user
 }
 
-func (r *Info) SetUser(user []byte) {
+func (r *Info) SetUser(user string) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.user = user
@@ -46,9 +46,10 @@ func (r *Info) SetLoginStatus(loginStatus int8) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.loginStatus = loginStatus
+	r.user = ""
 }
 
-func (r *Info) SetLoginStatusOk(userInfo []byte) {
+func (r *Info) SetLoginStatusOk(userInfo string) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.loginStatus = LoginStatusOk

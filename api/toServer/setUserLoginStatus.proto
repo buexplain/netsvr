@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package toServerSetUserLoginStatusOk;
+
+option go_package = "./protocol/toServer/setUserLoginStatus;setUserLoginStatus";
+
+//设置用户登录状态
+message SetUserLoginStatus {
+  uint32 sessionId = 1;
+  //成功是true，失败是false
+  bool loginStatus = 2;
+  //存储到网关的用户信息
+  string userInfo = 3;
+  //转发给用户的数据
+  bytes data = 4;
+}

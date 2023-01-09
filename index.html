@@ -60,12 +60,20 @@
                 ws.close();
                 return false;
             };
-            document.getElementById("login").onclick = function (evt) {
+            document.getElementById("loginOk").onclick = function (evt) {
                 if (!ws) {
                     return false;
                 }
-                print("SEND: " + '发送登录指令');
-                ws.send('001' + '发送登录指令');
+                print("SEND: " + '发送正确的账号密码进行登录');
+                ws.send('001' + 'loginOk');
+                return false;
+            };
+            document.getElementById("loginFail").onclick = function (evt) {
+                if (!ws) {
+                    return false;
+                }
+                print("SEND: " + '发送错误的账号密码进行登录');
+                ws.send('001' + 'loginFail');
                 return false;
             };
         });
@@ -78,7 +86,8 @@
             <form>
                 <button id="open">Open</button>
                 <button id="close">Close</button>
-                <button id="login">Login</button>
+                <button id="loginOk">loginOk</button>
+                <button id="loginFail">loginFail</button>
                 <p>
                     <input id="input" type="text" value="Hello world!">
                 </p>
