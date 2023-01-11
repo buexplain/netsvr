@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package toServerSubscribe;
+
+option go_package = "./protocol/toServer/reqSessionInfo;reqSessionInfo";
+
+//根据session id获取网关中的用户信息
+message ReqSessionInfo {
+  uint32 sessionId = 1;
+}

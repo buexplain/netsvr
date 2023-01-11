@@ -7,5 +7,6 @@ option go_package = "./protocol/toServer/singleCast;singleCast";
 //单播
 message SingleCast {
   uint32 sessionId = 1;
+  //转发给用户的数据
   bytes data = 2;
 }

@@ -27,7 +27,8 @@ type Multicast struct {
 	unknownFields protoimpl.UnknownFields
 
 	SessionIds []uint32 `protobuf:"varint,1,rep,packed,name=sessionIds,proto3" json:"sessionIds,omitempty"`
-	Data       []byte   `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// 转发给用户的数据
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
 func (x *Multicast) Reset() {

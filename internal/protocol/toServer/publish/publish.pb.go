@@ -26,8 +26,10 @@ type Publish struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// 某个主题，网关会根据主题，拿到该主题下的所有session id
 	Topic string `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
-	Data  []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// 转发给用户的数据
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
 func (x *Publish) Reset() {

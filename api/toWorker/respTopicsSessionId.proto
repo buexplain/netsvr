@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package toWorkerTransfer;
+
+option go_package = "./protocol/toWorker/respTopicsSessionId;respTopicsSessionId";
+
+//返回某几个主题的session id到工作进程
+message RespTopicsSessionId {
+  //将所有主题的session id都合并到一个大的bitmap中
+  //bitmap对象的序列化后的base64数据，工作进程需要反解才能得到具体的session id
+  string bitmap = 1;
+}

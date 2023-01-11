@@ -7,5 +7,8 @@ option go_package = "./protocol/toServer/unsubscribe;unsubscribe";
 //取消订阅
 message Unsubscribe {
   uint32 sessionId = 1;
-  string topic = 2;
+  //取消订阅的主题，可以一次性传递多个
+  repeated string topics = 2;
+  //转发给用户的数据
+  bytes data = 3;
 }

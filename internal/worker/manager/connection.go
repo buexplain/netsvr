@@ -5,10 +5,25 @@ import (
 	"encoding/binary"
 	"github.com/buexplain/netsvr/configs"
 	"github.com/buexplain/netsvr/internal/customer/business"
+	customerManager "github.com/buexplain/netsvr/internal/customer/manager"
+	"github.com/buexplain/netsvr/internal/customer/session"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/broadcast"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/multicast"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/publish"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/reqSessionInfo"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/reqTopicsSessionId"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setSessionUser"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/subscribe"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/unsubscribe"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/respSessionInfo"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/respTopicsSessionId"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/respTotalSessionId"
+	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/buexplain/netsvr/pkg/timecache"
@@ -130,7 +145,7 @@ func (r *Connection) Read() {
 	defer func() {
 		//收集异常退出的信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker of id: %d, error: %#v", workerId)
+			logging.Error("Abnormal exit a worker of id: %d, error: %#v", workerId, err)
 		}
 		//注销掉工作进程的id
 		if workerId > 0 {
@@ -158,8 +173,10 @@ func (r *Connection) Read() {
 		//这里采用大端序，小于2个字节，则说明业务命令都没有
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
 		if dataLen < 2 || dataLen > configs.Config.WorkerReadPackLimit {
-			logging.Error("Worker data is too large", dataLen)
-			continue
+			//工作进程不按套路出牌，不老实，直接关闭它
+			r.close()
+			logging.Error("Worker data is too large: %d", dataLen)
+			break
 		}
 		//获取数据包
 		dataBuf := make([]byte, dataLen)
@@ -214,7 +231,7 @@ func (r *Connection) Read() {
 				logging.Error("%#v", err)
 				continue
 			}
-			business.SetUserLoginStatus.Send(data)
+			business.SetUserLoginStatus(data)
 		} else if toServerRoute.Cmd == toServerRouter.Cmd_SingleCast {
 			//单播
 			data := &singleCast.SingleCast{}
@@ -222,7 +239,109 @@ func (r *Connection) Read() {
 				logging.Error("%#v", err)
 				continue
 			}
-			business.SingleCast.Send(data)
+			business.SingleCast(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_BroadCast {
+			//广播
+			data := &broadcast.Broadcast{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.Broadcast(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_Multicast {
+			//组播
+			data := &multicast.Multicast{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.Multicast(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_MulticastByBitmap {
+			//根据包含session id的bitmap进行组播
+			data := &multicastByBitmap.MulticastByBitmap{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.MulticastByBitmap(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_Subscribe {
+			//订阅
+			data := &subscribe.Subscribe{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.Subscribe(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_Unsubscribe {
+			//取消订阅
+			data := &unsubscribe.Unsubscribe{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.Unsubscribe(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_Publish {
+			//发布消息
+			data := &publish.Publish{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.Publish(data)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_ReqTotalSessionId {
+			//获取网关中全部的session id
+			bitmap := session.Id.GetAllocated()
+			data := &respTotalSessionId.RespTotalSessionId{}
+			data.Bitmap, _ = bitmap.ToBase64()
+			route := &toWorkerRouter.Router{}
+			route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
+			route.Data, _ = proto.Marshal(data)
+			b, _ := proto.Marshal(route)
+			_, _ = r.Write(b)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_ReqTopicsSessionId {
+			//获取网关中的某几个主题的session id
+			req := &reqTopicsSessionId.ReqTopicsSessionId{}
+			if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			bitmap := session.Topics.Gets(req.Topics)
+			data := &respTopicsSessionId.RespTopicsSessionId{}
+			data.Bitmap, _ = bitmap.ToBase64()
+			route := &toWorkerRouter.Router{}
+			route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
+			route.Data, _ = proto.Marshal(data)
+			b, _ := proto.Marshal(route)
+			_, _ = r.Write(b)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_ReqSessionInfo {
+			//根据session id获取网关中的用户信息
+			req := &reqSessionInfo.ReqSessionInfo{}
+			if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			data := &respSessionInfo.RespSessionInfo{}
+			data.SessionId = req.SessionId
+			wsConn := customerManager.Manager.Get(req.SessionId)
+			if wsConn != nil {
+				data.RemoteAddr = wsConn.RemoteAddr().String()
+				if info, ok := wsConn.Session().(*session.Info); ok {
+					info.GetToRespSessionInfo(data)
+				}
+			}
+			route := &toWorkerRouter.Router{}
+			route.Cmd = toWorkerRouter.Cmd_RespSessionInfo
+			route.Data, _ = proto.Marshal(data)
+			b, _ := proto.Marshal(route)
+			_, _ = r.Write(b)
+		} else if toServerRoute.Cmd == toServerRouter.Cmd_SetSessionUser {
+			//设置网关的session面存储的用户信息
+			data := &setSessionUser.SetSessionUser{}
+			if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
+				logging.Error("%#v", err)
+				continue
+			}
+			business.SetSessionUser(data)
 		}
 	}
 }

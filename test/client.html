@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
+<div style="display:flex">
+    <div style="width: 40%">
+        <p>
+            <button id="open">打开连接</button>
+            <button id="close">关闭连接</button>
+            <button id="clear">清屏</button>
+        </p>
+
+        <p>
+            <button id="loginOk">测试登录成功</button>
+            <button id="loginFail">测试登录失败</button>
+        </p>
+    </div>
+    <div style="width: 40%;max-height: 70vh;overflow-y: scroll;">
+        <div id="sessionId"></div>
+        <div id="output"></div>
+    </div>
+</div>
+
+<script>
+    var ws;
+    var heartbeat = 0;
+    var output = document.getElementById("output");
+    var input = document.getElementById("input");
+    var print = function (message) {
+        var d = document.createElement("div");
+        d.textContent = message;
+        output.appendChild(d);
+        output.scroll(0, output.scrollHeight);
+    };
+
+    function open() {
+        if (ws) {
+            return;
+        }
+        ws = new WebSocket("ws:\/\/127.0.0.1:8080\/gateway");
+        ws.onopen = function (evt) {
+            heartbeat = setInterval(function () {
+                //每隔30秒，发送一次心跳信息
+                ws.send('~H27890027B~');
+            }, 1000 * 30)
+        }
+        ws.onclose = function (evt) {
+            ws = null;
+            clearInterval(heartbeat);
+            heartbeat = 0;
+            document.getElementById("sessionId").innerText = '断开网关成功，sessionId: 0';
+        }
+        ws.onmessage = function (evt) {
+            //服务端发送心跳检查，则响应一个心跳给服务端
+            if (evt.data === '~H27890027B~') {
+                ws.send('~H278a0027B~');
+                return;
+            }
+            //服务端响应了客户端的心跳
+            if (evt.data === '~H278a0027B~') {
+                return;
+            }
+            try {
+                var resp = {cmd: 0, data: ''};
+                resp = JSON.parse(evt.data);
+                //连接成功，服务端发来了相关信息
+                if (resp.cmd === 1) {
+                    document.getElementById("sessionId").innerText = '连接网关成功，sessionId: ' + resp.data.sessionId;
+                    return;
+                }
+                print("RESPONSE: " + evt.data);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        ws.onerror = function (evt) {
+            print("ERROR: " + evt.data);
+        }
+    }
+
+    function close() {
+        ws && ws.close();
+    }
+
+    function clear() {
+        output.innerHTML = '';
+    }
+
+    window.addEventListener("load", function (evt) {
+        document.getElementById("open").onclick = open;
+        document.getElementById("close").onclick = close;
+        document.getElementById("clear").onclick = clear;
+    });
+</script>
+</body>
+</html>

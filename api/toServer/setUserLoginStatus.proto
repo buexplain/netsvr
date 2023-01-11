@@ -7,7 +7,7 @@ option go_package = "./protocol/toServer/setUserLoginStatus;setUserLoginStatus";
 //设置用户登录状态
 message SetUserLoginStatus {
   uint32 sessionId = 1;
-  //成功是true，失败是false
+  //登录状态，成功：true，失败：false
   bool loginStatus = 2;
   //存储到网关的用户信息
   string userInfo = 3;

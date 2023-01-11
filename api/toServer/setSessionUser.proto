@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package toServerSetUserLoginStatusOk;
+
+option go_package = "./protocol/toServer/setSessionUser;setSessionUser";
+
+//设置网关的session面存储的用户信息
+//只有登录成功的才会进行设置，因为没登录的，在后续登录成功后也会设置一次
+message SetSessionUser {
+  uint32 sessionId = 1;
+  //存储到网关的用户信息
+  string userInfo = 3;
+  //转发给用户的数据
+  bytes data = 4;
+}

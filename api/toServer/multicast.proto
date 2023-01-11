@@ -7,5 +7,6 @@ option go_package = "./protocol/toServer/multicast;multicast";
 //组播
 message Multicast {
   repeated uint32 sessionIds = 1;
+  //转发给用户的数据
   bytes data = 2;
 }

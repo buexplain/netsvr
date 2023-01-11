@@ -97,6 +97,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		manager.Manager.Del(info.GetSessionId())
 		//回收session id
 		session.Id.Put(info.GetSessionId())
+		//取消订阅管理中，它的session id的任何关联
+		session.Topics.Del(info.GetTopics(), info.GetSessionId())
 		//连接关闭消息回传给工作进程
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)

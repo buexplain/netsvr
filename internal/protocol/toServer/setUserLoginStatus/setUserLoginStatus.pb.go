@@ -27,7 +27,7 @@ type SetUserLoginStatus struct {
 	unknownFields protoimpl.UnknownFields
 
 	SessionId uint32 `protobuf:"varint,1,opt,name=sessionId,proto3" json:"sessionId,omitempty"`
-	// 成功是true，失败是false
+	// 登录状态，成功：true，失败：false
 	LoginStatus bool `protobuf:"varint,2,opt,name=loginStatus,proto3" json:"loginStatus,omitempty"`
 	// 存储到网关的用户信息
 	UserInfo string `protobuf:"bytes,3,opt,name=userInfo,proto3" json:"userInfo,omitempty"`

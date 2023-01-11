@@ -27,7 +27,8 @@ type SingleCast struct {
 	unknownFields protoimpl.UnknownFields
 
 	SessionId uint32 `protobuf:"varint,1,opt,name=sessionId,proto3" json:"sessionId,omitempty"`
-	Data      []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// 转发给用户的数据
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
 func (x *SingleCast) Reset() {

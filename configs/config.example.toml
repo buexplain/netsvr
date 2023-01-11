@@ -3,6 +3,6 @@ NetServerId = 1
 # 工作进程的心跳检查时间间隔（单位：秒）
 WorkerHeartbeatIntervalSecond = 55
 # 工作进程读取包大小（单位：字节）
-WorkerReadPackLimit = 60
+WorkerReadPackLimit = 2097152
 # 客户连接的心跳检查时间间隔（单位：秒）
 CustomerHeartbeatIntervalSecond = 55

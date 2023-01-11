@@ -12,6 +12,12 @@ enum Cmd {
   ConnClose = 1;
   //连接打开
   ConnOpen = 2;
+  //返回网关中全部的session id
+  RespTotalSessionId = 3;
+  //返回某几个主题的session id到工作进程
+  RespTopicsSessionId = 4;
+  //返回session信息到工作进程
+  RespSessionInfo = 5;
 }
 
 //路由

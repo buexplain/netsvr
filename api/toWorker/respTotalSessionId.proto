@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package toWorkerTransfer;
+
+option go_package = "./protocol/toWorker/respTotalSessionId;respTotalSessionId";
+
+//返回网关中全部的session id
+message RespTotalSessionId {
+  //bitmap对象的序列化后的base64数据，工作进程需要反解才能得到具体的session id
+  string bitmap = 1;
+}
