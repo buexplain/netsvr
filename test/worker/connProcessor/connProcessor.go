@@ -1,37 +1,38 @@
-package main
+package connProcessor
 
 import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
 	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
+	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	"github.com/buexplain/netsvr/internal/worker/heartbeat"
-	"github.com/buexplain/netsvr/pkg/quit"
+	"github.com/buexplain/netsvr/pkg/utils"
+	"github.com/buexplain/netsvr/test/worker/protocol"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
-	"os"
 	"time"
 )
 
-type Connection struct {
+type ConnProcessor struct {
 	conn    net.Conn
 	writeCh chan []byte
 	closeCh chan struct{}
 }
 
-func NewConnection(conn net.Conn) *Connection {
-	tmp := &Connection{conn: conn, writeCh: make(chan []byte, 10), closeCh: make(chan struct{})}
+func NewConnProcessor(conn net.Conn) *ConnProcessor {
+	tmp := &ConnProcessor{conn: conn, writeCh: make(chan []byte, 10), closeCh: make(chan struct{})}
 	return tmp
 }
 
-func (r *Connection) Heartbeat() {
+func (r *ConnProcessor) Heartbeat() {
 	t := time.NewTicker(time.Duration(55) * time.Second)
 	defer func() {
 		t.Stop()
@@ -39,11 +40,10 @@ func (r *Connection) Heartbeat() {
 	for {
 		<-t.C
 		_, _ = r.Write(heartbeat.PingMessage)
-		logging.Info("主动发送心跳")
 	}
 }
 
-func (r *Connection) Send() {
+func (r *ConnProcessor) Send() {
 	defer func() {
 		//收集异常退出的信息
 		if err := recover(); err != nil {
@@ -70,7 +70,7 @@ func (r *Connection) Send() {
 	}
 }
 
-func (r *Connection) Write(data []byte) (n int, err error) {
+func (r *ConnProcessor) Write(data []byte) (n int, err error) {
 	select {
 	case <-r.closeCh:
 		return 0, nil
@@ -80,7 +80,7 @@ func (r *Connection) Write(data []byte) (n int, err error) {
 	}
 }
 
-func (r *Connection) Read() {
+func (r *ConnProcessor) Read() {
 	dataLenBuf := make([]byte, 4)
 	for {
 		dataLenBuf[0] = 0
@@ -90,7 +90,6 @@ func (r *Connection) Read() {
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
 			_ = r.conn.Close()
 			close(r.writeCh)
-			logging.Error("%#v", err)
 			break
 		}
 		if len(dataLenBuf) != 4 {
@@ -112,7 +111,6 @@ func (r *Connection) Read() {
 		}
 		//服务端响应心跳
 		if bytes.Equal(dataBuf, heartbeat.PongMessage) {
-			logging.Info("服务端响应心跳")
 			continue
 		}
 		//服务端发来心跳
@@ -137,22 +135,41 @@ func (r *Connection) Read() {
 			r.connClose(toWorkerRoute)
 			continue
 		}
+		//客户端发来的业务请求
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_Transfer {
+			//解析网关的转发过来的对象
+			tf := &transfer.Transfer{}
+			if err := proto.Unmarshal(toWorkerRoute.Data, tf); err != nil {
+				logging.Error("Proto unmarshal toWorkerRoute.Data error: %#v", err)
+				continue
+			}
+			//解析业务数据
+			clientRoute := protocol.ParseClientRouter(tf.Data)
+			if clientRoute == nil {
+				continue
+			}
+			//判断业务路由
+			if clientRoute.Cmd == protocol.RouterLogin {
+				r.login(tf.SessionId, clientRoute.Data)
+				continue
+			}
+		}
 	}
 }
 
-func (r *Connection) connOpen(toWorkerRoute *toWorkerRouter.Router) {
+func (r *ConnProcessor) connOpen(toWorkerRoute *toWorkerRouter.Router) {
 	co := &connOpen.ConnOpen{}
 	if err := proto.Unmarshal(toWorkerRoute.Data, co); err != nil {
 		logging.Error("解压出具体的业务数据失败: %#v", err)
 		return
 	}
-	logging.Debug("客户端连接打开 %s --> %d", co.RemoteAddr, co.SessionId)
+	logging.Debug("客户端连接打开 sessionId --> %d", co.SessionId)
 	toServerRoute := &toServerRouter.Router{}
 	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
 	//构造单播数据
 	ret := &singleCast.SingleCast{}
 	ret.SessionId = co.SessionId
-	tmp := NewResponse(1, map[string]interface{}{"sessionId": co.SessionId, "clientAddr": co.RemoteAddr})
+	tmp := NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{"sessionId": co.SessionId})
 	ret.Data = tmp
 	//将业务数据放到路由上
 	toServerRoute.Data, _ = proto.Marshal(ret)
@@ -160,48 +177,49 @@ func (r *Connection) connOpen(toWorkerRoute *toWorkerRouter.Router) {
 	_, _ = r.Write(data)
 }
 
-func (r *Connection) connClose(toWorkerRoute *toWorkerRouter.Router) {
+func (r *ConnProcessor) connClose(toWorkerRoute *toWorkerRouter.Router) {
 	cls := &connClose.ConnClose{}
 	if err := proto.Unmarshal(toWorkerRoute.Data, cls); err != nil {
 		logging.Error("解压出具体的业务数据失败: %#v", err)
 		return
 	}
-	logging.Debug("客户端连接关闭 %s --> %s --> %d", cls.User, cls.RemoteAddr, cls.SessionId)
+	logging.Debug("客户端连接关闭 user --> %s sessionId --> %d", cls.User, cls.SessionId)
+}
+
+// 登录
+func (r *ConnProcessor) login(sessionId uint32, data string) {
+	login := new(protocol.Login)
+	if err := json.Unmarshal(utils.StrToBytes(data), login); err != nil {
+		logging.Debug("Parse login request error: %#v", err)
+		return
+	}
+	//构建一个发给网关的路由
+	toServerRoute := &toServerRouter.Router{}
+	//要求网关设定登录状态
+	toServerRoute.Cmd = toServerRouter.Cmd_SetUserLoginStatus
+	//构建一个包含登录状态相关是业务对象
+	ret := &setUserLoginStatus.SetUserLoginStatus{}
+	ret.SessionId = sessionId
+	//校验账号密码，判断是否登录成功
+	if login.Username == "刘备" && login.Password == "123456" {
+		ret.LoginStatus = true
+		//响应给客户端的数据
+		ret.Data = NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 0, "message": "登录成功"})
+		//写入到网关的数据
+		ret.UserInfo = "用户名:" + login.Username + ",用户密码:" + login.Password
+	} else {
+		ret.LoginStatus = false
+		ret.Data = NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误"})
+	}
+	//将业务对象放到路由上
+	toServerRoute.Data, _ = proto.Marshal(ret)
+	resp, _ := proto.Marshal(toServerRoute)
+	//回写给网关服务器
+	_, _ = r.Write(resp)
 }
 
 func NewResponse(cmd int, data interface{}) []byte {
 	tmp := map[string]interface{}{"cmd": cmd, "data": data}
 	ret, _ := json.Marshal(tmp)
 	return ret
-}
-
-func main() {
-	logging.SetLevel(logging.LevelDebug)
-	conn, err := net.Dial("tcp", "localhost:8888")
-	if err != nil {
-		logging.Error("连接服务端失败，%#v", err)
-		os.Exit(1)
-	}
-	go func() {
-		<-quit.ClosedCh
-		_ = conn.Close()
-	}()
-	//注册工作进程
-	toServerRoute := &toServerRouter.Router{}
-	toServerRoute.Cmd = toServerRouter.Cmd_RegisterWorker
-	reg := &registerWorker.RegisterWorker{}
-	reg.Id = 1
-	reg.ProcessConnClose = true
-	reg.ProcessConnOpen = true
-	toServerRoute.Data, _ = proto.Marshal(reg)
-	data, _ := proto.Marshal(toServerRoute)
-	if err := binary.Write(conn, binary.BigEndian, uint32(len(data))); err != nil {
-		os.Exit(1)
-	}
-	_, _ = conn.Write(data)
-	logging.Debug("注册工作进程 %d ok", reg.Id)
-	c := NewConnection(conn)
-	go c.Send()
-	go c.Heartbeat()
-	c.Read()
 }

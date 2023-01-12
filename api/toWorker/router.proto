@@ -18,6 +18,8 @@ enum Cmd {
   RespTopicsSessionId = 4;
   //返回session信息到工作进程
   RespSessionInfo = 5;
+  //返回网关的状态
+  RespNetSvrStatus = 6;
 }
 
 //路由

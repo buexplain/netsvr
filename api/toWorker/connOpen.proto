@@ -8,6 +8,4 @@ option go_package = "./protocol/toWorker/connOpen;connOpen";
 message ConnOpen {
   //当前连接的id
   uint32 sessionId = 1;
-  //连接的远程ip地址
-  string remoteAddr = 2;
 }

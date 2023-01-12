@@ -44,6 +44,7 @@ func (r *topics) Get(topic string) *roaring.Bitmap {
 	}
 	return nil
 }
+
 func (r *topics) Gets(topics []string) *roaring.Bitmap {
 	r.mux.Lock()
 	defer r.mux.Unlock()
@@ -55,6 +56,12 @@ func (r *topics) Gets(topics []string) *roaring.Bitmap {
 		}
 	}
 	return &ret
+}
+
+func (r *topics) Count() int {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	return len(r.data)
 }
 
 // Topics 登记主题

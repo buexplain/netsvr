@@ -14,6 +14,7 @@ import (
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
 	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
+	"github.com/buexplain/netsvr/pkg/timecache"
 	"github.com/buexplain/netsvr/pkg/utils"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
@@ -81,7 +82,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnOpen
 		co := &connOpen.ConnOpen{}
 		co.SessionId = info.GetSessionId()
-		co.RemoteAddr = conn.RemoteAddr().String()
 		toWorkerRoute.Data, _ = proto.Marshal(co)
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
@@ -111,7 +111,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		cls := &connClose.ConnClose{}
 		cls.SessionId = info.GetSessionId()
 		cls.User = info.GetUser()
-		cls.RemoteAddr = conn.RemoteAddr().String()
 		toWorkerRoute.Data, _ = proto.Marshal(cls)
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
@@ -141,6 +140,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+		//更新连接的最后活跃时间
+		info.SetLastActiveTime(timecache.Unix())
 		//判断登录状态
 		loginStatus := info.GetLoginStatus()
 		if loginStatus == session.LoginStatusOk {
@@ -186,15 +187,27 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	//设置心跳
 	var heartbeatNode timer.TimeNoder
 	heartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
-		//超过活跃期，服务端主动发送心跳
-		if err := wsConn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err != nil {
-			if heartbeatNode != nil {
-				heartbeatNode.Stop()
-				heartbeatNode = nil
-			}
-			_ = conn.Close()
-			logging.Debug("Customer write error: %#v", err)
+		info, ok := wsConn.Session().(*session.Info)
+		if !ok {
+			return
 		}
+		if timecache.Unix()-info.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
+			//还在活跃期内，不做处理
+			return
+		}
+		//超过活跃期，服务端主动发送心跳
+		if err := wsConn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err == nil {
+			//写入数据成功，更新连接的最后活跃时间
+			info.SetLastActiveTime(timecache.Unix())
+			return
+		}
+		//写入数据失败，关闭心跳
+		if heartbeatNode != nil {
+			heartbeatNode.Stop()
+			heartbeatNode = nil
+		}
+		//关闭连接
+		_ = conn.Close()
 	})
 	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
 }

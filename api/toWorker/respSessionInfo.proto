@@ -8,12 +8,10 @@ option go_package = "./protocol/toWorker/respSessionInfo;respSessionInfo";
 message RespSessionInfo {
   //当前连接的id
   uint32 sessionId = 1;
-  //连接的远程ip地址
-  string remoteAddr = 2;
   //用户登录后存储在网关中的信息
-  string User = 3;
+  string User = 2;
   //用户是否登录成功
-  bool loginStatus = 4;
+  bool loginStatus = 3;
   //用户订阅的主题
-  repeated string topics = 5;
+  repeated string topics = 4;
 }

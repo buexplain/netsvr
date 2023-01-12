@@ -18,6 +18,10 @@ type config struct {
 	WorkerReadPackLimit uint32
 	//客户连接的心跳检查时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
+	//用户于发送数据给客户的协程数量
+	CatapultConsumer int
+	//等待发送给客户数据的缓冲区的大小
+	CatapultChanCap int
 }
 
 // rootPath 程序根目录
@@ -83,5 +87,13 @@ func init() {
 	if Config.CustomerHeartbeatIntervalSecond <= 0 {
 		//默认55秒
 		Config.CustomerHeartbeatIntervalSecond = 55
+	}
+	if Config.CatapultConsumer <= 0 {
+		//默认1000个协程
+		Config.CatapultConsumer = 1000
+	}
+	if Config.CatapultChanCap <= 0 {
+		//缓冲区默认大小是2000
+		Config.CatapultChanCap = 2000
 	}
 }

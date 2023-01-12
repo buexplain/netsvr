@@ -10,8 +10,8 @@ enum Cmd {
   RegisterWorker = 0;
   //SetUserLoginStatus 设置用户登录状态
   SetUserLoginStatus = 1;
-  //BroadCast 广播
-  BroadCast = 2;
+  //Broadcast 广播
+  Broadcast = 2;
   //Multicast 组播
   Multicast = 3;
   //根据包含session id的bitmap进行组播
@@ -32,6 +32,8 @@ enum Cmd {
   ReqSessionInfo = 11;
   //设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
   SetSessionUser = 12;
+  //获取网关的状态
+  ReqNetSvrStatus = 13;
 }
 
 //路由

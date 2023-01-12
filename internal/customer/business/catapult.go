@@ -1,6 +1,7 @@
 package business
 
 import (
+	"github.com/buexplain/netsvr/configs"
 	"github.com/buexplain/netsvr/internal/customer/manager"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
@@ -35,7 +36,7 @@ func (r *catapult) write(payload *Payload) {
 	conn := manager.Manager.Get(payload.SessionId)
 	if conn != nil {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
-			logging.Debug("Error singleCast: %#v", err)
+			logging.Debug("Catapult write message error: %#v", err)
 		}
 	}
 }
@@ -87,12 +88,16 @@ func (r *catapult) consumer(number int) {
 	}
 }
 
+func (r *catapult) CountWaitSend() int {
+	return len(r.ch)
+}
+
 // Catapult 把数据发送websocket连接
 var Catapult *catapult
 
 func init() {
-	Catapult = &catapult{ch: make(chan *Payload, 100)}
-	for i := 0; i < 10; i++ {
+	Catapult = &catapult{ch: make(chan *Payload, configs.Config.CatapultChanCap)}
+	for i := 0; i < configs.Config.CatapultConsumer; i++ {
 		quit.Wg.Add(1)
 		go Catapult.consumer(i)
 	}

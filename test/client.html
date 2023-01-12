@@ -1,7 +1,8 @@
 <!doctype html>
-<html>
+<html lang="zh-cn">
 <head>
     <meta charset="utf-8">
+    <title>测试网关程序</title>
 </head>
 <body>
 <div style="display:flex">
@@ -13,8 +14,8 @@
         </p>
 
         <p>
-            <button id="loginOk">测试登录成功</button>
-            <button id="loginFail">测试登录失败</button>
+            <button id="reqLoginOk">测试登录成功</button>
+            <button id="reqLoginFail">测试登录失败</button>
         </p>
     </div>
     <div style="width: 40%;max-height: 70vh;overflow-y: scroll;">
@@ -24,15 +25,43 @@
 </div>
 
 <script>
-    var ws;
-    var heartbeat = 0;
-    var output = document.getElementById("output");
-    var input = document.getElementById("input");
-    var print = function (message) {
-        var d = document.createElement("div");
+    let ws;
+    let loginStatus = false;
+    let workerId = '001';
+    let heartbeat = 0;
+    let output = document.getElementById("output");
+    let print = function (message) {
+        let d = document.createElement("div");
         d.textContent = message;
         output.appendChild(d);
         output.scroll(0, output.scrollHeight);
+    };
+
+    /**
+     * 发送数据到服务端
+     * @param cmd number
+     * @param data object|string
+     */
+    function send(cmd, data) {
+        if (!ws) {
+            print("请先打开连接");
+            return;
+        }
+        if (cmd !== routerCmd.login && loginStatus === false) {
+            print("请先登录");
+            return;
+        }
+        ws.send(workerId + JSON.stringify({
+            cmd: cmd,
+            data: typeof data == 'object' ? JSON.stringify(data) : data
+        }));
+    }
+
+    const routerCmd = {
+        //连接成功
+        connOpen: 1,
+        //登录
+        login: 2,
     };
 
     function open() {
@@ -41,12 +70,14 @@
         }
         ws = new WebSocket("ws:\/\/127.0.0.1:8080\/gateway");
         ws.onopen = function (evt) {
+            console.log(evt);
             heartbeat = setInterval(function () {
                 //每隔30秒，发送一次心跳信息
                 ws.send('~H27890027B~');
             }, 1000 * 30)
         }
         ws.onclose = function (evt) {
+            console.log(evt);
             ws = null;
             clearInterval(heartbeat);
             heartbeat = 0;
@@ -63,14 +94,23 @@
                 return;
             }
             try {
-                var resp = {cmd: 0, data: ''};
-                resp = JSON.parse(evt.data);
+                /**
+                 * 服务器返回信息
+                 * @type {{data: any, cmd: number}}
+                 */
+                let resp = JSON.parse(evt.data);
                 //连接成功，服务端发来了相关信息
-                if (resp.cmd === 1) {
+                if (resp.cmd === routerCmd.connOpen) {
                     document.getElementById("sessionId").innerText = '连接网关成功，sessionId: ' + resp.data.sessionId;
                     return;
                 }
-                print("RESPONSE: " + evt.data);
+                //服务端响应登录结果
+                if (resp.cmd === routerCmd.login) {
+                    loginStatus = resp.data.code === 0;
+                    print(resp.data.message);
+                    return;
+                }
+                print("Unknown response: " + evt.data);
             } catch (e) {
                 console.error(e);
             }
@@ -88,10 +128,26 @@
         output.innerHTML = '';
     }
 
-    window.addEventListener("load", function (evt) {
+    /**
+     * 发送正确的账号密码进行登录
+     */
+    function reqLoginOk() {
+        send(routerCmd.login, {username: '刘备', password: '123456'});
+    }
+
+    /**
+     * 发送错误的账号密码进行登录
+     */
+    function reqLoginFail() {
+        send(routerCmd.login, {username: '刘备', password: '111111'});
+    }
+
+    window.addEventListener("load", function () {
         document.getElementById("open").onclick = open;
         document.getElementById("close").onclick = close;
         document.getElementById("clear").onclick = clear;
+        document.getElementById("reqLoginOk").onclick = reqLoginOk;
+        document.getElementById("reqLoginFail").onclick = reqLoginFail;
     });
 </script>
 </body>

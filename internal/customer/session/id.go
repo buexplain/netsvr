@@ -51,6 +51,13 @@ func (r *id) GetAllocated() *roaring.Bitmap {
 	return tmp
 }
 
+// CountAllocated 获取已分配的id集合
+func (r *id) CountAllocated() uint64 {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.allocated.GetCardinality()
+}
+
 var Id *id
 
 func init() {

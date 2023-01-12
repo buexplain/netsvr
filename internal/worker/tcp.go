@@ -40,7 +40,7 @@ func (r *Server) Start() {
 			_ = conn.Close()
 			continue
 		default:
-			c := manager.NewConnection(conn)
+			c := manager.NewConnProcessor(conn)
 			go c.Read()
 			quit.Wg.Add(1)
 			go c.Send()

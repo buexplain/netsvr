@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package toServerSubscribe;
+
+option go_package = "./protocol/toServer/respNetSvrStatus;respNetSvrStatus";
+
+//返回网关的状态
+message RespNetSvrStatus {
+  //网关中的客户连接数
+  int32 customerConnCount = 1;
+  //网关中的主题数量
+  int32 topicCount = 2;
+  //等待转发到客户的数据量
+  int32 catapultWaitSendCount = 3;
+  //用户于发送数据给客户的协程数量
+  int32 catapultConsumer = 4;
+  //等待发送给客户数据的缓冲区的大小
+  int32 CatapultChanCap = 5;
+}

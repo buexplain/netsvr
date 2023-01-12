@@ -8,8 +8,6 @@ option go_package = "./protocol/toWorker/connClose;connClose";
 message ConnClose {
   //当前连接的id
   uint32 sessionId = 1;
-  //连接的远程ip地址
-  string remoteAddr = 2;
   //用户信息
-  string User = 3;
+  string User = 2;
 }
