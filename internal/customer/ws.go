@@ -86,7 +86,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
 		_, _ = worker.Write(data)
-		logging.Debug("Customer websocket open, session: %#v", info)
+		logging.Debug("Customer websocket open, session: %v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
 		info, ok := conn.Session().(*session.Info)

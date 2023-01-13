@@ -36,7 +36,7 @@ func (r *catapult) write(payload *Payload) {
 	conn := manager.Manager.Get(payload.SessionId)
 	if conn != nil {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
-			logging.Debug("Catapult write message error: %#v", err)
+			logging.Debug("Catapult write message error: %v", err)
 		}
 	}
 }
@@ -67,7 +67,7 @@ func (r *catapult) consumer(number int) {
 	defer func() {
 		quit.Wg.Done()
 		if err := recover(); err != nil {
-			logging.Error("%#v", err)
+			logging.Error("%v", err)
 			time.Sleep(5 * time.Second)
 			quit.Wg.Add(1)
 			go r.consumer(number)

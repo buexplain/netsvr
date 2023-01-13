@@ -24,6 +24,7 @@ func main() {
 	}
 	go func() {
 		<-quit.ClosedCh
+		logging.Info("开始工作进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
 		_ = conn.Close()
 	}()
 	//注册工作进程

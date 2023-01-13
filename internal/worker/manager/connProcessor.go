@@ -84,11 +84,11 @@ func (r *ConnProcessor) execute(data []byte) {
 	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
 		if _, err = r.conn.Write(data); err != nil {
 			r.close()
-			logging.Error("Worker write error: %#v", err)
+			logging.Error("Worker write error: %v", err)
 		}
 	} else {
 		r.close()
-		logging.Error("Worker write error: %#v", err)
+		logging.Error("Worker write error: %v", err)
 	}
 }
 func (r *ConnProcessor) close() {
@@ -107,7 +107,7 @@ func (r *ConnProcessor) Send() {
 		quit.Wg.Done()
 		//收集异常退出的信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker, error: %#v", err)
+			logging.Error("Abnormal exit a worker, error: %v", err)
 		} else {
 			logging.Debug("Worker read coroutine is close")
 		}
@@ -161,7 +161,7 @@ func (r *ConnProcessor) Read() {
 		heartbeatNode.Stop()
 		//收集异常退出的信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker of id: %d, error: %#v", r.workerId, err)
+			logging.Error("Abnormal exit a worker of id: %d, error: %v", r.workerId, err)
 		}
 	}()
 	dataLenBuf := make([]byte, 4)
@@ -191,7 +191,7 @@ func (r *ConnProcessor) Read() {
 		dataBuf := make([]byte, dataLen)
 		if _, err := io.ReadFull(r.conn, dataBuf); err != nil {
 			r.close()
-			logging.Error("Worker read error: %#v", err)
+			logging.Error("Worker read error: %v", err)
 			break
 		}
 		//更新客户端的最后活跃时间
@@ -208,7 +208,7 @@ func (r *ConnProcessor) Read() {
 		}
 		toServerRoute := &toServerRouter.Router{}
 		if err := proto.Unmarshal(dataBuf, toServerRoute); err != nil {
-			logging.Error("Proto unmarshal toServerRouter.Router error: %#v", err)
+			logging.Error("Proto unmarshal toServerRouter.Router error: %v", err)
 			continue
 		}
 		logging.Debug("Receive worker command: %d", toServerRoute.Cmd)
@@ -285,7 +285,7 @@ func (r *ConnProcessor) Read() {
 func (r *ConnProcessor) registerWorker(toServerRoute *toServerRouter.Router) bool {
 	data := &registerWorker.RegisterWorker{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal registerWorker.RegisterWorker error: %#v", err)
+		logging.Error("Proto unmarshal registerWorker.RegisterWorker error: %v", err)
 		return false
 	}
 	if MinWorkerId > data.Id || data.Id > MaxWorkerId {
@@ -308,7 +308,7 @@ func (r *ConnProcessor) registerWorker(toServerRoute *toServerRouter.Router) boo
 func (r *ConnProcessor) setUserLoginStatus(toServerRoute *toServerRouter.Router) {
 	data := &setUserLoginStatus.SetUserLoginStatus{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal setUserLoginStatus.SetUserLoginStatus error: %#v", err)
+		logging.Error("Proto unmarshal setUserLoginStatus.SetUserLoginStatus error: %v", err)
 		return
 	}
 	business.SetUserLoginStatus(data)
@@ -318,7 +318,7 @@ func (r *ConnProcessor) setUserLoginStatus(toServerRoute *toServerRouter.Router)
 func (r *ConnProcessor) singleCast(toServerRoute *toServerRouter.Router) {
 	data := &singleCast.SingleCast{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal singleCast.SingleCast error: %#v", err)
+		logging.Error("Proto unmarshal singleCast.SingleCast error: %v", err)
 		return
 	}
 	business.SingleCast(data)
@@ -328,7 +328,7 @@ func (r *ConnProcessor) singleCast(toServerRoute *toServerRouter.Router) {
 func (r *ConnProcessor) broadcast(toServerRoute *toServerRouter.Router) {
 	data := &broadcast.Broadcast{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal broadcast.Broadcast error: %#v", err)
+		logging.Error("Proto unmarshal broadcast.Broadcast error: %v", err)
 		return
 	}
 	business.Broadcast(data)
@@ -338,7 +338,7 @@ func (r *ConnProcessor) broadcast(toServerRoute *toServerRouter.Router) {
 func (r *ConnProcessor) multicast(toServerRoute *toServerRouter.Router) {
 	data := &multicast.Multicast{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal multicast.Multicast error: %#v", err)
+		logging.Error("Proto unmarshal multicast.Multicast error: %v", err)
 		return
 	}
 	business.Multicast(data)
@@ -348,7 +348,7 @@ func (r *ConnProcessor) multicast(toServerRoute *toServerRouter.Router) {
 func (r *ConnProcessor) multicastByBitmap(toServerRoute *toServerRouter.Router) {
 	data := &multicastByBitmap.MulticastByBitmap{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal multicastByBitmap.MulticastByBitmap error: %#v", err)
+		logging.Error("Proto unmarshal multicastByBitmap.MulticastByBitmap error: %v", err)
 		return
 	}
 	business.MulticastByBitmap(data)
@@ -358,7 +358,7 @@ func (r *ConnProcessor) multicastByBitmap(toServerRoute *toServerRouter.Router) 
 func (r *ConnProcessor) subscribe(toServerRoute *toServerRouter.Router) {
 	data := &subscribe.Subscribe{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal subscribe.Subscribe error: %#v", err)
+		logging.Error("Proto unmarshal subscribe.Subscribe error: %v", err)
 		return
 	}
 	business.Subscribe(data)
@@ -368,7 +368,7 @@ func (r *ConnProcessor) subscribe(toServerRoute *toServerRouter.Router) {
 func (r *ConnProcessor) unsubscribe(toServerRoute *toServerRouter.Router) {
 	data := &unsubscribe.Unsubscribe{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal unsubscribe.Unsubscribe error: %#v", err)
+		logging.Error("Proto unmarshal unsubscribe.Unsubscribe error: %v", err)
 		return
 	}
 	business.Unsubscribe(data)
@@ -378,7 +378,7 @@ func (r *ConnProcessor) unsubscribe(toServerRoute *toServerRouter.Router) {
 func (r *ConnProcessor) publish(toServerRoute *toServerRouter.Router) {
 	data := &publish.Publish{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal publish.Publish error: %#v", err)
+		logging.Error("Proto unmarshal publish.Publish error: %v", err)
 		return
 	}
 	business.Publish(data)
@@ -400,7 +400,7 @@ func (r *ConnProcessor) reqTotalSessionId() {
 func (r *ConnProcessor) reqTopicsSessionId(toServerRoute *toServerRouter.Router) {
 	req := &reqTopicsSessionId.ReqTopicsSessionId{}
 	if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
-		logging.Error("Proto unmarshal reqTopicsSessionId.ReqTopicsSessionId error: %#v", err)
+		logging.Error("Proto unmarshal reqTopicsSessionId.ReqTopicsSessionId error: %v", err)
 		return
 	}
 	bitmap := session.Topics.Gets(req.Topics)
@@ -417,7 +417,7 @@ func (r *ConnProcessor) reqTopicsSessionId(toServerRoute *toServerRouter.Router)
 func (r *ConnProcessor) reqSessionInfo(toServerRoute *toServerRouter.Router) {
 	req := &reqSessionInfo.ReqSessionInfo{}
 	if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
-		logging.Error("Proto unmarshal reqSessionInfo.ReqSessionInfo error: %#v", err)
+		logging.Error("Proto unmarshal reqSessionInfo.ReqSessionInfo error: %v", err)
 		return
 	}
 	data := &respSessionInfo.RespSessionInfo{}
@@ -440,7 +440,7 @@ func (r *ConnProcessor) setSessionUser(toServerRoute *toServerRouter.Router) {
 	//设置网关的session面存储的用户信息
 	data := &setSessionUser.SetSessionUser{}
 	if err := proto.Unmarshal(toServerRoute.Data, data); err != nil {
-		logging.Error("Proto unmarshal setSessionUser.SetSessionUser error: %#v", err)
+		logging.Error("Proto unmarshal setSessionUser.SetSessionUser error: %v", err)
 		return
 	}
 	business.SetSessionUser(data)

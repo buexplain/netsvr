@@ -3,23 +3,74 @@
 <head>
     <meta charset="utf-8">
     <title>测试网关程序</title>
+    <style>
+        .case {
+            margin-bottom: 15px;
+        }
+
+        .case:first-child {
+            margin-top: 15px;
+        }
+
+        input {
+            width: 300px;
+        }
+    </style>
 </head>
 <body>
 <div style="display:flex">
     <div style="width: 40%">
-        <p>
+        <div class="case">
             <button id="open">打开连接</button>
             <button id="close">关闭连接</button>
             <button id="clear">清屏</button>
-        </p>
+        </div>
 
-        <p>
-            <button id="reqLoginOk">测试登录成功</button>
-            <button id="reqLoginFail">测试登录失败</button>
-        </p>
+        <div class="case">
+            <label for="reqLoginUsername">
+                <input type="text" id="reqLoginUsername" placeholder="请输入账号" value="刘备">
+            </label>
+            <label for="reqLoginPassword">
+                <input type="text" id="reqLoginPassword" placeholder="请输入密码" value="123456">
+            </label>
+            <button id="reqLogin">测试登录</button>
+        </div>
+
+        <div class="case">
+            <label for="singleCastMessage">
+                <input type="text" id="singleCastMessage" placeholder="请输入要发送的信息">
+            </label>
+            <label for="singleCastUserId">
+                <input type="text" id="singleCastUserId" placeholder="请输入目标用户Id">
+            </label>
+            <button id="singleCast">单播</button>
+        </div>
+
+        <div class="case">
+            <label for="singleCastMessage">
+                <input type="text" id="multicastMessage" placeholder="请输入要发送的信息">
+            </label>
+            <label for="singleCastUserId">
+                <input type="text" id="multicastUserIds" placeholder="请输入目标用户Id，多个用逗号分割">
+            </label>
+            <button id="multicast">组播</button>
+        </div>
+        <div class="case">
+            <label for="broadcastMessage">
+                <input type="text" id="broadcastMessage" placeholder="请输入要发送的信息">
+            </label>
+            <button id="broadcast">广播</button>
+        </div>
+        <div class="case">
+            <label for="subscribe">
+                <input type="text" id="subscribeTopics" placeholder="请输入要订阅的主题，多个用逗号分割">
+            </label>
+            <button id="subscribe">订阅</button>
+        </div>
     </div>
     <div style="width: 40%;max-height: 70vh;overflow-y: scroll;">
         <div id="sessionId"></div>
+        <div id="loginInfo"></div>
         <div id="output"></div>
     </div>
 </div>
@@ -62,6 +113,14 @@
         connOpen: 1,
         //登录
         login: 2,
+        //单播给某个用户
+        singleCast: 3,
+        //组播给多个用户
+        multicast: 4,
+        //广播
+        broadcast: 5,
+        //订阅
+        subscribe: 6,
     };
 
     function open() {
@@ -69,19 +128,25 @@
             return;
         }
         ws = new WebSocket("ws:\/\/127.0.0.1:8080\/gateway");
-        ws.onopen = function (evt) {
-            console.log(evt);
+        ws.onopen = function () {
             heartbeat = setInterval(function () {
                 //每隔30秒，发送一次心跳信息
                 ws.send('~H27890027B~');
-            }, 1000 * 30)
+            }, 1000 * 30);
         }
         ws.onclose = function (evt) {
-            console.log(evt);
             ws = null;
             clearInterval(heartbeat);
             heartbeat = 0;
-            document.getElementById("sessionId").innerText = '断开网关成功，sessionId: 0';
+            if (evt.code === 1005) {
+                //客户端主动断开
+                document.getElementById("sessionId").innerText = '断开网关成功，sessionId: 0';
+            } else if (evt.code === 1006) {
+                //服务端挂了
+                document.getElementById("sessionId").innerText = '连接网关失败，网关服务器异常';
+            }
+            //清空登录成功后的信息
+            document.getElementById("loginInfo").innerText = '';
         }
         ws.onmessage = function (evt) {
             //服务端发送心跳检查，则响应一个心跳给服务端
@@ -101,13 +166,42 @@
                 let resp = JSON.parse(evt.data);
                 //连接成功，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
-                    document.getElementById("sessionId").innerText = '连接网关成功，sessionId: ' + resp.data.sessionId;
+                    clear();
+                    document.getElementById("sessionId").innerText = resp.data.message;
                     return;
                 }
                 //服务端响应登录结果
                 if (resp.cmd === routerCmd.login) {
                     loginStatus = resp.data.code === 0;
-                    print(resp.data.message);
+                    if (loginStatus) {
+                        clear();
+                        document.getElementById("loginInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的Id是：' + resp.data.data.id;
+                    } else {
+                        document.getElementById("loginInfo").innerText = '';
+                        print(resp.data.message);
+                    }
+                    return;
+                }
+                //某某某发来了一条信息
+                if (resp.cmd === routerCmd.singleCast || resp.cmd === routerCmd.multicast || resp.cmd === routerCmd.broadcast) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    /**
+                     * @type {{fromUser: string, message: string}}
+                     */
+                    let singleCast = resp.data.data;
+                    print(singleCast.fromUser + ": " + singleCast.message);
+                    return;
+                }
+                //服务端响应订阅结果
+                if (resp.cmd === routerCmd.subscribe) {
+                    if (resp.data.code === 0) {
+                        print(resp.data.message + ' ' + resp.data.data.topics.toString());
+                    } else {
+                        print(resp.data.message);
+                    }
                     return;
                 }
                 print("Unknown response: " + evt.data);
@@ -115,8 +209,8 @@
                 console.error(e);
             }
         }
-        ws.onerror = function (evt) {
-            print("ERROR: " + evt.data);
+        ws.onerror = function () {
+            document.getElementById("sessionId").innerText = '连接网关失败';
         }
     }
 
@@ -129,25 +223,79 @@
     }
 
     /**
-     * 发送正确的账号密码进行登录
+     * 测试登录
      */
-    function reqLoginOk() {
-        send(routerCmd.login, {username: '刘备', password: '123456'});
+    function reqLogin() {
+        send(routerCmd.login, {
+            username: document.getElementById("reqLoginUsername").value,
+            password: document.getElementById("reqLoginPassword").value
+        });
     }
 
     /**
-     * 发送错误的账号密码进行登录
+     * 测试单播给某个用户
      */
-    function reqLoginFail() {
-        send(routerCmd.login, {username: '刘备', password: '111111'});
+    function singleCast() {
+        send(routerCmd.singleCast, {
+            message: document.getElementById("singleCastMessage").value,
+            userId: parseInt(document.getElementById("singleCastUserId").value)
+        });
+    }
+
+    /**
+     * 测试组播给多个用户
+     */
+    function multicast() {
+        let userIds = [];
+        document.getElementById("multicastUserIds").value.split(',').forEach(function (v) {
+            v = v.toString();
+            if (v !== '') {
+                v = parseInt(v);
+                if (typeof v === 'number') {
+                    userIds.push(v);
+                }
+            }
+        });
+        send(routerCmd.multicast, {
+            message: document.getElementById("multicastMessage").value,
+            userIds: userIds
+        });
+    }
+
+    /**
+     * 广播
+     */
+    function broadcast() {
+        send(routerCmd.broadcast, {
+            message: document.getElementById("broadcastMessage").value,
+        });
+    }
+
+    /**
+     * 订阅
+     */
+    function subscribe() {
+        let topics = [];
+        document.getElementById("subscribeTopics").value.split(',').forEach(function (v) {
+            v = v.toString().trim();
+            if (v !== '') {
+                topics.push(v);
+            }
+        });
+        send(routerCmd.subscribe, {
+            topics: topics,
+        });
     }
 
     window.addEventListener("load", function () {
         document.getElementById("open").onclick = open;
         document.getElementById("close").onclick = close;
         document.getElementById("clear").onclick = clear;
-        document.getElementById("reqLoginOk").onclick = reqLoginOk;
-        document.getElementById("reqLoginFail").onclick = reqLoginFail;
+        document.getElementById("reqLogin").onclick = reqLogin;
+        document.getElementById("singleCast").onclick = singleCast;
+        document.getElementById("multicast").onclick = multicast;
+        document.getElementById("broadcast").onclick = broadcast;
+        document.getElementById("subscribe").onclick = subscribe;
     });
 </script>
 </body>

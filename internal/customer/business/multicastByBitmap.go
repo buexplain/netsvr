@@ -13,7 +13,7 @@ func MulticastByBitmap(multicastByBitmap *multicastByBitmap.MulticastByBitmap) {
 	}
 	bitmap := roaring.Bitmap{}
 	if _, err := bitmap.FromBase64(multicastByBitmap.SessionIdBitmap); err != nil {
-		logging.Debug("Deserializes a bitmap from Base64 error: %#v", err)
+		logging.Debug("Deserializes a bitmap from Base64 error: %v", err)
 		return
 	}
 	peekAble := bitmap.Iterator()
