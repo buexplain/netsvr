@@ -20,7 +20,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// 注册工作进程
+// 注册的工作进程的id，注册后会收到用户连接的转发信息
 type RegisterWorker struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

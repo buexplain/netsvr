@@ -3,6 +3,7 @@ package business
 import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
+	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 )
 
@@ -16,8 +17,14 @@ func MulticastByBitmap(multicastByBitmap *multicastByBitmap.MulticastByBitmap) {
 		logging.Debug("Deserializes a bitmap from Base64 error: %v", err)
 		return
 	}
-	peekAble := bitmap.Iterator()
-	for peekAble.HasNext() {
-		Catapult.Put(NewPayload(peekAble.Next(), multicastByBitmap.Data))
-	}
+	quit.Wg.Add(1)
+	go func() {
+		defer func() {
+			quit.Wg.Done()
+		}()
+		peekAble := bitmap.Iterator()
+		for peekAble.HasNext() {
+			Catapult.Put(NewPayload(peekAble.Next(), multicastByBitmap.Data))
+		}
+	}()
 }

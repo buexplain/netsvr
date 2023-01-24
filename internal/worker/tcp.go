@@ -41,9 +41,9 @@ func (r *Server) Start() {
 			continue
 		default:
 			c := manager.NewConnProcessor(conn)
-			go c.Read()
+			go c.LoopRead()
 			quit.Wg.Add(1)
-			go c.Send()
+			go c.LoopSend()
 		}
 	}
 }

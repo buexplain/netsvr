@@ -1,13 +1,9 @@
 package main
 
 import (
-	"encoding/binary"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
-	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
 	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/buexplain/netsvr/test/worker/connProcessor"
 	"github.com/lesismal/nbio/logging"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"os"
 )
@@ -19,30 +15,25 @@ func init() {
 func main() {
 	conn, err := net.Dial("tcp", "localhost:8888")
 	if err != nil {
-		logging.Error("连接服务端失败，%#v", err)
+		logging.Error("连接服务端失败，%v", err)
 		os.Exit(1)
 	}
+	processor := connProcessor.NewConnProcessor(conn, 1)
+	//注册工作进程
+	if err := processor.RegisterWorker(); err != nil {
+		logging.Error("注册工作进程失败 %v", err)
+		os.Exit(1)
+	}
+	logging.Debug("注册工作进程 %d ok", processor.GetWorkerId())
 	go func() {
 		<-quit.ClosedCh
 		logging.Info("开始工作进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
-		_ = conn.Close()
+		//取消注册工作进程
+		processor.UnregisterWorker()
+		//关闭连接
+		processor.Close()
 	}()
-	//注册工作进程
-	toServerRoute := &toServerRouter.Router{}
-	toServerRoute.Cmd = toServerRouter.Cmd_RegisterWorker
-	reg := &registerWorker.RegisterWorker{}
-	reg.Id = 1
-	reg.ProcessConnClose = true
-	reg.ProcessConnOpen = true
-	toServerRoute.Data, _ = proto.Marshal(reg)
-	data, _ := proto.Marshal(toServerRoute)
-	if err := binary.Write(conn, binary.BigEndian, uint32(len(data))); err != nil {
-		os.Exit(1)
-	}
-	_, _ = conn.Write(data)
-	logging.Debug("注册工作进程 %d ok", reg.Id)
-	c := connProcessor.NewConnProcessor(conn)
-	go c.Send()
-	go c.Heartbeat()
-	c.Read()
+	go processor.LoopSend()
+	go processor.Heartbeat()
+	processor.LoopRead()
 }

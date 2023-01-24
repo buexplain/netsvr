@@ -7,4 +7,6 @@ option go_package = "./protocol/toServer/reqSessionInfo;reqSessionInfo";
 //根据session id获取网关中的用户信息
 message ReqSessionInfo {
   uint32 sessionId = 1;
+  //自定义的cmd，网关会原样回传给工作进程
+  int32 cmd = 2;
 }

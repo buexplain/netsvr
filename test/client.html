@@ -67,6 +67,12 @@
             </label>
             <button id="subscribe">订阅</button>
         </div>
+        <div class="case">
+            <label for="unsubscribe">
+                <input type="text" id="unsubscribeTopics" placeholder="请输入要取消订阅的主题，多个用逗号分割">
+            </label>
+            <button id="unsubscribe">取消订阅</button>
+        </div>
     </div>
     <div style="width: 40%;max-height: 70vh;overflow-y: scroll;">
         <div id="sessionId"></div>
@@ -108,6 +114,9 @@
         }));
     }
 
+    /**
+     * 发送给工作进程的指令
+     */
     const routerCmd = {
         //连接成功
         connOpen: 1,
@@ -121,6 +130,8 @@
         broadcast: 5,
         //订阅
         subscribe: 6,
+        //取消订阅
+        unsubscribe: 7,
     };
 
     function open() {
@@ -198,7 +209,20 @@
                 //服务端响应订阅结果
                 if (resp.cmd === routerCmd.subscribe) {
                     if (resp.data.code === 0) {
-                        print(resp.data.message + ' ' + resp.data.data.topics.toString());
+                        print(resp.data.message + '，当前在订阅的主题有：' + resp.data.data.topics.toString());
+                    } else {
+                        print(resp.data.message);
+                    }
+                    return;
+                }
+                //服务端响应取消订阅的结果
+                if (resp.cmd === routerCmd.unsubscribe) {
+                    if (resp.data.code === 0) {
+                        if (resp.data.data.topics) {
+                            print(resp.data.message + '，当前在订阅的主题有：' + resp.data.data.topics.toString());
+                        } else {
+                            print(resp.data.message + '，已经没有订阅任何主题了');
+                        }
                     } else {
                         print(resp.data.message);
                     }
@@ -287,6 +311,22 @@
         });
     }
 
+    /**
+     * 取消订阅
+     */
+    function unsubscribe() {
+        let topics = [];
+        document.getElementById("unsubscribeTopics").value.split(',').forEach(function (v) {
+            v = v.toString().trim();
+            if (v !== '') {
+                topics.push(v);
+            }
+        });
+        send(routerCmd.unsubscribe, {
+            topics: topics,
+        });
+    }
+
     window.addEventListener("load", function () {
         document.getElementById("open").onclick = open;
         document.getElementById("close").onclick = close;
@@ -296,6 +336,7 @@
         document.getElementById("multicast").onclick = multicast;
         document.getElementById("broadcast").onclick = broadcast;
         document.getElementById("subscribe").onclick = subscribe;
+        document.getElementById("unsubscribe").onclick = unsubscribe;
     });
 </script>
 </body>

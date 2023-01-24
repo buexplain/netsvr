@@ -19,6 +19,8 @@ const (
 	RouterBroadcast
 	// RouterSubscribe 订阅
 	RouterSubscribe
+	// RouterUnsubscribe 取消订阅
+	RouterUnsubscribe
 )
 
 type ClientRouter struct {
@@ -60,5 +62,10 @@ type Broadcast struct {
 
 // Subscribe 客户端发送的订阅信息
 type Subscribe struct {
+	Topics []string
+}
+
+// Unsubscribe 客户端发送的取消订阅信息
+type Unsubscribe struct {
 	Topics []string
 }

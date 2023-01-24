@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package toServerSubscribe;
+
+option go_package = "./protocol/toServer/reqTotalSessionId;reqTotalSessionId";
+
+//获取网关中全部的session id
+message ReqTotalSessionId {
+  //自定义的cmd，网关会原样回传给工作进程
+  int32 cmd = 1;
+}

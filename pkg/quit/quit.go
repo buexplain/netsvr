@@ -20,7 +20,7 @@ var Wg *sync.WaitGroup
 
 var ClosedCh chan struct{}
 
-//锁
+// 锁
 var lock *sync.Mutex
 
 // 进程关闭的原因
@@ -33,7 +33,7 @@ func init() {
 	ClosedCh = make(chan struct{})
 }
 
-//监听外部关闭信号
+// 监听外部关闭信号
 func init() {
 	signalCH := make(chan os.Signal, 1)
 	signal.Notify(signalCH, []os.Signal{

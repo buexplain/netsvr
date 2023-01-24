@@ -8,32 +8,34 @@ option go_package = "./protocol/toServer/router;router";
 enum Cmd {
   //RegisterWorker 注册工作进程
   RegisterWorker = 0;
+  //UnregisterWorker 取消已注册的工作进程的id，取消后不会再收到用户连接的转发信息
+  UnregisterWorker = 1;
   //SetUserLoginStatus 设置用户登录状态
-  SetUserLoginStatus = 1;
+  SetUserLoginStatus = 2;
   //Broadcast 广播
-  Broadcast = 2;
+  Broadcast = 3;
   //Multicast 组播
-  Multicast = 3;
+  Multicast = 4;
   //根据包含session id的bitmap进行组播
-  MulticastByBitmap = 4;
+  MulticastByBitmap = 5;
   //SingleCast 单播
-  SingleCast = 5;
+  SingleCast = 6;
   //Subscribe 订阅
-  Subscribe = 6;
+  Subscribe = 7;
   //Unsubscribe 取消订阅
-  Unsubscribe = 7;
+  Unsubscribe = 8;
   //Publish 发布
-  Publish = 8;
+  Publish = 9;
   //获取网关中全部的session id
-  ReqTotalSessionId = 9;
+  ReqTotalSessionId = 10;
   //获取网关中的某几个主题的session id
-  ReqTopicsSessionId = 10;
+  ReqTopicsSessionId = 11;
   //根据session id获取网关中的用户信息
-  ReqSessionInfo = 11;
+  ReqSessionInfo = 12;
   //设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
-  SetSessionUser = 12;
+  SetSessionUser = 13;
   //获取网关的状态
-  ReqNetSvrStatus = 13;
+  ReqNetSvrStatus = 14;
 }
 
 //路由

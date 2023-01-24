@@ -9,11 +9,13 @@ import (
 	"github.com/buexplain/netsvr/internal/protocol/toServer/broadcast"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/multicast"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/reqSessionInfo"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/subscribe"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/unsubscribe"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
 	"github.com/buexplain/netsvr/internal/protocol/toWorker/respSessionInfo"
@@ -31,13 +33,14 @@ import (
 )
 
 type ConnProcessor struct {
-	conn    net.Conn
-	writeCh chan []byte
-	closeCh chan struct{}
+	conn     net.Conn
+	writeCh  chan []byte
+	closeCh  chan struct{}
+	workerId int
 }
 
-func NewConnProcessor(conn net.Conn) *ConnProcessor {
-	tmp := &ConnProcessor{conn: conn, writeCh: make(chan []byte, 10), closeCh: make(chan struct{})}
+func NewConnProcessor(conn net.Conn, workerId int) *ConnProcessor {
+	tmp := &ConnProcessor{conn: conn, writeCh: make(chan []byte, 10), closeCh: make(chan struct{}), workerId: workerId}
 	return tmp
 }
 
@@ -52,29 +55,95 @@ func (r *ConnProcessor) Heartbeat() {
 	}
 }
 
-func (r *ConnProcessor) Send() {
+func (r *ConnProcessor) GetWorkerId() int {
+	return r.workerId
+}
+
+func (r *ConnProcessor) RegisterWorker() error {
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_RegisterWorker
+	reg := &registerWorker.RegisterWorker{}
+	reg.Id = int32(r.workerId)
+	reg.ProcessConnClose = true
+	reg.ProcessConnOpen = true
+	toServerRoute.Data, _ = proto.Marshal(reg)
+	data, _ := proto.Marshal(toServerRoute)
+	err := binary.Write(r.conn, binary.BigEndian, uint32(len(data)))
+	_, err = r.conn.Write(data)
+	return err
+}
+
+func (r *ConnProcessor) UnregisterWorker() {
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_UnregisterWorker
+	data, _ := proto.Marshal(toServerRoute)
+	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
+	}
+	_, _ = r.conn.Write(data)
+}
+
+func (r *ConnProcessor) Close() {
+	select {
+	case <-r.closeCh:
+	default:
+		close(r.closeCh)
+		//这里暂停一下，等待数据发送出去
+		time.Sleep(time.Millisecond * 100)
+		_ = r.conn.Close()
+	}
+}
+
+func (r *ConnProcessor) execute(data []byte) {
+	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
+		if _, err = r.conn.Write(data); err != nil {
+			r.Close()
+			logging.Error("Worker write error: %v", err)
+		}
+	} else {
+		r.Close()
+		logging.Error("Worker write error: %v", err)
+	}
+}
+
+func (r *ConnProcessor) done() {
+	//处理通道中的剩余数据
+	for {
+		for i := len(r.writeCh); i > 0; i-- {
+			v := <-r.writeCh
+			r.execute(v)
+		}
+		if len(r.writeCh) == 0 {
+			break
+		}
+	}
+	//再次处理通道中的剩余数据，直到超时退出
+	for {
+		select {
+		case v := <-r.writeCh:
+			r.execute(v)
+		case <-time.After(1 * time.Second):
+			return
+		}
+	}
+}
+
+func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		//收集异常退出的信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker, error: %#v", err)
+			logging.Error("Abnormal exit a worker, error: %v", err)
 		} else {
 			logging.Debug("Worker read coroutine is close")
 		}
 	}()
 	for {
 		select {
+		// TODO 思考进程停止逻辑，目标是处理缓冲中的现有数据
 		case _ = <-r.closeCh:
+			r.done()
 			return
-		case data := <-r.writeCh:
-			if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
-				if _, err = r.conn.Write(data); err != nil {
-					logging.Error("Worker write error: %#v", err)
-					continue
-				}
-			} else {
-				logging.Error("Worker write error: %#v", err)
-				continue
-			}
+		case v := <-r.writeCh:
+			r.execute(v)
 		}
 	}
 }
@@ -89,7 +158,7 @@ func (r *ConnProcessor) Write(data []byte) (n int, err error) {
 	}
 }
 
-func (r *ConnProcessor) Read() {
+func (r *ConnProcessor) LoopRead() {
 	dataLenBuf := make([]byte, 4)
 	for {
 		dataLenBuf[0] = 0
@@ -97,8 +166,7 @@ func (r *ConnProcessor) Read() {
 		dataLenBuf[2] = 0
 		dataLenBuf[3] = 0
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
-			_ = r.conn.Close()
-			close(r.writeCh)
+			r.Close()
 			break
 		}
 		if len(dataLenBuf) != 4 {
@@ -113,9 +181,8 @@ func (r *ConnProcessor) Read() {
 		//获取数据包
 		dataBuf := make([]byte, dataLen)
 		if _, err := io.ReadFull(r.conn, dataBuf); err != nil {
-			_ = r.conn.Close()
-			close(r.writeCh)
-			logging.Error("%#v", err)
+			r.Close()
+			logging.Error("%v", err)
 			break
 		}
 		//服务端响应心跳
@@ -131,7 +198,7 @@ func (r *ConnProcessor) Read() {
 		//解压看看服务端传递了什么
 		toWorkerRoute := &toWorkerRouter.Router{}
 		if err := proto.Unmarshal(dataBuf, toWorkerRoute); err != nil {
-			logging.Error("解压服务端数据失败: %#v", err)
+			logging.Error("解压服务端数据失败: %v", err)
 			continue
 		}
 		//客户端连接成功
@@ -154,7 +221,7 @@ func (r *ConnProcessor) Read() {
 			//解析网关的转发过来的对象
 			tf := &transfer.Transfer{}
 			if err := proto.Unmarshal(toWorkerRoute.Data, tf); err != nil {
-				logging.Error("Proto unmarshal transfer.Transfer error: %#v", err)
+				logging.Error("Proto unmarshal transfer.Transfer error: %v", err)
 				continue
 			}
 			//解析业务数据
@@ -180,6 +247,11 @@ func (r *ConnProcessor) Read() {
 			//处理订阅
 			if clientRoute.Cmd == protocol.RouterSubscribe {
 				r.subscribe(tf.SessionId, clientRoute.Data)
+				continue
+			}
+			//处理取消订阅
+			if clientRoute.Cmd == protocol.RouterUnsubscribe {
+				r.unsubscribe(tf.SessionId, clientRoute.Data)
 				continue
 			}
 		}
@@ -225,7 +297,7 @@ func (r *ConnProcessor) login(sessionId uint32, data string) {
 	//解析客户端发来的数据
 	login := new(protocol.Login)
 	if err := json.Unmarshal(utils.StrToBytes(data), login); err != nil {
-		logging.Debug("Parse login request error: %#v", err)
+		logging.Error("Parse protocol.Login request error: %v", err)
 		return
 	}
 	//构建一个发给网关的路由
@@ -262,7 +334,7 @@ func (r *ConnProcessor) singleCast(currentSessionId uint32, currentUser *userDb.
 	//解析客户端发来的数据
 	target := new(protocol.SingleCast)
 	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
-		logging.Debug("Parse singleCast request error: %#v", err)
+		logging.Error("Parse protocol.SingleCast request error: %v", err)
 		return
 	}
 	//构建一个发给网关的路由
@@ -294,7 +366,7 @@ func (r *ConnProcessor) multicast(currentSessionId uint32, currentUser *userDb.N
 	//解析客户端发来的数据
 	target := new(protocol.Multicast)
 	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
-		logging.Debug("Parse multicast request error: %#v", err)
+		logging.Error("Parse protocol.Multicast request error: %v", err)
 		return
 	}
 	//构建一个发给网关的路由
@@ -343,7 +415,7 @@ func (r *ConnProcessor) broadcast(currentUser *userDb.NetSvrInfo, data string) {
 	//解析客户端发来的数据
 	target := new(protocol.Broadcast)
 	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
-		logging.Debug("Parse broadcast request error: %#v", err)
+		logging.Error("Parse protocol.Broadcast request error: %v", err)
 		return
 	}
 	//构建一个发给网关的路由
@@ -368,7 +440,7 @@ func (r *ConnProcessor) subscribe(currentSessionId uint32, data string) {
 	//解析客户端发来的数据
 	target := new(protocol.Subscribe)
 	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
-		logging.Debug("Parse broadcast request error: %#v", err)
+		logging.Error("Parse protocol.Subscribe request error: %v", err)
 		return
 	}
 	if len(target.Topics) == 0 {
@@ -388,10 +460,47 @@ func (r *ConnProcessor) subscribe(currentSessionId uint32, data string) {
 	pt, _ := proto.Marshal(toServerRoute)
 	_, _ = r.Write(pt)
 	//查询该用户的订阅信息
-	toServerRoute.Cmd = toServerRouter.Cmd_ReqSessionInfo
 	req := &reqSessionInfo.ReqSessionInfo{}
 	req.SessionId = currentSessionId
+	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
+	req.Cmd = protocol.RouterSubscribe
+	toServerRoute.Cmd = toServerRouter.Cmd_ReqSessionInfo
+	toServerRoute.Data, _ = proto.Marshal(req)
+	pt, _ = proto.Marshal(toServerRoute)
+	_, _ = r.Write(pt)
+}
+
+// 处理客户的取消订阅请求
+func (r *ConnProcessor) unsubscribe(currentSessionId uint32, data string) {
+	//解析客户端发来的数据
+	target := new(protocol.Unsubscribe)
+	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
+		logging.Error("Parse protocol.Unsubscribe request error: %v", err)
+		return
+	}
+	if len(target.Topics) == 0 {
+		return
+	}
+	//提交取消订阅信息到网关
+	//构建一个发给网关的路由
+	toServerRoute := &toServerRouter.Router{}
+	//告诉网关要进行一次取消订阅操作
+	toServerRoute.Cmd = toServerRouter.Cmd_Unsubscribe
+	//构造网关需要的取消订阅数据
+	ret := &unsubscribe.Unsubscribe{}
+	ret.SessionId = currentSessionId
+	ret.Topics = target.Topics
 	toServerRoute.Data, _ = proto.Marshal(ret)
+	//发送给网关
+	pt, _ := proto.Marshal(toServerRoute)
+	_, _ = r.Write(pt)
+	//查询该用户的订阅信息
+	req := &reqSessionInfo.ReqSessionInfo{}
+	req.SessionId = currentSessionId
+	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
+	req.Cmd = protocol.RouterUnsubscribe
+	toServerRoute.Cmd = toServerRouter.Cmd_ReqSessionInfo
+	toServerRoute.Data, _ = proto.Marshal(req)
 	pt, _ = proto.Marshal(toServerRoute)
 	_, _ = r.Write(pt)
 }
@@ -403,6 +512,15 @@ func (r *ConnProcessor) respSessionInfo(toWorkerRoute *toWorkerRouter.Router) {
 		logging.Error("Proto unmarshal respSessionInfo.RespSessionInfo error:%v", err)
 		return
 	}
+	//根据自定义的cmd判断到底谁发起的请求网关session info信息
+	if sessionInfo.Cmd == protocol.RouterSubscribe {
+		r.respSessionInfoBySubscribe(sessionInfo)
+	} else if sessionInfo.Cmd == protocol.RouterUnsubscribe {
+		r.respSessionInfoByUnsubscribe(sessionInfo)
+	}
+}
+
+func (r *ConnProcessor) respSessionInfoBySubscribe(sessionInfo *respSessionInfo.RespSessionInfo) {
 	if len(sessionInfo.Topics) == 0 {
 		return
 	}
@@ -415,6 +533,22 @@ func (r *ConnProcessor) respSessionInfo(toWorkerRoute *toWorkerRouter.Router) {
 	ret.SessionId = sessionInfo.SessionId
 	msg := map[string]interface{}{"topics": sessionInfo.Topics}
 	ret.Data = NewResponse(protocol.RouterSubscribe, map[string]interface{}{"code": 0, "message": "订阅成功", "data": msg})
+	toServerRoute.Data, _ = proto.Marshal(ret)
+	//发送给网关
+	pt, _ := proto.Marshal(toServerRoute)
+	_, _ = r.Write(pt)
+}
+
+func (r *ConnProcessor) respSessionInfoByUnsubscribe(sessionInfo *respSessionInfo.RespSessionInfo) {
+	//构建一个发给网关的路由
+	toServerRoute := &toServerRouter.Router{}
+	//告诉网关要进行一次单播操作
+	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+	//构造网关需要的单播数据
+	ret := &singleCast.SingleCast{}
+	ret.SessionId = sessionInfo.SessionId
+	msg := map[string]interface{}{"topics": sessionInfo.Topics}
+	ret.Data = NewResponse(protocol.RouterUnsubscribe, map[string]interface{}{"code": 0, "message": "取消订阅成功", "data": msg})
 	toServerRoute.Data, _ = proto.Marshal(ret)
 	//发送给网关
 	pt, _ := proto.Marshal(toServerRoute)

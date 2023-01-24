@@ -12,8 +12,10 @@ import (
 	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/publish"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/reqNetSvrStatus"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/reqSessionInfo"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/reqTopicsSessionId"
+	"github.com/buexplain/netsvr/internal/protocol/toServer/reqTotalSessionId"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/respNetSvrStatus"
 	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
 	"github.com/buexplain/netsvr/internal/protocol/toServer/setSessionUser"
@@ -74,7 +76,7 @@ func (r *ConnProcessor) done() {
 		select {
 		case v := <-r.writeCh:
 			r.execute(v)
-		case <-time.After(3 * time.Second):
+		case <-time.After(1 * time.Second):
 			return
 		}
 	}
@@ -91,6 +93,7 @@ func (r *ConnProcessor) execute(data []byte) {
 		logging.Error("Worker write error: %v", err)
 	}
 }
+
 func (r *ConnProcessor) close() {
 	select {
 	case <-r.closeCh:
@@ -100,7 +103,7 @@ func (r *ConnProcessor) close() {
 	}
 }
 
-func (r *ConnProcessor) Send() {
+func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		//写协程退出，直接关闭连接
 		r.close()
@@ -114,6 +117,7 @@ func (r *ConnProcessor) Send() {
 	}()
 	for {
 		select {
+		// TODO 思考进程停止逻辑，目标是处理缓冲中的现有数据
 		case _ = <-r.closeCh:
 			//连接已被关闭，丢弃所有的数据
 			close(r.writeCh)
@@ -142,7 +146,7 @@ func (r *ConnProcessor) Write(data []byte) (n int, err error) {
 	}
 }
 
-func (r *ConnProcessor) Read() {
+func (r *ConnProcessor) LoopRead() {
 	heartbeatNode := heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.WorkerHeartbeatIntervalSecond)*time.Second, func() {
 		if timecache.Unix()-atomic.LoadInt64(r.lastActiveTime) < configs.Config.WorkerHeartbeatIntervalSecond {
 			//还在活跃期内，不做处理
@@ -153,10 +157,7 @@ func (r *ConnProcessor) Read() {
 	})
 	defer func() {
 		//注销掉工作进程的id
-		if r.workerId > 0 {
-			Manager.Del(r.workerId, r)
-			logging.Info("Unregister a worker by id: %d", r.workerId)
-		}
+		r.unregisterWorker()
 		//停止心跳检查
 		heartbeatNode.Stop()
 		//收集异常退出的信息
@@ -220,6 +221,9 @@ func (r *ConnProcessor) Read() {
 				r.close()
 				return
 			}
+		case toServerRouter.Cmd_UnregisterWorker:
+			r.unregisterWorker()
+			break
 		case toServerRouter.Cmd_SetUserLoginStatus:
 			//变更用户的登录状态
 			r.setUserLoginStatus(toServerRoute)
@@ -254,7 +258,7 @@ func (r *ConnProcessor) Read() {
 			break
 		case toServerRouter.Cmd_ReqTotalSessionId:
 			//获取网关中全部的session id
-			r.reqTotalSessionId()
+			r.reqTotalSessionId(toServerRoute)
 			break
 		case toServerRouter.Cmd_ReqTopicsSessionId:
 			//获取网关中的某几个主题的session id
@@ -270,7 +274,7 @@ func (r *ConnProcessor) Read() {
 			break
 		case toServerRouter.Cmd_ReqNetSvrStatus:
 			//返回网关的状态
-			r.reqNetSvrStatus()
+			r.reqNetSvrStatus(toServerRoute)
 			break
 		default:
 			//工作进程搞错了指令，直接关闭连接，让工作进程明白，不能瞎传，代码一定要通过测试
@@ -302,6 +306,15 @@ func (r *ConnProcessor) registerWorker(toServerRoute *toServerRouter.Router) boo
 	}
 	logging.Info("Register a worker by id: %d", r.workerId)
 	return true
+}
+
+// 取消已注册的工作进程的id，取消后不会再收到用户连接的转发信息
+func (r *ConnProcessor) unregisterWorker() {
+	if r.workerId > 0 {
+		Manager.Del(r.workerId, r)
+		r.workerId = 0
+		logging.Info("Unregister a worker by id: %d", r.workerId)
+	}
 }
 
 // 变更用户的登录状态
@@ -385,9 +398,15 @@ func (r *ConnProcessor) publish(toServerRoute *toServerRouter.Router) {
 }
 
 // 获取网关中全部的session id
-func (r *ConnProcessor) reqTotalSessionId() {
+func (r *ConnProcessor) reqTotalSessionId(toServerRoute *toServerRouter.Router) {
+	req := &reqTotalSessionId.ReqTotalSessionId{}
+	if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
+		logging.Error("Proto unmarshal reqTotalSessionId.ReqTotalSessionId error: %v", err)
+		return
+	}
 	bitmap := session.Id.GetAllocated()
 	data := &respTotalSessionId.RespTotalSessionId{}
+	data.Cmd = req.Cmd
 	data.Bitmap, _ = bitmap.ToBase64()
 	route := &toWorkerRouter.Router{}
 	route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
@@ -405,6 +424,7 @@ func (r *ConnProcessor) reqTopicsSessionId(toServerRoute *toServerRouter.Router)
 	}
 	bitmap := session.Topics.Gets(req.Topics)
 	data := &respTopicsSessionId.RespTopicsSessionId{}
+	data.Cmd = req.Cmd
 	data.Bitmap, _ = bitmap.ToBase64()
 	route := &toWorkerRouter.Router{}
 	route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
@@ -422,6 +442,7 @@ func (r *ConnProcessor) reqSessionInfo(toServerRoute *toServerRouter.Router) {
 	}
 	data := &respSessionInfo.RespSessionInfo{}
 	data.SessionId = req.SessionId
+	data.Cmd = req.Cmd
 	wsConn := customerManager.Manager.Get(req.SessionId)
 	if wsConn != nil {
 		if info, ok := wsConn.Session().(*session.Info); ok {
@@ -447,8 +468,14 @@ func (r *ConnProcessor) setSessionUser(toServerRoute *toServerRouter.Router) {
 }
 
 // 返回网关的状态
-func (r *ConnProcessor) reqNetSvrStatus() {
+func (r *ConnProcessor) reqNetSvrStatus(toServerRoute *toServerRouter.Router) {
+	req := &reqNetSvrStatus.ReqNetSvrStatus{}
+	if err := proto.Unmarshal(toServerRoute.Data, req); err != nil {
+		logging.Error("Proto unmarshal reqNetSvrStatus.ReqNetSvrStatus error: %v", err)
+		return
+	}
 	data := &respNetSvrStatus.RespNetSvrStatus{}
+	data.Cmd = req.Cmd
 	data.CustomerConnCount = int32(session.Id.CountAllocated())
 	data.TopicCount = int32(session.Topics.Count())
 	data.CatapultWaitSendCount = int32(business.Catapult.CountWaitSend())

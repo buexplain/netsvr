@@ -41,23 +41,31 @@ func (r *catapult) write(payload *Payload) {
 	}
 }
 
-func (r *catapult) done() {
+func (r *catapult) done(number int) {
 	//处理通道中的剩余数据
+	empty := 0
 	for {
-		for i := len(r.ch); i > 0; i-- {
-			v := <-r.ch
-			r.write(v)
-		}
-		if len(r.ch) == 0 {
+		//所有协程遇到多次没拿到数据的情况，视为通道中没有数据了
+		if empty > 5 {
 			break
 		}
+		select {
+		case v := <-r.ch:
+			r.write(v)
+		default:
+			empty++
+		}
+	}
+	//留下0号协程，进行一个超时等待处理
+	if number != 0 {
+		return
 	}
 	//再次处理通道中的剩余数据，直到超时退出
 	for {
 		select {
 		case v := <-r.ch:
 			r.write(v)
-		case <-time.After(3 * time.Second):
+		case <-time.After(1 * time.Second):
 			return
 		}
 	}
@@ -79,10 +87,7 @@ func (r *catapult) consumer(number int) {
 			r.write(v)
 		case <-quit.Ctx.Done():
 			//进程即将停止，处理通道中剩余数据
-			if number == 0 {
-				//紧保留一个协程处理通道中剩余的数据，尽量保证工作进程的数据转发到用户
-				r.done()
-			}
+			r.done(number)
 			return
 		}
 	}
