@@ -2,6 +2,7 @@ package configs
 
 import (
 	"flag"
+	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
 	"os"
@@ -32,6 +33,7 @@ func init() {
 	var err error
 	//兼容GoLand编辑器下的go run命令
 	tmp := strings.ToLower(os.Args[0])
+	fmt.Println(tmp)
 	features := []string{"go_build", "go-build", "tmp", "temp"}
 	isGoBuildRun := false
 	for _, v := range features {
@@ -42,6 +44,10 @@ func init() {
 	}
 	if isGoBuildRun {
 		dir, err = os.Getwd()
+		//兼容go run .\cmd\main.go
+		if err == nil && strings.HasSuffix(dir, "cmd") {
+			dir = filepath.Dir(dir)
+		}
 	} else {
 		dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
 	}

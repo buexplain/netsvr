@@ -1,27 +1,25 @@
 package manager
 
 import (
+	"math/rand"
 	"sync"
 	"sync/atomic"
 )
 
 type collect struct {
 	conn  []*ConnProcessor
-	index int
-	lock  sync.Mutex
+	index uint64
+	lock  sync.RWMutex
 }
 
 func (r *collect) Get() *ConnProcessor {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.lock.RLock()
+	defer r.lock.RUnlock()
 	if len(r.conn) == 0 {
 		return nil
 	}
 	r.index++
-	if r.index >= len(r.conn) {
-		r.index = 0
-	}
-	return r.conn[r.index]
+	return r.conn[r.index%uint64(len(r.conn))]
 }
 
 func (r *collect) Set(conn *ConnProcessor) {
@@ -80,7 +78,8 @@ var Manager manager
 func init() {
 	Manager = manager{}
 	for i := MinWorkerId; i <= MaxWorkerId; i++ {
-		Manager[i] = &collect{conn: []*ConnProcessor{}, index: 0, lock: sync.Mutex{}}
+		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
+		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), lock: sync.RWMutex{}}
 	}
 }
 
