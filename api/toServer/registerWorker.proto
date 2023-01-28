@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerRegisterWorker;
 
-option go_package = "./protocol/toServer/registerWorker;registerWorker";
+option go_package = "netsvr/internal/protocol/toServer/registerWorker;registerWorker";
 
 //注册的工作进程的id，注册后会收到用户连接的转发信息
 message RegisterWorker {

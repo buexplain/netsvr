@@ -1,7 +1,7 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
+	"netsvr/internal/protocol/toServer/singleCast"
 )
 
 // SingleCast 单播

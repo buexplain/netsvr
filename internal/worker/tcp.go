@@ -1,10 +1,10 @@
 package worker
 
 import (
-	"github.com/buexplain/netsvr/internal/worker/manager"
-	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 	"net"
+	"netsvr/internal/worker/manager"
+	"netsvr/pkg/quit"
 	"time"
 )
 
@@ -41,8 +41,8 @@ func (r *Server) Start() {
 			continue
 		default:
 			c := manager.NewConnProcessor(conn)
+			quit.Wg.Add(2)
 			go c.LoopRead()
-			quit.Wg.Add(1)
 			go c.LoopSend()
 		}
 	}

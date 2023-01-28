@@ -1,9 +1,9 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setSessionUser"
+	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toServer/setSessionUser"
 )
 
 // SetSessionUser 设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次

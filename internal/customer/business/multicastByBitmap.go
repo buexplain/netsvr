@@ -2,9 +2,9 @@ package business
 
 import (
 	"github.com/RoaringBitmap/roaring"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
-	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
+	"netsvr/internal/protocol/toServer/multicastByBitmap"
+	"netsvr/pkg/quit"
 )
 
 // MulticastByBitmap 根据包含session id的bitmap进行组播
@@ -20,6 +20,7 @@ func MulticastByBitmap(multicastByBitmap *multicastByBitmap.MulticastByBitmap) {
 	quit.Wg.Add(1)
 	go func() {
 		defer func() {
+			_ = recover()
 			quit.Wg.Done()
 		}()
 		peekAble := bitmap.Iterator()

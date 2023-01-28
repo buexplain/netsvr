@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerUnsubscribe;
 
-option go_package = "./protocol/toServer/unsubscribe;unsubscribe";
+option go_package = "netsvr/internal/protocol/toServer/unsubscribe;unsubscribe";
 
 //取消订阅
 message Unsubscribe {

@@ -1,7 +1,7 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/protocol/toServer/multicast"
+	"netsvr/internal/protocol/toServer/multicast"
 )
 
 // Multicast 组播

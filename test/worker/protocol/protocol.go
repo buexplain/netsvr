@@ -9,8 +9,14 @@ import (
 const (
 	// RouterRespConnOpen 响应连接成功信息
 	RouterRespConnOpen = iota + 1
+	// RouterNetSvrStatus 获取网关的信息
+	RouterNetSvrStatus
 	// RouterLogin 登录
 	RouterLogin
+	//RouterLogout 退出登录
+	RouterLogout
+	// RouterUpdateSessionUserInfo 更新网关中的用户信息
+	RouterUpdateSessionUserInfo
 	// RouterSingleCast 单播给某个用户
 	RouterSingleCast
 	// RouterMulticast 组播给多个用户
@@ -21,6 +27,7 @@ const (
 	RouterSubscribe
 	// RouterUnsubscribe 取消订阅
 	RouterUnsubscribe
+	RouterPublish
 )
 
 type ClientRouter struct {
@@ -68,4 +75,10 @@ type Subscribe struct {
 // Unsubscribe 客户端发送的取消订阅信息
 type Unsubscribe struct {
 	Topics []string
+}
+
+// Publish 客户端发送的发布信息
+type Publish struct {
+	Message string
+	Topic   string
 }

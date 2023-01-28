@@ -1,9 +1,9 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/subscribe"
+	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toServer/subscribe"
 )
 
 // Subscribe 订阅

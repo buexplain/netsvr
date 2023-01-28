@@ -2,7 +2,8 @@ package userDb
 
 import (
 	"encoding/json"
-	"github.com/buexplain/netsvr/pkg/utils"
+	"netsvr/pkg/utils"
+	"time"
 )
 
 type User struct {
@@ -20,8 +21,14 @@ type ClientInfo struct {
 
 // NetSvrInfo 存储到网关的用户信息
 type NetSvrInfo struct {
-	Id   int
-	Name string
+	Id             int
+	Name           string
+	LastUpdateTime time.Time
+}
+
+func (r *NetSvrInfo) Encode() string {
+	b, _ := json.Marshal(*r)
+	return string(b)
 }
 
 func ParseNetSvrInfo(netSvrInfo string) *NetSvrInfo {
@@ -39,11 +46,11 @@ func ParseNetSvrInfo(netSvrInfo string) *NetSvrInfo {
 // ToNetSvrInfo 返回需要存储到网关的信息
 func (r User) ToNetSvrInfo() string {
 	tmp := NetSvrInfo{
-		Id:   r.Id,
-		Name: r.Name,
+		Id:             r.Id,
+		Name:           r.Name,
+		LastUpdateTime: time.Now(),
 	}
-	b, _ := json.Marshal(tmp)
-	return string(b)
+	return tmp.Encode()
 }
 
 // ToClientInfo 返回登录成功后给到客户端的信息

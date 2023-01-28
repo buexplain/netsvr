@@ -2,12 +2,14 @@ syntax = "proto3";
 
 package toWorkerTransfer;
 
-option go_package = "./protocol/toWorker/respSessionInfo;respSessionInfo";
+import "reCtx/reCtx.proto";
+
+option go_package = "netsvr/internal/protocol/toWorker/respSessionInfo;respSessionInfo";
 
 //返回session信息到工作进程
 message RespSessionInfo {
-  //自定义的cmd，网关会原样回传给工作进程
-  int32 cmd = 1;
+  //请求上下文，网关会原样回传给工作进程
+  reCtx.ReCtx reCtx = 1;
   //当前连接的id
   uint32 sessionId = 2;
   //用户登录后存储在网关中的信息

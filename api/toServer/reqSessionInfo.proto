@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package toServerSubscribe;
+
+import "reCtx/reCtx.proto";
+
+option go_package = "netsvr/internal/protocol/toServer/reqSessionInfo;reqSessionInfo";
+
+//根据session id获取网关中的用户信息
+message ReqSessionInfo {
+  //请求上下文，网关会原样回传给工作进程
+  reCtx.ReCtx reCtx = 1;
+  //用户的session id
+  uint32 sessionId = 2;
+}

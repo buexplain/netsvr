@@ -1,9 +1,9 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/broadcast"
-	"github.com/buexplain/netsvr/pkg/quit"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toServer/broadcast"
+	"netsvr/pkg/quit"
 )
 
 // Broadcast 广播
@@ -15,6 +15,7 @@ func Broadcast(broadcast *broadcast.Broadcast) {
 	quit.Wg.Add(1)
 	go func() {
 		defer func() {
+			_ = recover()
 			quit.Wg.Done()
 		}()
 		peekAble := bitmap.Iterator()

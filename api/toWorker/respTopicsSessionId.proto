@@ -2,13 +2,15 @@ syntax = "proto3";
 
 package toWorkerTransfer;
 
-option go_package = "./protocol/toWorker/respTopicsSessionId;respTopicsSessionId";
+import "reCtx/reCtx.proto";
+
+option go_package = "netsvr/internal/protocol/toWorker/respTopicsSessionId;respTopicsSessionId";
 
 //返回某几个主题的session id到工作进程
 message RespTopicsSessionId {
+  //请求上下文，网关会原样回传给工作进程
+  reCtx.ReCtx reCtx = 1;
   //将所有主题的session id都合并到一个大的bitmap中
   //bitmap对象的序列化后的base64数据，工作进程需要反解才能得到具体的session id
-  string bitmap = 1;
-  //自定义的cmd，网关会原样回传给工作进程
-  int32 cmd = 2;
+  string bitmap = 2;
 }

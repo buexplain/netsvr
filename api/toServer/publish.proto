@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerPublish;
 
-option go_package = "./protocol/toServer/publish;publish";
+option go_package = "netsvr/internal/protocol/toServer/publish;publish";
 
 //发布
 message Publish {

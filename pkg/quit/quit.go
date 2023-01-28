@@ -63,11 +63,11 @@ func GetReason() string {
 func Execute(reason string) {
 	lock.Lock()
 	defer lock.Unlock()
-	closeReason = reason
 	select {
 	case <-ClosedCh:
 		return
 	default:
+		closeReason = reason
 		close(ClosedCh)
 	}
 }

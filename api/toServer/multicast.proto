@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerMulticast;
 
-option go_package = "./protocol/toServer/multicast;multicast";
+option go_package = "netsvr/internal/protocol/toServer/multicast;multicast";
 
 //组播
 message Multicast {

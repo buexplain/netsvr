@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerBroadcast;
 
-option go_package = "./protocol/toServer/broadcast;broadcast";
+option go_package = "netsvr/internal/protocol/toServer/broadcast;broadcast";
 
 //广播
 message Broadcast {

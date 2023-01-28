@@ -4,23 +4,23 @@ import (
 	"bytes"
 	"context"
 	"github.com/antlabs/timer"
-	"github.com/buexplain/netsvr/configs"
-	"github.com/buexplain/netsvr/internal/customer/heartbeat"
-	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/connClose"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/connOpen"
-	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/transfer"
-	workerManager "github.com/buexplain/netsvr/internal/worker/manager"
-	"github.com/buexplain/netsvr/pkg/quit"
-	"github.com/buexplain/netsvr/pkg/timecache"
-	"github.com/buexplain/netsvr/pkg/utils"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"net/http"
+	"netsvr/configs"
+	"netsvr/internal/customer/heartbeat"
+	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toWorker/connClose"
+	"netsvr/internal/protocol/toWorker/connOpen"
+	toWorkerRouter "netsvr/internal/protocol/toWorker/router"
+	"netsvr/internal/protocol/toWorker/transfer"
+	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/quit"
+	"netsvr/pkg/timecache"
+	"netsvr/pkg/utils"
 	"time"
 )
 
@@ -85,7 +85,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute.Data, _ = proto.Marshal(co)
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
-		_, _ = worker.Write(data)
+		worker.Send(data)
 		logging.Debug("Customer websocket open, session: %v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
@@ -114,7 +114,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		toWorkerRoute.Data, _ = proto.Marshal(cls)
 		//转发数据到工作进程
 		data, _ := proto.Marshal(toWorkerRoute)
-		_, _ = worker.Write(data)
+		worker.Send(data)
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		//检查是否为心跳消息
@@ -172,7 +172,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 		//转发数据到工作进程
 		data, _ = proto.Marshal(toWorkerRoute)
-		_, _ = worker.Write(data)
+		worker.Send(data)
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {

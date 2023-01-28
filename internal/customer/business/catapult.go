@@ -1,11 +1,11 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/configs"
-	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/pkg/quit"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
+	"netsvr/configs"
+	"netsvr/internal/customer/manager"
+	"netsvr/pkg/quit"
 	"time"
 )
 

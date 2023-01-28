@@ -6,7 +6,7 @@ import (
 )
 
 type topics struct {
-	data map[string]roaring.Bitmap
+	data map[string]*roaring.Bitmap
 	mux  sync.RWMutex
 }
 
@@ -16,7 +16,7 @@ func (r *topics) Set(topics []string, sessionId uint32) {
 	for _, topic := range topics {
 		bitmap, ok := r.data[topic]
 		if !ok {
-			bitmap = roaring.Bitmap{}
+			bitmap = &roaring.Bitmap{}
 			r.data[topic] = bitmap
 		}
 		bitmap.Add(sessionId)
@@ -52,7 +52,7 @@ func (r *topics) Gets(topics []string) *roaring.Bitmap {
 	for _, topic := range topics {
 		if bitmap, ok := r.data[topic]; ok {
 			//将所有主题的session id都合并到一个大的bitmap中
-			ret.Or(&bitmap)
+			ret.Or(bitmap)
 		}
 	}
 	return &ret
@@ -68,5 +68,5 @@ func (r *topics) Count() int {
 var Topics *topics
 
 func init() {
-	Topics = &topics{data: map[string]roaring.Bitmap{}, mux: sync.RWMutex{}}
+	Topics = &topics{data: map[string]*roaring.Bitmap{}, mux: sync.RWMutex{}}
 }

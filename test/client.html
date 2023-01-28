@@ -13,27 +13,33 @@
         }
 
         input {
-            width: 300px;
+            width: 350px;
         }
     </style>
 </head>
 <body>
 <div style="display:flex">
-    <div style="width: 40%">
+    <div style="width: 50%">
         <div class="case">
             <button id="open">打开连接</button>
             <button id="close">关闭连接</button>
+            <button id="netSvrStatus">获取网关状态</button>
             <button id="clear">清屏</button>
         </div>
 
         <div class="case">
-            <label for="reqLoginUsername">
-                <input type="text" id="reqLoginUsername" placeholder="请输入账号" value="刘备">
+            <label for="username">
+                <input type="text" id="username" placeholder="请输入账号" value="刘备">
             </label>
-            <label for="reqLoginPassword">
-                <input type="text" id="reqLoginPassword" placeholder="请输入密码" value="123456">
+            <label for="password">
+                <input type="text" id="password" placeholder="请输入密码" value="123456">
             </label>
-            <button id="reqLogin">测试登录</button>
+            <button id="login">登录</button>
+        </div>
+
+        <div class="case">
+            <button id="logout">退出登录</button>
+            <button id="updateSessionUserInfo">更新网关中的用户信息</button>
         </div>
 
         <div class="case">
@@ -73,8 +79,17 @@
             </label>
             <button id="unsubscribe">取消订阅</button>
         </div>
+        <div class="case">
+            <label for="publishMessage">
+                <input type="text" id="publishMessage" placeholder="请输入要发布的信息" value="">
+            </label>
+            <label for="publish">
+                <input type="text" id="publishTopic" placeholder="请输入要发布的主题">
+            </label>
+            <button id="publish">发布</button>
+        </div>
     </div>
-    <div style="width: 40%;max-height: 70vh;overflow-y: scroll;">
+    <div style="width: 30%;max-height: 70vh;overflow-y: auto;">
         <div id="sessionId"></div>
         <div id="loginInfo"></div>
         <div id="output"></div>
@@ -85,7 +100,7 @@
     let ws;
     let loginStatus = false;
     let workerId = '001';
-    let heartbeat = 0;
+    let heartbeatInterval = 0;
     let output = document.getElementById("output");
     let print = function (message) {
         let d = document.createElement("div");
@@ -93,6 +108,10 @@
         output.appendChild(d);
         output.scroll(0, output.scrollHeight);
     };
+
+    //心跳字符串
+    let pingMessage = "~H27890027B~";
+    let pongMessage = "~H278a0027B~";
 
     /**
      * 发送数据到服务端
@@ -104,7 +123,7 @@
             print("请先打开连接");
             return;
         }
-        if (cmd !== routerCmd.login && loginStatus === false) {
+        if (cmd !== routerCmd.login && cmd !== routerCmd.netSvrStatus && loginStatus === false) {
             print("请先登录");
             return;
         }
@@ -120,18 +139,26 @@
     const routerCmd = {
         //连接成功
         connOpen: 1,
+        //获取网关的信息
+        netSvrStatus: 2,
         //登录
-        login: 2,
+        login: 3,
+        //退出登录
+        logout: 4,
+        //更新网关中的用户信息
+        updateSessionUserInfo: 5,
         //单播给某个用户
-        singleCast: 3,
+        singleCast: 6,
         //组播给多个用户
-        multicast: 4,
+        multicast: 7,
         //广播
-        broadcast: 5,
+        broadcast: 8,
         //订阅
-        subscribe: 6,
+        subscribe: 9,
         //取消订阅
-        unsubscribe: 7,
+        unsubscribe: 10,
+        //发布
+        publish: 11,
     };
 
     function open() {
@@ -140,15 +167,15 @@
         }
         ws = new WebSocket("ws:\/\/127.0.0.1:8080\/gateway");
         ws.onopen = function () {
-            heartbeat = setInterval(function () {
+            heartbeatInterval = setInterval(function () {
                 //每隔30秒，发送一次心跳信息
-                ws.send('~H27890027B~');
+                ws.send(pingMessage);
             }, 1000 * 30);
         }
         ws.onclose = function (evt) {
             ws = null;
-            clearInterval(heartbeat);
-            heartbeat = 0;
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = 0;
             if (evt.code === 1005) {
                 //客户端主动断开
                 document.getElementById("sessionId").innerText = '断开网关成功，sessionId: 0';
@@ -161,12 +188,12 @@
         }
         ws.onmessage = function (evt) {
             //服务端发送心跳检查，则响应一个心跳给服务端
-            if (evt.data === '~H27890027B~') {
-                ws.send('~H278a0027B~');
+            if (evt.data === pingMessage) {
+                ws.send(pongMessage);
                 return;
             }
             //服务端响应了客户端的心跳
-            if (evt.data === '~H278a0027B~') {
+            if (evt.data === pongMessage) {
                 return;
             }
             try {
@@ -193,8 +220,30 @@
                     }
                     return;
                 }
+                //服务端响应退出登录结果
+                if (resp.cmd === routerCmd.logout) {
+                    loginStatus = !(resp.data.code === 0);
+                    if (loginStatus === false) {
+                        document.getElementById("loginInfo").innerText = '';
+                    }
+                    print(resp.data.message);
+                    return;
+                }
+                //服务端响应退出登录结果
+                if (resp.cmd === routerCmd.updateSessionUserInfo) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    /**
+                     * @type {{LastUpdateTime: string}}
+                     */
+                    let userInfo = resp.data.data.netSvrInfo;
+                    print('最后更新时间：' + userInfo.LastUpdateTime);
+                    return;
+                }
                 //某某某发来了一条信息
-                if (resp.cmd === routerCmd.singleCast || resp.cmd === routerCmd.multicast || resp.cmd === routerCmd.broadcast) {
+                if (resp.cmd === routerCmd.singleCast || resp.cmd === routerCmd.multicast || resp.cmd === routerCmd.broadcast || resp.cmd === routerCmd.publish) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
@@ -247,13 +296,34 @@
     }
 
     /**
+     * 测试获取网关的信息
+     */
+    function netSvrStatus() {
+        send(routerCmd.netSvrStatus, {});
+    }
+
+    /**
      * 测试登录
      */
-    function reqLogin() {
+    function login() {
         send(routerCmd.login, {
-            username: document.getElementById("reqLoginUsername").value,
-            password: document.getElementById("reqLoginPassword").value
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value
         });
+    }
+
+    /**
+     * 测试退出登录
+     */
+    function logout() {
+        send(routerCmd.logout, {});
+    }
+
+    /**
+     * 测试更新网关中的用户信息
+     */
+    function updateSessionUserInfo() {
+        send(routerCmd.updateSessionUserInfo, {});
     }
 
     /**
@@ -327,16 +397,30 @@
         });
     }
 
+    /**
+     * 测试发布
+     */
+    function publish() {
+        send(routerCmd.publish, {
+            message: document.getElementById("publishMessage").value,
+            topic: document.getElementById("publishTopic").value
+        });
+    }
+
     window.addEventListener("load", function () {
         document.getElementById("open").onclick = open;
         document.getElementById("close").onclick = close;
         document.getElementById("clear").onclick = clear;
-        document.getElementById("reqLogin").onclick = reqLogin;
+        document.getElementById("netSvrStatus").onclick = netSvrStatus;
+        document.getElementById("login").onclick = login;
+        document.getElementById("logout").onclick = logout;
+        document.getElementById("updateSessionUserInfo").onclick = updateSessionUserInfo;
         document.getElementById("singleCast").onclick = singleCast;
         document.getElementById("multicast").onclick = multicast;
         document.getElementById("broadcast").onclick = broadcast;
         document.getElementById("subscribe").onclick = subscribe;
         document.getElementById("unsubscribe").onclick = unsubscribe;
+        document.getElementById("publish").onclick = publish;
     });
 </script>
 </body>

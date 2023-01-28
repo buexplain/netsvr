@@ -2,8 +2,8 @@ package session
 
 import (
 	"github.com/RoaringBitmap/roaring"
-	"github.com/buexplain/netsvr/configs"
 	"github.com/lesismal/nbio/logging"
+	"netsvr/configs"
 	"sync"
 )
 
@@ -23,6 +23,7 @@ type id struct {
 // Get 分配一个session id出去
 func (r *id) Get() uint32 {
 	r.lock.Lock()
+	defer r.lock.Unlock()
 	for {
 		r.inc++
 		if r.inc > r.max {
@@ -30,7 +31,6 @@ func (r *id) Get() uint32 {
 		}
 		if !r.allocated.Contains(r.inc) {
 			r.allocated.Add(r.inc)
-			r.lock.Unlock()
 			return r.inc
 		}
 	}
@@ -39,19 +39,18 @@ func (r *id) Get() uint32 {
 // Put 归还一个session id 回来
 func (r *id) Put(id uint32) {
 	r.lock.Lock()
+	defer r.lock.Unlock()
 	r.allocated.Remove(id)
-	r.lock.Unlock()
 }
 
 // GetAllocated 获取已分配的id集合
 func (r *id) GetAllocated() *roaring.Bitmap {
 	r.lock.Lock()
-	tmp := r.allocated.Clone()
-	r.lock.Unlock()
-	return tmp
+	defer r.lock.Unlock()
+	return r.allocated.Clone()
 }
 
-// CountAllocated 获取已分配的id集合
+// CountAllocated 获取已分配的id集合大小
 func (r *id) CountAllocated() uint64 {
 	r.lock.Lock()
 	defer r.lock.Unlock()

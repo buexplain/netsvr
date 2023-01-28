@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toWorkerTransfer;
 
-option go_package = "./protocol/toWorker/connClose;connClose";
+option go_package = "netsvr/internal/protocol/toWorker/connClose;connClose";
 
 //转发客户连接关闭的信息到工作进程
 message ConnClose {

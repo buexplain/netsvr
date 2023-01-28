@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toWorkerTransfer;
 
-option go_package = "./protocol/toWorker/transfer;transfer";
+option go_package = "netsvr/internal/protocol/toWorker/transfer;transfer";
 
 //转发客户的信息到工作进程
 message Transfer {

@@ -1,7 +1,7 @@
 package session
 
 import (
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/respSessionInfo"
+	"netsvr/internal/protocol/toWorker/respSessionInfo"
 	"sync"
 )
 

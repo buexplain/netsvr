@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package reCtx;
+
+option go_package = "netsvr/internal/protocol/reCtx;reCtx";
+
+//请求上下文，网关会原样回传给工作进程
+message ReCtx {
+  //什么命令发起的请求
+  int32 cmd = 1;
+  //发起请求的时候的具体上下文是什么
+  bytes data = 2;
+}

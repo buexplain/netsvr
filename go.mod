@@ -1,4 +1,4 @@
-module github.com/buexplain/netsvr
+module netsvr
 
 go 1.18
 

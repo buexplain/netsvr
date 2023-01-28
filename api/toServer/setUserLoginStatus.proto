@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerSetUserLoginStatusOk;
 
-option go_package = "./protocol/toServer/setUserLoginStatus;setUserLoginStatus";
+option go_package = "netsvr/internal/protocol/toServer/setUserLoginStatus;setUserLoginStatus";
 
 //设置用户登录状态
 message SetUserLoginStatus {

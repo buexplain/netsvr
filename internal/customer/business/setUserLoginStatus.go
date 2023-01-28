@@ -1,9 +1,9 @@
 package business
 
 import (
-	"github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
+	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toServer/setUserLoginStatus"
 )
 
 // SetUserLoginStatus 设置用户登录状态

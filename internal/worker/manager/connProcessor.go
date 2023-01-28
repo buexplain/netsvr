@@ -3,44 +3,44 @@ package manager
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/buexplain/netsvr/configs"
-	"github.com/buexplain/netsvr/internal/customer/business"
-	customerManager "github.com/buexplain/netsvr/internal/customer/manager"
-	"github.com/buexplain/netsvr/internal/customer/session"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/broadcast"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/multicast"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/multicastByBitmap"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/publish"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/registerWorker"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/reqNetSvrStatus"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/reqSessionInfo"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/reqTopicsSessionId"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/reqTotalSessionId"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/respNetSvrStatus"
-	toServerRouter "github.com/buexplain/netsvr/internal/protocol/toServer/router"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setSessionUser"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/setUserLoginStatus"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/singleCast"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/subscribe"
-	"github.com/buexplain/netsvr/internal/protocol/toServer/unsubscribe"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/respSessionInfo"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/respTopicsSessionId"
-	"github.com/buexplain/netsvr/internal/protocol/toWorker/respTotalSessionId"
-	toWorkerRouter "github.com/buexplain/netsvr/internal/protocol/toWorker/router"
-	"github.com/buexplain/netsvr/internal/worker/heartbeat"
-	"github.com/buexplain/netsvr/pkg/quit"
-	"github.com/buexplain/netsvr/pkg/timecache"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
+	"netsvr/configs"
+	"netsvr/internal/customer/business"
+	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/customer/session"
+	"netsvr/internal/protocol/toServer/broadcast"
+	"netsvr/internal/protocol/toServer/multicast"
+	"netsvr/internal/protocol/toServer/multicastByBitmap"
+	"netsvr/internal/protocol/toServer/publish"
+	"netsvr/internal/protocol/toServer/registerWorker"
+	"netsvr/internal/protocol/toServer/reqNetSvrStatus"
+	"netsvr/internal/protocol/toServer/reqSessionInfo"
+	"netsvr/internal/protocol/toServer/reqTopicsSessionId"
+	"netsvr/internal/protocol/toServer/reqTotalSessionId"
+	toServerRouter "netsvr/internal/protocol/toServer/router"
+	"netsvr/internal/protocol/toServer/setSessionUser"
+	"netsvr/internal/protocol/toServer/setUserLoginStatus"
+	"netsvr/internal/protocol/toServer/singleCast"
+	"netsvr/internal/protocol/toServer/subscribe"
+	"netsvr/internal/protocol/toServer/unsubscribe"
+	"netsvr/internal/protocol/toWorker/respNetSvrStatus"
+	"netsvr/internal/protocol/toWorker/respSessionInfo"
+	"netsvr/internal/protocol/toWorker/respTopicsSessionId"
+	"netsvr/internal/protocol/toWorker/respTotalSessionId"
+	toWorkerRouter "netsvr/internal/protocol/toWorker/router"
+	"netsvr/internal/worker/heartbeat"
+	"netsvr/pkg/quit"
+	"netsvr/pkg/timecache"
 	"sync/atomic"
 	"time"
 )
 
 type ConnProcessor struct {
-	conn    net.Conn
-	writeCh chan []byte
+	conn   net.Conn
+	sendCh chan []byte
 	//当前连接最后发送消息的时间
 	lastActiveTime *int64
 	closeCh        chan struct{}
@@ -52,46 +52,12 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	var lastActiveTime int64 = 0
 	tmp := &ConnProcessor{
 		conn:           conn,
-		writeCh:        make(chan []byte, 100),
+		sendCh:         make(chan []byte, 100),
 		lastActiveTime: &lastActiveTime,
 		closeCh:        make(chan struct{}),
 		workerId:       0,
 	}
 	return tmp
-}
-
-func (r *ConnProcessor) done() {
-	//处理通道中的剩余数据
-	for {
-		for i := len(r.writeCh); i > 0; i-- {
-			v := <-r.writeCh
-			r.execute(v)
-		}
-		if len(r.writeCh) == 0 {
-			break
-		}
-	}
-	//再次处理通道中的剩余数据，直到超时退出
-	for {
-		select {
-		case v := <-r.writeCh:
-			r.execute(v)
-		case <-time.After(1 * time.Second):
-			return
-		}
-	}
-}
-
-func (r *ConnProcessor) execute(data []byte) {
-	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
-		if _, err = r.conn.Write(data); err != nil {
-			r.close()
-			logging.Error("Worker write error: %v", err)
-		}
-	} else {
-		r.close()
-		logging.Error("Worker write error: %v", err)
-	}
 }
 
 func (r *ConnProcessor) close() {
@@ -107,42 +73,74 @@ func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		//写协程退出，直接关闭连接
 		r.close()
-		quit.Wg.Done()
-		//收集异常退出的信息
+		//打印日志信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker, error: %v", err)
+			logging.Error("Worker send coroutine is closed, workerId: %d, error: %v", r.workerId, err)
 		} else {
-			logging.Debug("Worker read coroutine is close")
+			logging.Debug("Worker send coroutine is closed, workerId: %d", r.workerId)
 		}
+		//减少协程wait计数器
+		quit.Wg.Done()
 	}()
 	for {
 		select {
-		// TODO 思考进程停止逻辑，目标是处理缓冲中的现有数据
-		case _ = <-r.closeCh:
-			//连接已被关闭，丢弃所有的数据
-			close(r.writeCh)
+		case <-r.closeCh:
 			return
 		case <-quit.Ctx.Done():
 			//进程即将停止，处理通道中剩余数据，尽量保证用户消息转发到工作进程
 			r.done()
 			return
-		case data := <-r.writeCh:
-			r.execute(data)
+		case data := <-r.sendCh:
+			r.write(data)
 		}
 	}
 }
 
-func (r *ConnProcessor) Write(data []byte) (n int, err error) {
+func (r *ConnProcessor) done() {
+	//处理通道中的剩余数据
+	for {
+		for i := len(r.sendCh); i > 0; i-- {
+			v := <-r.sendCh
+			r.write(v)
+		}
+		if len(r.sendCh) == 0 {
+			break
+		}
+	}
+	//再次处理通道中的剩余数据，直到超时退出
+	for {
+		select {
+		case v := <-r.sendCh:
+			r.write(v)
+		case <-time.After(1 * time.Second):
+			return
+		}
+	}
+}
+
+func (r *ConnProcessor) write(data []byte) {
+	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
+		if _, err = r.conn.Write(data); err != nil {
+			r.close()
+			logging.Error("Worker write error: %v", err)
+		}
+	} else {
+		r.close()
+		logging.Error("Worker write error: %v", err)
+	}
+}
+
+func (r *ConnProcessor) Send(data []byte) {
 	select {
 	case <-r.closeCh:
 		//工作进程即将关闭，停止转发消息到工作进程
-		return 0, nil
+		return
 	case <-quit.Ctx.Done():
 		//进程即将关闭，停止转发消息到工作进程
-		return 0, nil
+		return
 	default:
-		r.writeCh <- data
-		return len(data), nil
+		r.sendCh <- data
+		return
 	}
 }
 
@@ -153,17 +151,21 @@ func (r *ConnProcessor) LoopRead() {
 			return
 		}
 		//超过活跃期，服务端主动发送心跳
-		_, _ = r.Write(heartbeat.PingMessage)
+		r.Send(heartbeat.PingMessage)
 	})
 	defer func() {
 		//注销掉工作进程的id
 		r.unregisterWorker()
 		//停止心跳检查
 		heartbeatNode.Stop()
-		//收集异常退出的信息
+		//打印日志信息
 		if err := recover(); err != nil {
-			logging.Error("Abnormal exit a worker of id: %d, error: %v", r.workerId, err)
+			logging.Error("Worker read coroutine is closed, workerId: %d, error: %v", r.workerId, err)
+		} else {
+			logging.Debug("Worker read coroutine is closed, workerId: %d", r.workerId)
 		}
+		//减少协程wait计数器
+		quit.Wg.Done()
 	}()
 	dataLenBuf := make([]byte, 4)
 	for {
@@ -200,7 +202,7 @@ func (r *ConnProcessor) LoopRead() {
 		//客户端发来心跳
 		if bytes.Equal(heartbeat.PingMessage, dataBuf) {
 			//响应客户端的心跳
-			_, _ = r.Write(heartbeat.PongMessage)
+			r.Send(heartbeat.PongMessage)
 			continue
 		}
 		//客户端响应心跳
@@ -212,7 +214,7 @@ func (r *ConnProcessor) LoopRead() {
 			logging.Error("Proto unmarshal toServerRouter.Router error: %v", err)
 			continue
 		}
-		logging.Debug("Receive worker command: %d", toServerRoute.Cmd)
+		logging.Debug("Receive worker command: %s", toServerRoute.Cmd)
 		switch toServerRoute.Cmd {
 		case toServerRouter.Cmd_RegisterWorker:
 			//注册工作进程
@@ -310,11 +312,8 @@ func (r *ConnProcessor) registerWorker(toServerRoute *toServerRouter.Router) boo
 
 // 取消已注册的工作进程的id，取消后不会再收到用户连接的转发信息
 func (r *ConnProcessor) unregisterWorker() {
-	if r.workerId > 0 {
-		Manager.Del(r.workerId, r)
-		r.workerId = 0
-		logging.Info("Unregister a worker by id: %d", r.workerId)
-	}
+	Manager.Del(r.workerId, r)
+	logging.Info("Unregister a worker by id: %d", r.workerId)
 }
 
 // 变更用户的登录状态
@@ -406,13 +405,13 @@ func (r *ConnProcessor) reqTotalSessionId(toServerRoute *toServerRouter.Router) 
 	}
 	bitmap := session.Id.GetAllocated()
 	data := &respTotalSessionId.RespTotalSessionId{}
-	data.Cmd = req.Cmd
+	data.ReCtx = req.ReCtx
 	data.Bitmap, _ = bitmap.ToBase64()
 	route := &toWorkerRouter.Router{}
 	route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
 	route.Data, _ = proto.Marshal(data)
 	b, _ := proto.Marshal(route)
-	_, _ = r.Write(b)
+	r.Send(b)
 }
 
 // 获取网关中的某几个主题的session id
@@ -424,13 +423,13 @@ func (r *ConnProcessor) reqTopicsSessionId(toServerRoute *toServerRouter.Router)
 	}
 	bitmap := session.Topics.Gets(req.Topics)
 	data := &respTopicsSessionId.RespTopicsSessionId{}
-	data.Cmd = req.Cmd
+	data.ReCtx = req.ReCtx
 	data.Bitmap, _ = bitmap.ToBase64()
 	route := &toWorkerRouter.Router{}
 	route.Cmd = toWorkerRouter.Cmd_RespTopicsSessionId
 	route.Data, _ = proto.Marshal(data)
 	b, _ := proto.Marshal(route)
-	_, _ = r.Write(b)
+	r.Send(b)
 }
 
 // 根据session id获取网关中的用户信息
@@ -442,7 +441,7 @@ func (r *ConnProcessor) reqSessionInfo(toServerRoute *toServerRouter.Router) {
 	}
 	data := &respSessionInfo.RespSessionInfo{}
 	data.SessionId = req.SessionId
-	data.Cmd = req.Cmd
+	data.ReCtx = req.ReCtx
 	wsConn := customerManager.Manager.Get(req.SessionId)
 	if wsConn != nil {
 		if info, ok := wsConn.Session().(*session.Info); ok {
@@ -453,7 +452,7 @@ func (r *ConnProcessor) reqSessionInfo(toServerRoute *toServerRouter.Router) {
 	route.Cmd = toWorkerRouter.Cmd_RespSessionInfo
 	route.Data, _ = proto.Marshal(data)
 	b, _ := proto.Marshal(route)
-	_, _ = r.Write(b)
+	r.Send(b)
 }
 
 // 设置网关的session面存储的用户信息
@@ -475,7 +474,7 @@ func (r *ConnProcessor) reqNetSvrStatus(toServerRoute *toServerRouter.Router) {
 		return
 	}
 	data := &respNetSvrStatus.RespNetSvrStatus{}
-	data.Cmd = req.Cmd
+	data.ReCtx = req.ReCtx
 	data.CustomerConnCount = int32(session.Id.CountAllocated())
 	data.TopicCount = int32(session.Topics.Count())
 	data.CatapultWaitSendCount = int32(business.Catapult.CountWaitSend())
@@ -485,5 +484,5 @@ func (r *ConnProcessor) reqNetSvrStatus(toServerRoute *toServerRouter.Router) {
 	route.Cmd = toWorkerRouter.Cmd_RespNetSvrStatus
 	route.Data, _ = proto.Marshal(data)
 	b, _ := proto.Marshal(route)
-	_, _ = r.Write(b)
+	r.Send(b)
 }

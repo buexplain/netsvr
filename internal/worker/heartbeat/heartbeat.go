@@ -2,7 +2,7 @@ package heartbeat
 
 import (
 	"github.com/antlabs/timer"
-	"github.com/buexplain/netsvr/pkg/quit"
+	"netsvr/pkg/quit"
 )
 
 var PingMessage []byte = []byte("~H27890027B~")

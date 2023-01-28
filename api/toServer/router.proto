@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package toServerRouter;
 
-option go_package = "./protocol/toServer/router;router";
+option go_package = "netsvr/internal/protocol/toServer/router;router";
 
 //工作进程，发给服务器的各种指令
 enum Cmd {
