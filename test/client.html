@@ -13,17 +13,16 @@
         }
 
         input {
-            width: 350px;
+            width: 450px;
         }
     </style>
 </head>
 <body>
 <div style="display:flex">
-    <div style="width: 50%">
+    <div style="width: 65%">
         <div class="case">
             <button id="open">打开连接</button>
             <button id="close">关闭连接</button>
-            <button id="netSvrStatus">获取网关状态</button>
             <button id="clear">清屏</button>
         </div>
 
@@ -40,6 +39,7 @@
         <div class="case">
             <button id="logout">退出登录</button>
             <button id="updateSessionUserInfo">更新网关中的用户信息</button>
+            <button id="netSvrStatus">获取网关状态</button>
         </div>
 
         <div class="case">
@@ -80,6 +80,13 @@
             <button id="unsubscribe">取消订阅</button>
         </div>
         <div class="case">
+            <label for="connCountTopics">
+                <input type="text" id="connCountTopics"
+                       placeholder="请输入要已订阅的主题，多个用逗号分割，没有则表示全部">
+            </label>
+            <button id="topicsConnCount">获取主题连接数</button>
+        </div>
+        <div class="case">
             <label for="publishMessage">
                 <input type="text" id="publishMessage" placeholder="请输入要发布的信息" value="">
             </label>
@@ -106,7 +113,7 @@
         let d = document.createElement("div");
         d.textContent = message;
         output.appendChild(d);
-        output.scroll(0, output.scrollHeight);
+        d.scrollIntoView();
     };
 
     //心跳字符串
@@ -123,7 +130,7 @@
             print("请先打开连接");
             return;
         }
-        if (cmd !== routerCmd.login && cmd !== routerCmd.netSvrStatus && loginStatus === false) {
+        if (cmd !== routerCmd.login && loginStatus === false) {
             print("请先登录");
             return;
         }
@@ -134,32 +141,40 @@
     }
 
     /**
+     * routerCmd变量的枚举初始值
+     * @type {number}
+     */
+    let routerCmdEnumeration = 0;
+
+    /**
      * 发送给工作进程的指令
      */
-    const routerCmd = {
+    const routerCmd = Object.freeze({
         //连接成功
-        connOpen: 1,
+        connOpen: ++routerCmdEnumeration,
         //获取网关的信息
-        netSvrStatus: 2,
+        netSvrStatus: ++routerCmdEnumeration,
         //登录
-        login: 3,
+        login: ++routerCmdEnumeration,
         //退出登录
-        logout: 4,
+        logout: ++routerCmdEnumeration,
         //更新网关中的用户信息
-        updateSessionUserInfo: 5,
+        updateSessionUserInfo: ++routerCmdEnumeration,
         //单播给某个用户
-        singleCast: 6,
+        singleCast: ++routerCmdEnumeration,
         //组播给多个用户
-        multicast: 7,
+        multicast: ++routerCmdEnumeration,
         //广播
-        broadcast: 8,
+        broadcast: ++routerCmdEnumeration,
         //订阅
-        subscribe: 9,
+        subscribe: ++routerCmdEnumeration,
         //取消订阅
-        unsubscribe: 10,
+        unsubscribe: ++routerCmdEnumeration,
+        //获取网关中的某几个主题的连接数
+        topicsConnCount: ++routerCmdEnumeration,
         //发布
-        publish: 11,
-    };
+        publish: ++routerCmdEnumeration,
+    });
 
     function open() {
         if (ws) {
@@ -208,6 +223,24 @@
                     document.getElementById("sessionId").innerText = resp.data.message;
                     return;
                 }
+                //服务端响应网关状态信息
+                if (resp.cmd === routerCmd.netSvrStatus) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    /**
+                     * @type {{customerConnCount: number, topicCount: number, catapultWaitSendCount: number, catapultConsumer: number, catapultChanCap: number}}
+                     */
+                    let data = resp.data.data;
+                    print('网关中的客户连接数 --> ' + data.customerConnCount);
+                    print('网关中的主题数量 --> ' + data.topicCount);
+                    print('等待转发到客户的数据量 --> ' + data.catapultWaitSendCount);
+                    print('等待转发到客户的数据量 --> ' + data.catapultWaitSendCount);
+                    print('用户于发送数据给客户的协程数量 --> ' + data.catapultConsumer);
+                    print('等待发送给客户数据的缓冲区的大小 --> ' + data.catapultChanCap);
+                    return;
+                }
                 //服务端响应登录结果
                 if (resp.cmd === routerCmd.login) {
                     loginStatus = resp.data.code === 0;
@@ -236,10 +269,14 @@
                         return;
                     }
                     /**
+                     * @type {{netSvrInfo: object}}
+                     */
+                    let data = resp.data.data;
+                    /**
                      * @type {{LastUpdateTime: string}}
                      */
-                    let userInfo = resp.data.data.netSvrInfo;
-                    print('最后更新时间：' + userInfo.LastUpdateTime);
+                    let netSvrInfo = data.netSvrInfo;
+                    print('最后更新时间：' + netSvrInfo.LastUpdateTime);
                     return;
                 }
                 //某某某发来了一条信息
@@ -261,6 +298,24 @@
                         print(resp.data.message + '，当前在订阅的主题有：' + resp.data.data.topics.toString());
                     } else {
                         print(resp.data.message);
+                    }
+                    return;
+                }
+                //服务端响应了某几个主题的连接数
+                if (resp.cmd === routerCmd.topicsConnCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data === null) {
+                        print("未找到任何主题");
+                        return;
+                    }
+                    for (let topic in resp.data.data) {
+                        if (!resp.data.data.hasOwnProperty(topic)) {
+                            continue;
+                        }
+                        print('主题：' + topic + ' 有 ' + resp.data.data[topic] + ' 个连接');
                     }
                     return;
                 }
@@ -398,6 +453,23 @@
     }
 
     /**
+     * 测试获取网关中的某几个主题的连接数
+     */
+    function topicsConnCount() {
+        let topics = [];
+        document.getElementById("connCountTopics").value.split(',').forEach(function (v) {
+            v = v.toString().trim();
+            if (v !== '') {
+                topics.push(v);
+            }
+        });
+        send(routerCmd.topicsConnCount, {
+            topics: topics,
+            getAll: topics.length === 0
+        });
+    }
+
+    /**
      * 测试发布
      */
     function publish() {
@@ -420,6 +492,7 @@
         document.getElementById("broadcast").onclick = broadcast;
         document.getElementById("subscribe").onclick = subscribe;
         document.getElementById("unsubscribe").onclick = unsubscribe;
+        document.getElementById("topicsConnCount").onclick = topicsConnCount;
         document.getElementById("publish").onclick = publish;
     });
 </script>

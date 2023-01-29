@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
+	"netsvr/internal/protocol/reCtx"
 	"netsvr/internal/protocol/toServer/broadcast"
 	"netsvr/internal/protocol/toServer/multicast"
 	"netsvr/internal/protocol/toServer/multicastByBitmap"
@@ -17,6 +18,7 @@ import (
 	"netsvr/internal/protocol/toServer/registerWorker"
 	"netsvr/internal/protocol/toServer/reqNetSvrStatus"
 	"netsvr/internal/protocol/toServer/reqSessionInfo"
+	"netsvr/internal/protocol/toServer/reqTopicsConnCount"
 	toServerRouter "netsvr/internal/protocol/toServer/router"
 	"netsvr/internal/protocol/toServer/setSessionUser"
 	"netsvr/internal/protocol/toServer/setUserLoginStatus"
@@ -25,7 +27,9 @@ import (
 	"netsvr/internal/protocol/toServer/unsubscribe"
 	"netsvr/internal/protocol/toWorker/connClose"
 	"netsvr/internal/protocol/toWorker/connOpen"
+	"netsvr/internal/protocol/toWorker/respNetSvrStatus"
 	"netsvr/internal/protocol/toWorker/respSessionInfo"
+	"netsvr/internal/protocol/toWorker/respTopicsConnCount"
 	toWorkerRouter "netsvr/internal/protocol/toWorker/router"
 	"netsvr/internal/protocol/toWorker/transfer"
 	"netsvr/internal/worker/heartbeat"
@@ -33,6 +37,8 @@ import (
 	"netsvr/pkg/utils"
 	"netsvr/test/worker/protocol"
 	"netsvr/test/worker/userDb"
+	"runtime/debug"
+	"strconv"
 	"time"
 )
 
@@ -52,7 +58,7 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	t := time.NewTicker(time.Duration(35) * time.Second)
 	defer func() {
 		if err := recover(); err != nil {
-			logging.Error("Worker heartbeat coroutine is closed, error: %v", err)
+			logging.Error("Worker heartbeat coroutine is closed, error: %vn%s", err, debug.Stack())
 		} else {
 			logging.Debug("Worker heartbeat coroutine is closed")
 		}
@@ -89,7 +95,7 @@ func (r *ConnProcessor) Close() {
 func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		if err := recover(); err != nil {
-			logging.Error("Worker send coroutine is closed, error: %v", err)
+			logging.Error("Worker send coroutine is closed, error: %vn%s", err, debug.Stack())
 		} else {
 			logging.Debug("Worker send coroutine is closed")
 		}
@@ -158,7 +164,7 @@ func (r *ConnProcessor) Send(data []byte) {
 func (r *ConnProcessor) LoopRead() {
 	defer func() {
 		if err := recover(); err != nil {
-			logging.Error("Worker read coroutine is closed, error: %v", err)
+			logging.Error("Worker read coroutine is closed, error: %vn%s", err, debug.Stack())
 		} else {
 			logging.Debug("Worker read coroutine is closed")
 		}
@@ -220,6 +226,16 @@ func (r *ConnProcessor) LoopRead() {
 			r.respSessionInfo(toWorkerRoute)
 			continue
 		}
+		//网关返回了自己的状态信息
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_RespNetSvrStatus {
+			r.respNetSvrStatus(toWorkerRoute)
+			continue
+		}
+		//网关返回了主题的连接数
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_RespTopicsConnCount {
+			r.respTopicsConnCount(toWorkerRoute)
+			continue
+		}
 		//客户端发来的业务请求
 		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_Transfer {
 			//解析网关的转发过来的对象
@@ -277,6 +293,11 @@ func (r *ConnProcessor) LoopRead() {
 			//处理取消订阅
 			if clientRoute.Cmd == protocol.RouterUnsubscribe {
 				r.unsubscribe(tf.SessionId, clientRoute.Data)
+				continue
+			}
+			//获取网关中的某几个主题的连接数
+			if clientRoute.Cmd == protocol.RouterTopicsConnCount {
+				r.topicsConnCount(tf.SessionId, clientRoute.Data)
 				continue
 			}
 			//处理发布
@@ -345,12 +366,48 @@ func (r *ConnProcessor) connClose(toWorkerRoute *toWorkerRouter.Router) {
 
 // 获取网关的信息
 func (r *ConnProcessor) netSvrStatus(currentSessionId uint32) {
-	req := &reqNetSvrStatus.ReqNetSvrStatus{}
+	req := &reqNetSvrStatus.ReqNetSvrStatus{ReCtx: &reCtx.ReCtx{}}
 	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
 	req.ReCtx.Cmd = protocol.RouterNetSvrStatus
+	//将session id存储到请求上下文中去，当网关返回数据的时候用的上
+	req.ReCtx.Data = utils.StrToBytes(strconv.FormatInt(int64(currentSessionId), 10))
 	toServerRoute := &toServerRouter.Router{}
 	toServerRoute.Cmd = toServerRouter.Cmd_ReqNetSvrStatus
 	toServerRoute.Data, _ = proto.Marshal(req)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 处理网关发送的网关状态信息
+func (r *ConnProcessor) respNetSvrStatus(toWorkerRoute *toWorkerRouter.Router) {
+	netSvrStatus := &respNetSvrStatus.RespNetSvrStatus{}
+	if err := proto.Unmarshal(toWorkerRoute.Data, netSvrStatus); err != nil {
+		logging.Error("Proto unmarshal respNetSvrStatus.RespNetSvrStatus error:%v", err)
+		return
+	}
+	//不是客户端请求网关数据，则忽略
+	if netSvrStatus.ReCtx.Cmd != protocol.RouterNetSvrStatus {
+		return
+	}
+	//解析请求上下文中存储的session id
+	targetSessionId, _ := strconv.ParseInt(string(netSvrStatus.ReCtx.Data), 10, 64)
+	if targetSessionId == 0 {
+		return
+	}
+	//将网关的状态信息单播给客户端
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+	ret := &singleCast.SingleCast{}
+	ret.SessionId = uint32(targetSessionId)
+	msg := map[string]interface{}{
+		"customerConnCount":     netSvrStatus.CustomerConnCount,
+		"topicCount":            netSvrStatus.TopicCount,
+		"catapultWaitSendCount": netSvrStatus.CatapultWaitSendCount,
+		"catapultConsumer":      netSvrStatus.CatapultConsumer,
+		"catapultChanCap":       netSvrStatus.CatapultChanCap,
+	}
+	ret.Data = NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "获取网关状态信息成功", "data": msg})
+	toServerRoute.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
 }
@@ -562,7 +619,7 @@ func (r *ConnProcessor) subscribe(currentSessionId uint32, data string) {
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
 	//查询该用户的订阅信息
-	req := &reqSessionInfo.ReqSessionInfo{}
+	req := &reqSessionInfo.ReqSessionInfo{ReCtx: &reCtx.ReCtx{}}
 	req.SessionId = currentSessionId
 	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
 	req.ReCtx.Cmd = protocol.RouterSubscribe
@@ -597,7 +654,7 @@ func (r *ConnProcessor) unsubscribe(currentSessionId uint32, data string) {
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
 	//查询该用户的订阅信息
-	req := &reqSessionInfo.ReqSessionInfo{}
+	req := &reqSessionInfo.ReqSessionInfo{ReCtx: &reCtx.ReCtx{}}
 	req.SessionId = currentSessionId
 	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
 	req.ReCtx.Cmd = protocol.RouterUnsubscribe
@@ -655,6 +712,55 @@ func (r *ConnProcessor) respSessionInfoByUnsubscribe(sessionInfo *respSessionInf
 	ret.Data = NewResponse(protocol.RouterUnsubscribe, map[string]interface{}{"code": 0, "message": "取消订阅成功", "data": msg})
 	toServerRoute.Data, _ = proto.Marshal(ret)
 	//发送给网关
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 获取网关中的某几个主题的连接数
+func (r *ConnProcessor) topicsConnCount(currentSessionId uint32, data string) {
+	//解析客户端发来的数据
+	target := new(protocol.TopicsConnCount)
+	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
+		logging.Error("Parse protocol.TopicsConnCount request error: %v", err)
+		return
+	}
+	req := reqTopicsConnCount.ReqTopicsConnCount{ReCtx: &reCtx.ReCtx{}}
+	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
+	req.ReCtx.Cmd = protocol.RouterTopicsConnCount
+	//将session id存储到请求上下文中去，当网关返回数据的时候用的上
+	req.ReCtx.Data = utils.StrToBytes(strconv.FormatInt(int64(currentSessionId), 10))
+	req.Topics = target.Topics
+	req.GetAll = target.GetAll
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_ReqTopicsConnCount
+	toServerRoute.Data, _ = proto.Marshal(&req)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 处理网关发送的主题的连接数
+func (r *ConnProcessor) respTopicsConnCount(toWorkerRoute *toWorkerRouter.Router) {
+	topicsConnCount := &respTopicsConnCount.RespTopicsConnCount{}
+	if err := proto.Unmarshal(toWorkerRoute.Data, topicsConnCount); err != nil {
+		logging.Error("Proto unmarshal respTopicsConnCount.RespTopicsConnCount error:%v", err)
+		return
+	}
+	//不是客户端请求网关数据，则忽略
+	if topicsConnCount.ReCtx.Cmd != protocol.RouterTopicsConnCount {
+		return
+	}
+	//解析请求上下文中存储的session id
+	targetSessionId, _ := strconv.ParseInt(string(topicsConnCount.ReCtx.Data), 10, 64)
+	if targetSessionId == 0 {
+		return
+	}
+	//将主题的连接数单播给客户端
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+	ret := &singleCast.SingleCast{}
+	ret.SessionId = uint32(targetSessionId)
+	ret.Data = NewResponse(protocol.RouterTopicsConnCount, map[string]interface{}{"code": 0, "message": "获取网关中主题的连接数成功", "data": topicsConnCount.Items})
+	toServerRoute.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
 }

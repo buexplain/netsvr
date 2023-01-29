@@ -27,6 +27,9 @@ const (
 	RouterSubscribe
 	// RouterUnsubscribe 取消订阅
 	RouterUnsubscribe
+	// RouterTopicsConnCount 获取网关中的某几个主题的连接数
+	RouterTopicsConnCount
+	// RouterPublish 发布信息
 	RouterPublish
 )
 
@@ -74,6 +77,12 @@ type Subscribe struct {
 
 // Unsubscribe 客户端发送的取消订阅信息
 type Unsubscribe struct {
+	Topics []string
+}
+
+// TopicsConnCount 获取网关中的某几个主题的连接数
+type TopicsConnCount struct {
+	GetAll bool
 	Topics []string
 }
 
