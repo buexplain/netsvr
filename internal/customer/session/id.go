@@ -64,11 +64,8 @@ func init() {
 		allocated: roaring.Bitmap{},
 		lock:      sync.Mutex{},
 	}
-	//单机范围五千万，uint32总共可以分配255台机器
-	//客户端根据session id的大小可以推算出该session id所在的网关机器
-	var step uint32 = 5000 * 10000
-	Id.max = step * uint32(configs.Config.NetServerId)
-	Id.min = Id.max - step + 1
+	Id.min = configs.Config.SessionIdMin
+	Id.max = configs.Config.SessionIdMax
 	Id.inc = Id.min - 1
-	logging.Info("Session id range of the current net server %d is %d ~ %d", configs.Config.NetServerId, Id.min, Id.max)
+	logging.Info("Session id range: %d ~ %d", Id.min, Id.max)
 }

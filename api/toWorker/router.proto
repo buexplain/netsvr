@@ -16,10 +16,12 @@ enum Cmd {
   RespTotalSessionId = 3;
   //返回某几个主题的session id到工作进程
   RespTopicsSessionId = 4;
+  //返回网关中的某几个主题的连接数
+  RespTopicsConnCount = 5;
   //返回session信息到工作进程
-  RespSessionInfo = 5;
+  RespSessionInfo = 6;
   //返回网关的状态
-  RespNetSvrStatus = 6;
+  RespNetSvrStatus = 7;
 }
 
 //路由

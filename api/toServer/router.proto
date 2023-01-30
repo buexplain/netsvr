@@ -30,12 +30,14 @@ enum Cmd {
   ReqTotalSessionId = 10;
   //获取网关中的某几个主题的session id
   ReqTopicsSessionId = 11;
+  //获取网关中的某几个主题的连接数
+  ReqTopicsConnCount = 12;
   //根据session id获取网关中的用户信息
-  ReqSessionInfo = 12;
+  ReqSessionInfo = 13;
   //设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
-  SetSessionUser = 13;
+  SetSessionUser = 14;
   //获取网关的状态
-  ReqNetSvrStatus = 14;
+  ReqNetSvrStatus = 15;
 }
 
 //路由

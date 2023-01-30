@@ -1,12 +1,16 @@
-# 当前网关服务器编号，从1开始自增，用于计算session id的范围
-NetServerId = 1
+# session id的最小值，包含该值，不能为0
+SessionIdMin = 1
+# session id的最大值，包含该值
+SessionIdMax = 4294967293
 # 工作进程的心跳检查时间间隔（单位：秒）
 WorkerHeartbeatIntervalSecond = 55
 # 工作进程读取包大小（单位：字节）
 WorkerReadPackLimit = 2097152
+# 用于处理工作进程发来的请求命令的协程数量
+WorkerConsumer = 10
 # 客户连接的心跳检查时间间隔（单位：秒）
 CustomerHeartbeatIntervalSecond = 55
-# 用户于发送数据给客户的协程数量
+# 用于发送数据给客户的协程数量
 CatapultConsumer = 1000
 # 等待发送给客户数据的缓冲区的大小
 CatapultChanCap = 2000

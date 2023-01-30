@@ -11,15 +11,19 @@ import (
 )
 
 type config struct {
-	//当前网关服务器编号，从1开始自增，用于计算session id的范围
-	NetServerId uint8
+	//session id的最小值，包含该值，不能为0
+	SessionIdMin uint32
+	//session id的最大值，包含该值
+	SessionIdMax uint32
 	//工作进程的心跳检查时间间隔（单位：秒）
 	WorkerHeartbeatIntervalSecond int64
 	//工作进程读取包大小（单位：字节）
 	WorkerReadPackLimit uint32
+	//用于处理工作进程发来的请求命令的协程数量
+	WorkerConsumer int
 	//客户连接的心跳检查时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
-	//用户于发送数据给客户的协程数量
+	//用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
 	CatapultChanCap int
@@ -78,8 +82,12 @@ func init() {
 		os.Exit(1)
 	}
 	//检查各种参数
-	if Config.NetServerId == 0 {
-		logging.Error("网关服务器编号错误，请从1开始自增，到255结束")
+	if Config.SessionIdMin < 1 {
+		logging.Error("session id的最小值不能为0")
+		os.Exit(1)
+	}
+	if Config.SessionIdMax < Config.SessionIdMin {
+		logging.Error("session id的最大值配置，必须大于session id的最小值配置")
 		os.Exit(1)
 	}
 	if Config.WorkerHeartbeatIntervalSecond <= 0 {
@@ -89,6 +97,10 @@ func init() {
 	if Config.WorkerReadPackLimit <= 0 {
 		//默认2MB
 		Config.WorkerReadPackLimit = 2 * 1024 * 1024
+	}
+	if Config.WorkerConsumer <= 0 {
+		//默认10条协程
+		Config.WorkerConsumer = 10
 	}
 	if Config.CustomerHeartbeatIntervalSecond <= 0 {
 		//默认55秒

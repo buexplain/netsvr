@@ -11,6 +11,8 @@ const (
 	RouterRespConnOpen = iota + 1
 	// RouterNetSvrStatus 获取网关的信息
 	RouterNetSvrStatus
+	// RouterTotalSessionId 获取网关所有在线的session id
+	RouterTotalSessionId
 	// RouterLogin 登录
 	RouterLogin
 	//RouterLogout 退出登录
@@ -29,6 +31,8 @@ const (
 	RouterUnsubscribe
 	// RouterTopicsConnCount 获取网关中的某几个主题的连接数
 	RouterTopicsConnCount
+	// RouterTopicsSessionId 获取网关中的某几个主题的连接session id
+	RouterTopicsSessionId
 	// RouterPublish 发布信息
 	RouterPublish
 )
@@ -77,6 +81,11 @@ type Subscribe struct {
 
 // Unsubscribe 客户端发送的取消订阅信息
 type Unsubscribe struct {
+	Topics []string
+}
+
+// TopicsSessionId 获取网关中的某几个主题的连接session id
+type TopicsSessionId struct {
 	Topics []string
 }
 

@@ -40,6 +40,7 @@
             <button id="logout">退出登录</button>
             <button id="updateSessionUserInfo">更新网关中的用户信息</button>
             <button id="netSvrStatus">获取网关状态</button>
+            <button id="totalSessionId">获取网关所有在线的session id</button>
         </div>
 
         <div class="case">
@@ -82,9 +83,16 @@
         <div class="case">
             <label for="connCountTopics">
                 <input type="text" id="connCountTopics"
-                       placeholder="请输入要已订阅的主题，多个用逗号分割，没有则表示全部">
+                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题">
             </label>
             <button id="topicsConnCount">获取主题连接数</button>
+        </div>
+        <div class="case">
+            <label for="topicsSessionId">
+                <input type="text" id="sessionIdTopics"
+                       placeholder="请输入主题，多个用逗号分割">
+            </label>
+            <button id="topicsSessionId">获取主题的session id</button>
         </div>
         <div class="case">
             <label for="publishMessage">
@@ -154,6 +162,8 @@
         connOpen: ++routerCmdEnumeration,
         //获取网关的信息
         netSvrStatus: ++routerCmdEnumeration,
+        //获取网关所有在线的session id
+        totalSessionId: ++routerCmdEnumeration,
         //登录
         login: ++routerCmdEnumeration,
         //退出登录
@@ -172,6 +182,8 @@
         unsubscribe: ++routerCmdEnumeration,
         //获取网关中的某几个主题的连接数
         topicsConnCount: ++routerCmdEnumeration,
+        //获取网关中的某几个主题的连接session id
+        topicsSessionId: ++routerCmdEnumeration,
         //发布
         publish: ++routerCmdEnumeration,
     });
@@ -239,6 +251,15 @@
                     print('等待转发到客户的数据量 --> ' + data.catapultWaitSendCount);
                     print('用户于发送数据给客户的协程数量 --> ' + data.catapultConsumer);
                     print('等待发送给客户数据的缓冲区的大小 --> ' + data.catapultChanCap);
+                    return;
+                }
+                //网关返回了所有在线的session id
+                if (resp.cmd === routerCmd.totalSessionId) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(resp.data.message + ' --> ' + resp.data.data.totalSessionId);
                     return;
                 }
                 //服务端响应登录结果
@@ -319,6 +340,24 @@
                     }
                     return;
                 }
+                //服务端响应了某几个主题的session id
+                if (resp.cmd === routerCmd.topicsSessionId) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data === null) {
+                        print("未找到任何主题");
+                        return;
+                    }
+                    for (let topic in resp.data.data) {
+                        if (!resp.data.data.hasOwnProperty(topic)) {
+                            continue;
+                        }
+                        print('主题：' + topic + ' --> ' + resp.data.data[topic]);
+                    }
+                    return;
+                }
                 //服务端响应取消订阅的结果
                 if (resp.cmd === routerCmd.unsubscribe) {
                     if (resp.data.code === 0) {
@@ -355,6 +394,13 @@
      */
     function netSvrStatus() {
         send(routerCmd.netSvrStatus, {});
+    }
+
+    /**
+     * 测试获取网关所有在线的session id
+     */
+    function totalSessionId() {
+        send(routerCmd.totalSessionId, {});
     }
 
     /**
@@ -470,6 +516,22 @@
     }
 
     /**
+     * 测试获取网关中的某几个主题的连接session id
+     */
+    function topicsSessionId() {
+        let topics = [];
+        document.getElementById("sessionIdTopics").value.split(',').forEach(function (v) {
+            v = v.toString().trim();
+            if (v !== '') {
+                topics.push(v);
+            }
+        });
+        send(routerCmd.topicsSessionId, {
+            topics: topics,
+        });
+    }
+
+    /**
      * 测试发布
      */
     function publish() {
@@ -484,6 +546,7 @@
         document.getElementById("close").onclick = close;
         document.getElementById("clear").onclick = clear;
         document.getElementById("netSvrStatus").onclick = netSvrStatus;
+        document.getElementById("totalSessionId").onclick = totalSessionId;
         document.getElementById("login").onclick = login;
         document.getElementById("logout").onclick = logout;
         document.getElementById("updateSessionUserInfo").onclick = updateSessionUserInfo;
@@ -493,6 +556,7 @@
         document.getElementById("subscribe").onclick = subscribe;
         document.getElementById("unsubscribe").onclick = unsubscribe;
         document.getElementById("topicsConnCount").onclick = topicsConnCount;
+        document.getElementById("topicsSessionId").onclick = topicsSessionId;
         document.getElementById("publish").onclick = publish;
     });
 </script>

@@ -3,6 +3,9 @@ package worker
 import (
 	"github.com/lesismal/nbio/logging"
 	"net"
+	"netsvr/configs"
+	"netsvr/internal/cmd"
+	"netsvr/internal/protocol/toServer/router"
 	"netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"time"
@@ -41,6 +44,26 @@ func (r *Server) Start() {
 			continue
 		default:
 			c := manager.NewConnProcessor(conn)
+			c.RegisterCmd(router.Cmd_RegisterWorker, cmd.RegisterWorker)
+			c.RegisterCmd(router.Cmd_UnregisterWorker, cmd.UnregisterWorker)
+			c.RegisterCmd(router.Cmd_Broadcast, cmd.Broadcast)
+			c.RegisterCmd(router.Cmd_Multicast, cmd.Multicast)
+			c.RegisterCmd(router.Cmd_MulticastByBitmap, cmd.MulticastByBitmap)
+			c.RegisterCmd(router.Cmd_Publish, cmd.Publish)
+			c.RegisterCmd(router.Cmd_SetSessionUser, cmd.SetSessionUser)
+			c.RegisterCmd(router.Cmd_SetUserLoginStatus, cmd.SetUserLoginStatus)
+			c.RegisterCmd(router.Cmd_SingleCast, cmd.SingleCast)
+			c.RegisterCmd(router.Cmd_Subscribe, cmd.Subscribe)
+			c.RegisterCmd(router.Cmd_Unsubscribe, cmd.Unsubscribe)
+			c.RegisterCmd(router.Cmd_ReqTotalSessionId, cmd.ReqTotalSessionId)
+			c.RegisterCmd(router.Cmd_ReqTopicsSessionId, cmd.ReqTopicsSessionId)
+			c.RegisterCmd(router.Cmd_ReqTopicsConnCount, cmd.ReqTopicsConnCount)
+			c.RegisterCmd(router.Cmd_ReqSessionInfo, cmd.ReqSessionInfo)
+			c.RegisterCmd(router.Cmd_ReqNetSvrStatus, cmd.ReqNetSvrStatus)
+			for i := 0; i < configs.Config.WorkerConsumer; i++ {
+				quit.Wg.Add(1)
+				go c.LoopCmd(i)
+			}
 			quit.Wg.Add(2)
 			go c.LoopRead()
 			go c.LoopSend()

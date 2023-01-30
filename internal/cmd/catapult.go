@@ -1,4 +1,4 @@
-package business
+package cmd
 
 import (
 	"github.com/lesismal/nbio/logging"
@@ -6,6 +6,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer/manager"
 	"netsvr/pkg/quit"
+	"runtime/debug"
 	"time"
 )
 
@@ -25,7 +26,7 @@ type catapult struct {
 func (r *catapult) Put(payload *Payload) {
 	select {
 	case <-quit.Ctx.Done():
-		//进程即将停止，不再受理新的数据
+		//网关进程即将停止，不再受理新的数据
 		return
 	default:
 		r.ch <- payload
@@ -75,10 +76,12 @@ func (r *catapult) consumer(number int) {
 	defer func() {
 		quit.Wg.Done()
 		if err := recover(); err != nil {
-			logging.Error("%v", err)
+			logging.Error("Customer catapult consumer coroutine is closed, error: %v\n%s", err, debug.Stack())
 			time.Sleep(5 * time.Second)
 			quit.Wg.Add(1)
 			go r.consumer(number)
+		} else {
+			logging.Debug("Customer catapult consumer coroutine is closed")
 		}
 	}()
 	for {

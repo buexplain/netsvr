@@ -10,7 +10,7 @@ option go_package = "netsvr/internal/protocol/toWorker/respTopicsSessionId;respT
 message RespTopicsSessionId {
   //请求上下文，网关会原样回传给工作进程
   reCtx.ReCtx reCtx = 1;
-  //将所有主题的session id都合并到一个大的bitmap中
-  //bitmap对象的序列化后的base64数据，工作进程需要反解才能得到具体的session id
-  string bitmap = 2;
+  //key是topic，value是bitmap对象的序列化后的base64数据，工作进程需要反解才能得到具体的session id
+  //如果topic没找到，则items中不会有该topic
+  map<string, string> items = 2;
 }

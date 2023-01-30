@@ -19,6 +19,8 @@ import (
 	"netsvr/internal/protocol/toServer/reqNetSvrStatus"
 	"netsvr/internal/protocol/toServer/reqSessionInfo"
 	"netsvr/internal/protocol/toServer/reqTopicsConnCount"
+	"netsvr/internal/protocol/toServer/reqTopicsSessionId"
+	"netsvr/internal/protocol/toServer/reqTotalSessionId"
 	toServerRouter "netsvr/internal/protocol/toServer/router"
 	"netsvr/internal/protocol/toServer/setSessionUser"
 	"netsvr/internal/protocol/toServer/setUserLoginStatus"
@@ -30,6 +32,8 @@ import (
 	"netsvr/internal/protocol/toWorker/respNetSvrStatus"
 	"netsvr/internal/protocol/toWorker/respSessionInfo"
 	"netsvr/internal/protocol/toWorker/respTopicsConnCount"
+	"netsvr/internal/protocol/toWorker/respTopicsSessionId"
+	"netsvr/internal/protocol/toWorker/respTotalSessionId"
 	toWorkerRouter "netsvr/internal/protocol/toWorker/router"
 	"netsvr/internal/protocol/toWorker/transfer"
 	"netsvr/internal/worker/heartbeat"
@@ -231,9 +235,19 @@ func (r *ConnProcessor) LoopRead() {
 			r.respNetSvrStatus(toWorkerRoute)
 			continue
 		}
+		//网关返回了所有在线的session id
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_RespTotalSessionId {
+			r.respTotalSessionId(toWorkerRoute)
+			continue
+		}
 		//网关返回了主题的连接数
 		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_RespTopicsConnCount {
 			r.respTopicsConnCount(toWorkerRoute)
+			continue
+		}
+		//网关返回了主题的连接session id
+		if toWorkerRoute.Cmd == toWorkerRouter.Cmd_RespTopicsSessionId {
+			r.respTopicsSessionId(toWorkerRoute)
 			continue
 		}
 		//客户端发来的业务请求
@@ -253,6 +267,11 @@ func (r *ConnProcessor) LoopRead() {
 			//获取网关的信息
 			if clientRoute.Cmd == protocol.RouterNetSvrStatus {
 				r.netSvrStatus(tf.SessionId)
+				continue
+			}
+			//获取网关所有在线的session id
+			if clientRoute.Cmd == protocol.RouterTotalSessionId {
+				r.totalSessionId(tf.SessionId)
 				continue
 			}
 			//登录
@@ -300,12 +319,19 @@ func (r *ConnProcessor) LoopRead() {
 				r.topicsConnCount(tf.SessionId, clientRoute.Data)
 				continue
 			}
+			//获取网关中的某几个主题的连接session id
+			if clientRoute.Cmd == protocol.RouterTopicsSessionId {
+				r.topicsSessionId(tf.SessionId, clientRoute.Data)
+				continue
+			}
 			//处理发布
 			if clientRoute.Cmd == protocol.RouterPublish {
 				r.publish(userDb.ParseNetSvrInfo(tf.User), clientRoute.Data)
 				continue
 			}
 		}
+
+		logging.Error("Unknown cmd: %d", toWorkerRoute.Cmd)
 	}
 }
 
@@ -394,7 +420,7 @@ func (r *ConnProcessor) respNetSvrStatus(toWorkerRoute *toWorkerRouter.Router) {
 	if targetSessionId == 0 {
 		return
 	}
-	//将网关的状态信息单播给客户端
+	//将网关的信息单播给客户端
 	toServerRoute := &toServerRouter.Router{}
 	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
 	ret := &singleCast.SingleCast{}
@@ -407,6 +433,50 @@ func (r *ConnProcessor) respNetSvrStatus(toWorkerRoute *toWorkerRouter.Router) {
 		"catapultChanCap":       netSvrStatus.CatapultChanCap,
 	}
 	ret.Data = NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "获取网关状态信息成功", "data": msg})
+	toServerRoute.Data, _ = proto.Marshal(ret)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 获取网关所有在线的session id
+func (r *ConnProcessor) totalSessionId(currentSessionId uint32) {
+	req := &reqTotalSessionId.ReqTotalSessionId{ReCtx: &reCtx.ReCtx{}}
+	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
+	req.ReCtx.Cmd = protocol.RouterTotalSessionId
+	//将session id存储到请求上下文中去，当网关返回数据的时候用的上
+	req.ReCtx.Data = utils.StrToBytes(strconv.FormatInt(int64(currentSessionId), 10))
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_ReqTotalSessionId
+	toServerRoute.Data, _ = proto.Marshal(req)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 处理网关发送的所有在线的session id
+func (r *ConnProcessor) respTotalSessionId(toWorkerRoute *toWorkerRouter.Router) {
+	totalSessionId := &respTotalSessionId.RespTotalSessionId{}
+	if err := proto.Unmarshal(toWorkerRoute.Data, totalSessionId); err != nil {
+		logging.Error("Proto unmarshal respTotalSessionId.RespTotalSessionId error:%v", err)
+		return
+	}
+	//不是客户端请求网关数据，则忽略
+	if totalSessionId.ReCtx.Cmd != protocol.RouterTotalSessionId {
+		return
+	}
+	//解析请求上下文中存储的session id
+	targetSessionId, _ := strconv.ParseInt(string(totalSessionId.ReCtx.Data), 10, 64)
+	if targetSessionId == 0 {
+		return
+	}
+	//将结果单播给客户端
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+	ret := &singleCast.SingleCast{}
+	ret.SessionId = uint32(targetSessionId)
+	msg := map[string]interface{}{
+		"totalSessionId": totalSessionId.Bitmap,
+	}
+	ret.Data = NewResponse(protocol.RouterTotalSessionId, map[string]interface{}{"code": 0, "message": "获取网关所有在线的session id成功", "data": msg})
 	toServerRoute.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
@@ -754,12 +824,60 @@ func (r *ConnProcessor) respTopicsConnCount(toWorkerRoute *toWorkerRouter.Router
 	if targetSessionId == 0 {
 		return
 	}
-	//将主题的连接数单播给客户端
+	//将结果单播给客户端
 	toServerRoute := &toServerRouter.Router{}
 	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
 	ret := &singleCast.SingleCast{}
 	ret.SessionId = uint32(targetSessionId)
 	ret.Data = NewResponse(protocol.RouterTopicsConnCount, map[string]interface{}{"code": 0, "message": "获取网关中主题的连接数成功", "data": topicsConnCount.Items})
+	toServerRoute.Data, _ = proto.Marshal(ret)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 获取网关中的某几个主题的连接session id
+func (r *ConnProcessor) topicsSessionId(currentSessionId uint32, data string) {
+	//解析客户端发来的数据
+	target := new(protocol.TopicsSessionId)
+	if err := json.Unmarshal(utils.StrToBytes(data), target); err != nil {
+		logging.Error("Parse protocol.TopicsSessionId request error: %v", err)
+		return
+	}
+	req := reqTopicsSessionId.ReqTopicsSessionId{ReCtx: &reCtx.ReCtx{}}
+	//将发起请求的原因给到网关，网关会在响应的数据里面原样返回
+	req.ReCtx.Cmd = protocol.RouterTopicsSessionId
+	//将session id存储到请求上下文中去，当网关返回数据的时候用的上
+	req.ReCtx.Data = utils.StrToBytes(strconv.FormatInt(int64(currentSessionId), 10))
+	req.Topics = target.Topics
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_ReqTopicsSessionId
+	toServerRoute.Data, _ = proto.Marshal(&req)
+	pt, _ := proto.Marshal(toServerRoute)
+	r.Send(pt)
+}
+
+// 处理网关发送的主题的连接session id
+func (r *ConnProcessor) respTopicsSessionId(toWorkerRoute *toWorkerRouter.Router) {
+	topicsSessionId := &respTopicsSessionId.RespTopicsSessionId{}
+	if err := proto.Unmarshal(toWorkerRoute.Data, topicsSessionId); err != nil {
+		logging.Error("Proto unmarshal respTopicsSessionId.RespTopicsSessionId error:%v", err)
+		return
+	}
+	//不是客户端请求网关数据，则忽略
+	if topicsSessionId.ReCtx.Cmd != protocol.RouterTopicsSessionId {
+		return
+	}
+	//解析请求上下文中存储的session id
+	targetSessionId, _ := strconv.ParseInt(string(topicsSessionId.ReCtx.Data), 10, 64)
+	if targetSessionId == 0 {
+		return
+	}
+	//将结果单播给客户端
+	toServerRoute := &toServerRouter.Router{}
+	toServerRoute.Cmd = toServerRouter.Cmd_SingleCast
+	ret := &singleCast.SingleCast{}
+	ret.SessionId = uint32(targetSessionId)
+	ret.Data = NewResponse(protocol.RouterTopicsSessionId, map[string]interface{}{"code": 0, "message": "获取网关中的主题的连接session id成功", "data": topicsSessionId.Items})
 	toServerRoute.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(toServerRoute)
 	r.Send(pt)
