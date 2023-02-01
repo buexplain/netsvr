@@ -4,7 +4,7 @@ package reCtx;
 
 option go_package = "netsvr/internal/protocol/reCtx;reCtx";
 
-//请求上下文，网关会原样回传给工作进程
+//request、response时候的业务上下文，网关会原样回传给工作进程
 message ReCtx {
   //什么命令发起的请求
   int32 cmd = 1;

@@ -5,7 +5,7 @@ SessionIdMax = 4294967293
 # 工作进程的心跳检查时间间隔（单位：秒）
 WorkerHeartbeatIntervalSecond = 55
 # 工作进程读取包大小（单位：字节）
-WorkerReadPackLimit = 2097152
+WorkerReceivePackLimit = 2097152
 # 用于处理工作进程发来的请求命令的协程数量
 WorkerConsumer = 10
 # 客户连接的心跳检查时间间隔（单位：秒）

@@ -25,7 +25,7 @@ type ConnProcessor struct {
 	//要发送给连接的数据
 	sendCh chan []byte
 	//从连接中读取的数据
-	readCh chan []byte
+	receiveCh chan *toServerRouter.Router
 	//连接最后发送消息的时间
 	lastActiveTime *int64
 	//连接关闭信号
@@ -41,7 +41,7 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:           conn,
 		sendCh:         make(chan []byte, 100),
-		readCh:         make(chan []byte, 100),
+		receiveCh:      make(chan *toServerRouter.Router, 100),
 		lastActiveTime: &lastActiveTime,
 		closeCh:        make(chan struct{}),
 		workerId:       0,
@@ -136,7 +136,7 @@ func (r *ConnProcessor) Send(data []byte) {
 	}
 }
 
-func (r *ConnProcessor) LoopRead() {
+func (r *ConnProcessor) LoopReceive() {
 	heartbeatNode := heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.WorkerHeartbeatIntervalSecond)*time.Second, func() {
 		if timecache.Unix()-atomic.LoadInt64(r.lastActiveTime) < configs.Config.WorkerHeartbeatIntervalSecond {
 			//还在活跃期内，不做处理
@@ -153,56 +153,59 @@ func (r *ConnProcessor) LoopRead() {
 		heartbeatNode.Stop()
 		//打印日志信息
 		if err := recover(); err != nil {
-			logging.Error("Worker read coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
+			logging.Error("Worker receive coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
 		} else {
-			logging.Debug("Worker read coroutine is closed, workerId: %d", r.workerId)
+			logging.Debug("Worker receive coroutine is closed, workerId: %d", r.workerId)
 		}
 		//减少协程wait计数器
 		quit.Wg.Done()
 	}()
 	dataLenBuf := make([]byte, 4)
+	dataBuf := make([]byte, configs.Config.WorkerReceivePackLimit)
 	for {
-		dataLenBuf[0] = 0
-		dataLenBuf[1] = 0
-		dataLenBuf[2] = 0
-		dataLenBuf[3] = 0
+		dataLenBuf = dataLenBuf[:0]
+		dataLenBuf = dataLenBuf[0:4]
 		//获取前4个字节，确定数据包长度
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
 			//读失败了，直接干掉这个连接，让客户端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
 			r.Close()
 			break
 		}
-		if len(dataLenBuf) != 4 {
-			continue
-		}
 		//这里采用大端序，小于2个字节，则说明业务命令都没有
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
-		if dataLen < 2 || dataLen > configs.Config.WorkerReadPackLimit {
-			//工作进程不按套路出牌，不老实，直接关闭它
+		if dataLen < 2 || dataLen > configs.Config.WorkerReceivePackLimit {
+			//工作进程不按套路出牌，不老实，直接关闭它，因为tcp流已经无法拆解了
 			r.Close()
-			logging.Error("Worker data is too large: %d", dataLen)
+			logging.Error("Worker receive data is too large: %d", dataLen)
 			break
 		}
 		//获取数据包
-		dataBuf := make([]byte, dataLen)
-		if _, err := io.ReadFull(r.conn, dataBuf); err != nil {
+		dataBuf = dataBuf[:0]
+		dataBuf = dataBuf[0:dataLen]
+		if _, err := io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
 			r.Close()
-			logging.Error("Worker read error: %v", err)
+			logging.Error("Worker receive error: %v", err)
 			break
 		}
 		//更新客户端的最后活跃时间
 		atomic.StoreInt64(r.lastActiveTime, timecache.Unix())
 		//客户端发来心跳
-		if bytes.Equal(heartbeat.PingMessage, dataBuf) {
+		if bytes.Equal(heartbeat.PingMessage, dataBuf[0:dataLen]) {
 			//响应客户端的心跳
 			r.Send(heartbeat.PongMessage)
 			continue
 		}
 		//客户端响应心跳
-		if bytes.Equal(heartbeat.PongMessage, dataBuf) {
+		if bytes.Equal(heartbeat.PongMessage, dataBuf[0:dataLen]) {
 			continue
 		}
-		r.readCh <- dataBuf
+		toServerRoute := &toServerRouter.Router{}
+		if err := proto.Unmarshal(dataBuf[0:dataLen], toServerRoute); err != nil {
+			logging.Error("Proto unmarshal toServerRouter.Router error: %v", err)
+			continue
+		}
+		logging.Debug("Receive worker command: %s", toServerRoute.Cmd)
+		r.receiveCh <- toServerRoute
 	}
 }
 
@@ -226,7 +229,7 @@ func (r *ConnProcessor) LoopCmd(number int) {
 		case <-quit.Ctx.Done():
 			r.loopCmdDone(number)
 			return
-		case data := <-r.readCh:
+		case data := <-r.receiveCh:
 			r.cmd(data)
 		}
 	}
@@ -241,7 +244,7 @@ func (r *ConnProcessor) loopCmdDone(number int) {
 			break
 		}
 		select {
-		case v := <-r.readCh:
+		case v := <-r.receiveCh:
 			r.cmd(v)
 		default:
 			empty++
@@ -254,7 +257,7 @@ func (r *ConnProcessor) loopCmdDone(number int) {
 	//再次处理通道中的剩余数据，直到超时退出
 	for {
 		select {
-		case v := <-r.readCh:
+		case v := <-r.receiveCh:
 			r.cmd(v)
 		case <-time.After(1 * time.Second):
 			return
@@ -262,13 +265,7 @@ func (r *ConnProcessor) loopCmdDone(number int) {
 	}
 }
 
-func (r *ConnProcessor) cmd(data []byte) {
-	toServerRoute := &toServerRouter.Router{}
-	if err := proto.Unmarshal(data, toServerRoute); err != nil {
-		logging.Error("Proto unmarshal toServerRouter.Router error: %v", err)
-		return
-	}
-	logging.Debug("Receive worker command: %s", toServerRoute.Cmd)
+func (r *ConnProcessor) cmd(toServerRoute *toServerRouter.Router) {
 	if callback, ok := r.cmdCallback[toServerRoute.Cmd]; ok {
 		callback(toServerRoute.Data, r)
 		return

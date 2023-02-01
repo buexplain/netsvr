@@ -5,10 +5,12 @@ import (
 	"github.com/lesismal/nbio/logging"
 )
 
+type Cmd int32
+
 // 客户端Cmd路由
 const (
 	// RouterRespConnOpen 响应连接成功信息
-	RouterRespConnOpen = iota + 1
+	RouterRespConnOpen Cmd = iota + 1
 	// RouterNetSvrStatus 获取网关的信息
 	RouterNetSvrStatus
 	// RouterTotalSessionId 获取网关所有在线的session id
@@ -38,7 +40,7 @@ const (
 )
 
 type ClientRouter struct {
-	Cmd  int
+	Cmd  Cmd
 	Data string
 }
 

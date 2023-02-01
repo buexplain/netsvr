@@ -65,7 +65,7 @@ func (r *Server) Start() {
 				go c.LoopCmd(i)
 			}
 			quit.Wg.Add(2)
-			go c.LoopRead()
+			go c.LoopReceive()
 			go c.LoopSend()
 		}
 	}

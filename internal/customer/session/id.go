@@ -17,7 +17,7 @@ type id struct {
 	//已经分配的id集合
 	allocated roaring.Bitmap
 	//互斥锁
-	lock sync.Mutex
+	lock sync.RWMutex
 }
 
 // Get 分配一个session id出去
@@ -45,15 +45,15 @@ func (r *id) Put(id uint32) {
 
 // GetAllocated 获取已分配的id集合
 func (r *id) GetAllocated() *roaring.Bitmap {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.lock.RLock()
+	defer r.lock.RUnlock()
 	return r.allocated.Clone()
 }
 
 // CountAllocated 获取已分配的id集合大小
 func (r *id) CountAllocated() uint64 {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.lock.RLock()
+	defer r.lock.RUnlock()
 	return r.allocated.GetCardinality()
 }
 
@@ -62,7 +62,7 @@ var Id *id
 func init() {
 	Id = &id{
 		allocated: roaring.Bitmap{},
-		lock:      sync.Mutex{},
+		lock:      sync.RWMutex{},
 	}
 	Id.min = configs.Config.SessionIdMin
 	Id.max = configs.Config.SessionIdMax

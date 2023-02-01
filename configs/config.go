@@ -18,7 +18,7 @@ type config struct {
 	//工作进程的心跳检查时间间隔（单位：秒）
 	WorkerHeartbeatIntervalSecond int64
 	//工作进程读取包大小（单位：字节）
-	WorkerReadPackLimit uint32
+	WorkerReceivePackLimit uint32
 	//用于处理工作进程发来的请求命令的协程数量
 	WorkerConsumer int
 	//客户连接的心跳检查时间间隔（单位：秒）
@@ -94,9 +94,9 @@ func init() {
 		//默认55秒
 		Config.WorkerHeartbeatIntervalSecond = 55
 	}
-	if Config.WorkerReadPackLimit <= 0 {
+	if Config.WorkerReceivePackLimit <= 0 {
 		//默认2MB
-		Config.WorkerReadPackLimit = 2 * 1024 * 1024
+		Config.WorkerReceivePackLimit = 2 * 1024 * 1024
 	}
 	if Config.WorkerConsumer <= 0 {
 		//默认10条协程

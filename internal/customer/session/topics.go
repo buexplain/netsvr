@@ -7,8 +7,7 @@ import (
 
 type topics struct {
 	data map[string]*roaring.Bitmap
-	//TODO 测试bitmap对象的并发读取是否会导致协程冲突，如果没问题，则所有的只读都改用rLock
-	mux sync.RWMutex
+	mux  sync.RWMutex
 }
 
 func (r *topics) Set(topics []string, sessionId uint32) {
@@ -44,8 +43,8 @@ func (r *topics) Del(topics []string, sessionId uint32) {
 
 // Get 获取主题的bitmap数据
 func (r *topics) Get(topic string) *roaring.Bitmap {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.mux.RLock()
+	defer r.mux.RUnlock()
 	if bitmap, ok := r.data[topic]; ok {
 		return bitmap.Clone()
 	}
@@ -54,8 +53,8 @@ func (r *topics) Get(topic string) *roaring.Bitmap {
 
 // Gets 获取主题的bitmap数据
 func (r *topics) Gets(topics []string, ret map[string]string) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.mux.RLock()
+	defer r.mux.RUnlock()
 	for _, topic := range topics {
 		if bitmap, ok := r.data[topic]; ok {
 			ret[topic], _ = bitmap.ToBase64()
@@ -65,8 +64,8 @@ func (r *topics) Gets(topics []string, ret map[string]string) {
 
 // CountConn 统计主题里面的连接数
 func (r *topics) CountConn(topics []string, getAll bool, ret map[string]int32) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.mux.RLock()
+	defer r.mux.RUnlock()
 	//获取全部主题的连接数
 	if getAll {
 		for topic, bitmap := range r.data {
@@ -84,8 +83,8 @@ func (r *topics) CountConn(topics []string, getAll bool, ret map[string]int32) {
 
 // Count 获取主题数量
 func (r *topics) Count() int {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.mux.RLock()
+	defer r.mux.RUnlock()
 	return len(r.data)
 }
 
