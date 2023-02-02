@@ -11,8 +11,8 @@ import (
 
 // Subscribe 订阅
 func Subscribe(param []byte, _ *workerManager.ConnProcessor) {
-	payload := protocol.Subscribe{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := &protocol.Subscribe{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		logging.Error("Proto unmarshal protocol.Subscribe error: %v", err)
 		return
 	}
@@ -33,6 +33,6 @@ func Subscribe(param []byte, _ *workerManager.ConnProcessor) {
 	session.Topics.Set(payload.Topics, payload.SessionId)
 	//订阅成功后，有信息要传递给用户，则转发数据给到用户
 	if len(payload.Data) > 0 {
-		Catapult.Put(NewPayload(payload.SessionId, payload.Data))
+		Catapult.Put(payload)
 	}
 }

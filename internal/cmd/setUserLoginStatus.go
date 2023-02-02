@@ -34,6 +34,6 @@ func SetUserLoginStatus(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//如果有消息要转告给用户，则转发消息给用户
 	if len(payload.Data) > 0 {
-		Catapult.Put(NewPayload(payload.SessionId, payload.Data))
+		Catapult.Put(&payload)
 	}
 }

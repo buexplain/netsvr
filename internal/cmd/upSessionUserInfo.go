@@ -11,8 +11,8 @@ import (
 
 // UpSessionUserInfo 设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
 func UpSessionUserInfo(param []byte, _ *workerManager.ConnProcessor) {
-	payload := protocol.UpSessionUserInfo{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := &protocol.UpSessionUserInfo{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		logging.Error("Proto unmarshal protocol.UpSessionUserInfo error: %v", err)
 		return
 	}
@@ -29,6 +29,6 @@ func UpSessionUserInfo(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	if len(payload.Data) > 0 {
-		Catapult.Put(NewPayload(payload.SessionId, payload.Data))
+		Catapult.Put(payload)
 	}
 }

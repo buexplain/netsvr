@@ -11,8 +11,8 @@ import (
 
 // Unsubscribe 取消订阅
 func Unsubscribe(param []byte, _ *workerManager.ConnProcessor) {
-	payload := protocol.Unsubscribe{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := &protocol.Unsubscribe{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		logging.Error("Proto unmarshal protocol.Unsubscribe error: %v", err)
 		return
 	}
@@ -33,6 +33,6 @@ func Unsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	session.Topics.Del(payload.Topics, payload.SessionId)
 	//取消订阅后，有信息要传递给用户，则转发数据给到用户
 	if len(payload.Data) > 0 {
-		Catapult.Put(NewPayload(payload.SessionId, payload.Data))
+		Catapult.Put(payload)
 	}
 }

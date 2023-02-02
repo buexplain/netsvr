@@ -9,12 +9,12 @@ import (
 
 // SingleCast 单播
 func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
-	req := protocol.SingleCast{}
-	if err := proto.Unmarshal(param, &req); err != nil {
+	payload := &protocol.SingleCast{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		logging.Error("Proto unmarshal protocol.SingleCast error: %v", err)
 		return
 	}
-	if req.SessionId > 0 && len(req.Data) > 0 {
-		Catapult.Put(NewPayload(req.SessionId, req.Data))
+	if payload.SessionId > 0 && len(payload.Data) > 0 {
+		Catapult.Put(payload)
 	}
 }

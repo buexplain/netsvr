@@ -15,15 +15,28 @@ type Payload struct {
 	Data      []byte
 }
 
+func (r Payload) GetSessionId() uint32 {
+	return r.SessionId
+}
+
+func (r Payload) GetData() []byte {
+	return r.Data
+}
+
 func NewPayload(sessionId uint32, data []byte) *Payload {
 	return &Payload{SessionId: sessionId, Data: data}
 }
 
-type catapult struct {
-	ch chan *Payload
+type PayloadInterface interface {
+	GetSessionId() uint32
+	GetData() []byte
 }
 
-func (r *catapult) Put(payload *Payload) {
+type catapult struct {
+	ch chan PayloadInterface
+}
+
+func (r *catapult) Put(payload PayloadInterface) {
 	select {
 	case <-quit.Ctx.Done():
 		//网关进程即将停止，不再受理新的数据
@@ -33,10 +46,10 @@ func (r *catapult) Put(payload *Payload) {
 	}
 }
 
-func (r *catapult) write(payload *Payload) {
-	conn := manager.Manager.Get(payload.SessionId)
+func (r *catapult) write(payload PayloadInterface) {
+	conn := manager.Manager.Get(payload.GetSessionId())
 	if conn != nil {
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, payload.GetData()); err != nil {
 			logging.Debug("Catapult write message error: %v", err)
 		}
 	}
@@ -104,7 +117,7 @@ func (r *catapult) CountWaitSend() int {
 var Catapult *catapult
 
 func init() {
-	Catapult = &catapult{ch: make(chan *Payload, configs.Config.CatapultChanCap)}
+	Catapult = &catapult{ch: make(chan PayloadInterface, configs.Config.CatapultChanCap)}
 	for i := 0; i < configs.Config.CatapultConsumer; i++ {
 		quit.Wg.Add(1)
 		go Catapult.consumer(i)
