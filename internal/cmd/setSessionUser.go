@@ -5,18 +5,18 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/session"
-	"netsvr/internal/protocol/toServer/setSessionUser"
+	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// SetSessionUser 设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
-func SetSessionUser(param []byte, _ *workerManager.ConnProcessor) {
-	req := setSessionUser.SetSessionUser{}
-	if err := proto.Unmarshal(param, &req); err != nil {
-		logging.Error("Proto unmarshal setSessionUser.SetSessionUser error: %v", err)
+// UpSessionUserInfo 设置网关的session面存储的用户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
+func UpSessionUserInfo(param []byte, _ *workerManager.ConnProcessor) {
+	payload := protocol.UpSessionUserInfo{}
+	if err := proto.Unmarshal(param, &payload); err != nil {
+		logging.Error("Proto unmarshal protocol.UpSessionUserInfo error: %v", err)
 		return
 	}
-	conn := manager.Manager.Get(req.SessionId)
+	conn := manager.Manager.Get(payload.SessionId)
 	if conn == nil {
 		return
 	}
@@ -24,11 +24,11 @@ func SetSessionUser(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	if !info.SetUserOnLoginStatusOk(req.UserInfo) {
+	if !info.UpUserInfoOnLoginStatusOk(payload.UserInfo, payload.UserId) {
 		//设置失败，直接返回，不会将用户数据转发给用户
 		return
 	}
-	if len(req.Data) > 0 {
-		Catapult.Put(NewPayload(req.SessionId, req.Data))
+	if len(payload.Data) > 0 {
+		Catapult.Put(NewPayload(payload.SessionId, payload.Data))
 	}
 }

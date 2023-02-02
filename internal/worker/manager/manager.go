@@ -47,7 +47,7 @@ func (r *collect) Del(conn *ConnProcessor) {
 	}
 }
 
-// MaxWorkerId 工作进程的编号范围
+// MaxWorkerId business的编号范围
 const MaxWorkerId = 999
 const MinWorkerId = 1
 
@@ -72,7 +72,7 @@ func (r manager) Del(workerId int, conn *ConnProcessor) {
 	}
 }
 
-// Manager 管理所有的工作进程
+// Manager 管理所有的business连接
 var Manager manager
 
 func init() {
@@ -83,7 +83,7 @@ func init() {
 	}
 }
 
-// 处理客户连接关闭的工作进程编号
+// 处理客户连接关闭的business编号
 var processConnCloseWorkerId *int32
 
 func SetProcessConnCloseWorkerId(workerId int32) {
@@ -97,7 +97,7 @@ func init() {
 	processConnCloseWorkerId = &currentProcessConnCloseWorkerId
 }
 
-// 处理客户连接关闭的工作进程编号
+// 处理客户连接关闭的business编号
 var processConnOpenWorkerId *int32
 
 func SetProcessConnOpenWorkerId(workerId int32) {

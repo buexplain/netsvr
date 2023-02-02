@@ -15,15 +15,15 @@ type config struct {
 	SessionIdMin uint32
 	//session id的最大值，包含该值
 	SessionIdMax uint32
-	//工作进程的心跳检查时间间隔（单位：秒）
+	//worker检查business连接的心跳的时间间隔（单位：秒）
 	WorkerHeartbeatIntervalSecond int64
-	//工作进程读取包大小（单位：字节）
+	//worker读取business包的大小限制（单位：字节）
 	WorkerReceivePackLimit uint32
-	//用于处理工作进程发来的请求命令的协程数量
+	//用于处理business发来的请求命令的协程数量
 	WorkerConsumer int
-	//客户连接的心跳检查时间间隔（单位：秒）
+	//网关检查客户连接的心跳的时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
-	//用于发送数据给客户的协程数量
+	//网关用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
 	CatapultChanCap int

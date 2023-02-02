@@ -5,7 +5,7 @@ import (
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"
-	"netsvr/internal/protocol/toServer/router"
+	"netsvr/internal/protocol"
 	"netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"time"
@@ -44,22 +44,22 @@ func (r *Server) Start() {
 			continue
 		default:
 			c := manager.NewConnProcessor(conn)
-			c.RegisterCmd(router.Cmd_RegisterWorker, cmd.RegisterWorker)
-			c.RegisterCmd(router.Cmd_UnregisterWorker, cmd.UnregisterWorker)
-			c.RegisterCmd(router.Cmd_Broadcast, cmd.Broadcast)
-			c.RegisterCmd(router.Cmd_Multicast, cmd.Multicast)
-			c.RegisterCmd(router.Cmd_MulticastByBitmap, cmd.MulticastByBitmap)
-			c.RegisterCmd(router.Cmd_Publish, cmd.Publish)
-			c.RegisterCmd(router.Cmd_SetSessionUser, cmd.SetSessionUser)
-			c.RegisterCmd(router.Cmd_SetUserLoginStatus, cmd.SetUserLoginStatus)
-			c.RegisterCmd(router.Cmd_SingleCast, cmd.SingleCast)
-			c.RegisterCmd(router.Cmd_Subscribe, cmd.Subscribe)
-			c.RegisterCmd(router.Cmd_Unsubscribe, cmd.Unsubscribe)
-			c.RegisterCmd(router.Cmd_ReqTotalSessionId, cmd.ReqTotalSessionId)
-			c.RegisterCmd(router.Cmd_ReqTopicsSessionId, cmd.ReqTopicsSessionId)
-			c.RegisterCmd(router.Cmd_ReqTopicsConnCount, cmd.ReqTopicsConnCount)
-			c.RegisterCmd(router.Cmd_ReqSessionInfo, cmd.ReqSessionInfo)
-			c.RegisterCmd(router.Cmd_ReqNetSvrStatus, cmd.ReqNetSvrStatus)
+			c.RegisterCmd(protocol.Cmd_Register, cmd.Register)
+			c.RegisterCmd(protocol.Cmd_Unregister, cmd.Unregister)
+			c.RegisterCmd(protocol.Cmd_Broadcast, cmd.Broadcast)
+			c.RegisterCmd(protocol.Cmd_Multicast, cmd.Multicast)
+			c.RegisterCmd(protocol.Cmd_MulticastByBitmap, cmd.MulticastByBitmap)
+			c.RegisterCmd(protocol.Cmd_Publish, cmd.Publish)
+			c.RegisterCmd(protocol.Cmd_UpSessionUserInfo, cmd.UpSessionUserInfo)
+			c.RegisterCmd(protocol.Cmd_SetUserLoginStatus, cmd.SetUserLoginStatus)
+			c.RegisterCmd(protocol.Cmd_SingleCast, cmd.SingleCast)
+			c.RegisterCmd(protocol.Cmd_Subscribe, cmd.Subscribe)
+			c.RegisterCmd(protocol.Cmd_Unsubscribe, cmd.Unsubscribe)
+			c.RegisterCmd(protocol.Cmd_TotalSessionId, cmd.TotalSessionId)
+			c.RegisterCmd(protocol.Cmd_TopicsSessionId, cmd.TopicsSessionId)
+			c.RegisterCmd(protocol.Cmd_TopicsConnCount, cmd.TopicsConnCount)
+			c.RegisterCmd(protocol.Cmd_SessionInfo, cmd.SessionInfo)
+			c.RegisterCmd(protocol.Cmd_NetSvrStatus, cmd.NetSvrStatus)
 			for i := 0; i < configs.Config.WorkerConsumer; i++ {
 				quit.Wg.Add(1)
 				go c.LoopCmd(i)

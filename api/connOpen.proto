@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package netsvr.connOpen;
+
+option go_package = "internal/protocol;protocol";
+
+//worker转发客户连接打开的信息到business
+message ConnOpen {
+  //连接的session id
+  uint32 sessionId = 1;
+}

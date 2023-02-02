@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.register;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，注册自己，注册成功后，当网关收到客户发送的信息的时候，会转发客户发送的信息到business
+message Register {
+  //服务编号，取值范围是 1~999,业务层可以自己随意安排，如果多个business共用一个服务编号，则网关在数据转发的过程中是轮询转发的
+  int32 Id = 1;
+  //表示该business是否处理客户端连接关闭的信息
+  bool ProcessConnClose = 2;
+  //表示该business是否处理客户端连接打开的信息
+  bool ProcessConnOpen = 3;
+}

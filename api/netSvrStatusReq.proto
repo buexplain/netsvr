@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package netsvr.netSvrStatusReq;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求网关的状态
+message NetSvrStatusReq {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+}

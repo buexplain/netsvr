@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package netsvr.topicsSessionIdResp;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应网关中的某几个主题的session id到business
+message TopicsSessionIdResp {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //key是topic，value是bitmap对象序列化后的base64数据，business需要反解才能得到具体的session id
+  //如果topic没找到，则items中不会有该topic
+  map<string, string> items = 2;
+}

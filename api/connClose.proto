@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.connClose;
+
+option go_package = "internal/protocol;protocol";
+
+//worker转发客户连接关闭的信息到business
+message ConnClose {
+  //连接的session id
+  uint32 sessionId = 1;
+  //客户登录后，存储在网关中的信息，如果未登录，则是空字符串
+  string userInfo = 2;
+  //客户在业务系统中的唯一id，如果未登录，则是空字符串
+  string userId = 3;
+}

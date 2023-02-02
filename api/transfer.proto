@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package netsvr.transfer;
+
+option go_package = "internal/protocol;protocol";
+
+//worker转发客户发送的信息到business
+message Transfer {
+  //连接的session id
+  uint32 sessionId = 1;
+  //客户登录网关后，存储到网关的客户信息
+  string userInfo = 2;
+  //客户在业务系统中的唯一id
+  string userId = 3;
+  //客户发送的信息
+  bytes data = 4;
+}

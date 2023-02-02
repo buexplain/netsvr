@@ -13,10 +13,7 @@ import (
 	"netsvr/internal/customer/heartbeat"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/session"
-	"netsvr/internal/protocol/toWorker/connClose"
-	"netsvr/internal/protocol/toWorker/connOpen"
-	toWorkerRouter "netsvr/internal/protocol/toWorker/router"
-	"netsvr/internal/protocol/toWorker/transfer"
+	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"netsvr/pkg/timecache"
@@ -68,23 +65,23 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
 		//分配session id，并将添加到管理器中
-		info := session.NewInfo(session.Id.Get())
+		info := session.NewInfo(session.Id.Pull())
 		conn.SetSession(info)
 		manager.Manager.Set(info.GetSessionId(), conn)
-		//连接打开消息回传给工作进程
+		//连接打开消息回传给business
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found process conn open worker by id: %d", workerId)
+			logging.Debug("Not found process conn open business by id: %d", workerId)
 			return
 		}
-		toWorkerRoute := &toWorkerRouter.Router{}
-		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnOpen
-		co := &connOpen.ConnOpen{}
+		router := &protocol.Router{}
+		router.Cmd = protocol.Cmd_ConnOpen
+		co := &protocol.ConnOpen{}
 		co.SessionId = info.GetSessionId()
-		toWorkerRoute.Data, _ = proto.Marshal(co)
-		//转发数据到工作进程
-		data, _ := proto.Marshal(toWorkerRoute)
+		router.Data, _ = proto.Marshal(co)
+		//转发数据到business
+		data, _ := proto.Marshal(router)
 		worker.Send(data)
 		logging.Debug("Customer websocket open, session: %v", info)
 	})
@@ -99,21 +96,20 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		session.Id.Put(info.GetSessionId())
 		//取消订阅管理中，它的session id的任何关联
 		session.Topics.Del(info.GetTopics(), info.GetSessionId())
-		//连接关闭消息回传给工作进程
+		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found process conn close worker by id: %d", workerId)
+			logging.Debug("Not found process conn close business by id: %d", workerId)
 			return
 		}
-		toWorkerRoute := &toWorkerRouter.Router{}
-		toWorkerRoute.Cmd = toWorkerRouter.Cmd_ConnClose
-		cls := &connClose.ConnClose{}
-		cls.SessionId = info.GetSessionId()
-		cls.User = info.GetUser()
-		toWorkerRoute.Data, _ = proto.Marshal(cls)
-		//转发数据到工作进程
-		data, _ := proto.Marshal(toWorkerRoute)
+		router := &protocol.Router{}
+		router.Cmd = protocol.Cmd_ConnClose
+		cls := &protocol.ConnClose{}
+		info.GetToConnCloseObj(cls)
+		router.Data, _ = proto.Marshal(cls)
+		//转发数据到business
+		data, _ := proto.Marshal(router)
 		worker.Send(data)
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
@@ -147,31 +143,30 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if loginStatus == session.LoginStatusOk {
 			goto label
 		} else if loginStatus == session.LoginStatusWait {
-			//等待登录，允许客户端发送数据到工作进程，进行登录操作
-			info.SetLoginStatus(session.LoginStatusIng)
+			//等待登录，允许客户端发送数据到business，进行登录操作
+			info.SetLoginStatusIng()
 			goto label
 		} else if loginStatus == session.LoginStatusIng {
 			//登录中，不允许客户端发送任何数据
 			return
 		}
 	label:
-		//读取前三个字节，转成工作进程的id
+		//读取前三个字节，转成business的服务编号
 		workerId := utils.BytesToInt(data, 3)
-		//编码数据成工作进程需要的格式
-		toWorkerRoute := &toWorkerRouter.Router{}
-		toWorkerRoute.Cmd = toWorkerRouter.Cmd_Transfer
-		tf := &transfer.Transfer{}
+		//编码数据成business需要的格式
+		router := &protocol.Router{}
+		router.Cmd = protocol.Cmd_Transfer
+		tf := &protocol.Transfer{}
 		tf.Data = data[3:]
-		tf.SessionId = info.GetSessionId()
-		tf.User = info.GetUser()
-		toWorkerRoute.Data, _ = proto.Marshal(tf)
+		info.GetToTransferObj(tf)
+		router.Data, _ = proto.Marshal(tf)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found worker by id: %d", workerId)
+			logging.Debug("Not found business by id: %d", workerId)
 			return
 		}
-		//转发数据到工作进程
-		data, _ = proto.Marshal(toWorkerRoute)
+		//转发数据到business
+		data, _ = proto.Marshal(router)
 		worker.Send(data)
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)

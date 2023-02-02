@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.totalSessionIdResp;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应网关中全部的session id到business
+message TotalSessionIdResp {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //bitmap对象序列化后的base64数据，business需要反解才能得到具体的session id
+  string sessionIds = 2;
+}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.topicsSessionIdReq;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求网关中的某几个主题的session id
+message TopicsSessionIdReq {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //需要获取连接的session id的主题
+  repeated string topics = 2;
+}

@@ -1,15 +1,26 @@
 package session
 
 import (
-	"netsvr/internal/protocol/toWorker/respSessionInfo"
+	"netsvr/internal/protocol"
 	"sync"
 )
 
+const (
+	// LoginStatusWait 等待登录
+	LoginStatusWait int8 = iota
+	// LoginStatusIng 登录中LoginStatusIng
+	LoginStatusIng
+	// LoginStatusOk 登录成功
+	LoginStatusOk
+)
+
 type Info struct {
-	//网关session id，初次设定后便是只读，所以可以导出
+	//网关session id，初次设定后便是只读
 	sessionId uint32
-	//用户信息
-	user string
+	//客户信息
+	userInfo string
+	//客户在业务系统中的唯一id
+	userId string
 	//登录状态
 	loginStatus int8
 	//当前连接订阅的主题
@@ -46,36 +57,41 @@ func (r *Info) GetSessionId() uint32 {
 	return r.sessionId
 }
 
-func (r *Info) GetToRespSessionInfo(respSessionInfo *respSessionInfo.RespSessionInfo) {
+func (r *Info) GetToSessionInfoObj(sessionInfo *protocol.SessionInfoResp) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
-	respSessionInfo.User = r.user
+	sessionInfo.UserInfo = r.userInfo
+	sessionInfo.UserId = r.userId
 	if r.loginStatus == LoginStatusOk {
-		respSessionInfo.LoginStatus = true
+		sessionInfo.LoginStatus = true
 	} else {
-		respSessionInfo.LoginStatus = false
+		sessionInfo.LoginStatus = false
 	}
-	respSessionInfo.Topics = make([]string, 0, len(r.topics))
-	respSessionInfo.Topics = append(respSessionInfo.Topics, r.topics...)
+	sessionInfo.Topics = make([]string, 0, len(r.topics))
+	sessionInfo.Topics = append(sessionInfo.Topics, r.topics...)
 }
 
-func (r *Info) GetUser() string {
+func (r *Info) GetToConnCloseObj(connClose *protocol.ConnClose) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
-	return r.user
+	connClose.SessionId = r.sessionId
+	connClose.UserInfo = r.userInfo
+	connClose.UserId = r.userId
 }
 
-func (r *Info) SetUser(user string) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	r.user = user
+func (r *Info) GetToTransferObj(transfer *protocol.Transfer) {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	transfer.SessionId = r.sessionId
+	transfer.UserInfo = r.userInfo
+	transfer.UserId = r.userId
 }
 
-func (r *Info) SetUserOnLoginStatusOk(user string) bool {
+func (r *Info) UpUserInfoOnLoginStatusOk(userInfo string, userId string) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	if r.loginStatus == LoginStatusOk {
-		r.user = user
+	if r.loginStatus == LoginStatusOk && r.userId == userId {
+		r.userInfo = userInfo
 		return true
 	}
 	return false
@@ -87,18 +103,28 @@ func (r *Info) GetLoginStatus() int8 {
 	return r.loginStatus
 }
 
-func (r *Info) SetLoginStatus(loginStatus int8) {
+func (r *Info) SetLoginStatusWait() {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	r.loginStatus = loginStatus
-	r.user = ""
+	r.loginStatus = LoginStatusWait
+	r.userInfo = ""
+	r.userId = ""
 }
 
-func (r *Info) SetLoginStatusOk(userInfo string) {
+func (r *Info) SetLoginStatusIng() {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	r.loginStatus = LoginStatusIng
+	r.userInfo = ""
+	r.userId = ""
+}
+
+func (r *Info) SetLoginStatusOk(userInfo string, userId string) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.loginStatus = LoginStatusOk
-	r.user = userInfo
+	r.userInfo = userInfo
+	r.userId = userId
 }
 
 func (r *Info) GetTopics() []string {
@@ -138,12 +164,3 @@ func (r *Info) Unsubscribe(topics []string) {
 		}
 	}
 }
-
-const (
-	// LoginStatusWait 等待登录
-	LoginStatusWait int8 = iota
-	// LoginStatusIng 登录中LoginStatusIng
-	LoginStatusIng
-	// LoginStatusOk 登录成功
-	LoginStatusOk
-)

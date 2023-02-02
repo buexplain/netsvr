@@ -1,7 +1,5 @@
 package utils
 
-import "unsafe"
-
 // BytesToInt 截取前digit个字节并转成int
 // 该方法比strconv.Atoi快三倍,单个耗时在8.557纳秒
 func BytesToInt(data []byte, digit int) int {
@@ -43,11 +41,4 @@ func byteToInt(b byte) int {
 	default:
 		return 0
 	}
-}
-
-// StrToBytes 字符串无损转字节切片
-func StrToBytes(s string) []byte {
-	x := (*[2]uintptr)(unsafe.Pointer(&s))
-	h := [3]uintptr{x[0], x[1], x[1]}
-	return *(*[]byte)(unsafe.Pointer(&h))
 }

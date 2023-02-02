@@ -3,21 +3,21 @@ package cmd
 import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/protocol/toServer/multicast"
+	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // Multicast 组播
 func Multicast(param []byte, _ *workerManager.ConnProcessor) {
-	req := multicast.Multicast{}
-	if err := proto.Unmarshal(param, &req); err != nil {
-		logging.Error("Proto unmarshal multicast.Multicast error: %v", err)
+	payload := protocol.Multicast{}
+	if err := proto.Unmarshal(param, &payload); err != nil {
+		logging.Error("Proto unmarshal protocol.Multicast error: %v", err)
 		return
 	}
-	if len(req.Data) == 0 {
+	if len(payload.Data) == 0 {
 		return
 	}
-	for _, sessionId := range req.SessionIds {
-		Catapult.Put(NewPayload(sessionId, req.Data))
+	for _, sessionId := range payload.SessionIds {
+		Catapult.Put(NewPayload(sessionId, payload.Data))
 	}
 }

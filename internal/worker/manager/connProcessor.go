@@ -8,7 +8,7 @@ import (
 	"io"
 	"net"
 	"netsvr/configs"
-	toServerRouter "netsvr/internal/protocol/toServer/router"
+	"netsvr/internal/protocol"
 	"netsvr/internal/worker/heartbeat"
 	"netsvr/pkg/quit"
 	"netsvr/pkg/timecache"
@@ -20,20 +20,20 @@ import (
 type CmdCallback func(data []byte, processor *ConnProcessor)
 
 type ConnProcessor struct {
-	//连接
+	//business与worker的连接
 	conn net.Conn
 	//要发送给连接的数据
 	sendCh chan []byte
 	//从连接中读取的数据
-	receiveCh chan *toServerRouter.Router
+	receiveCh chan *protocol.Router
 	//连接最后发送消息的时间
 	lastActiveTime *int64
 	//连接关闭信号
 	closeCh chan struct{}
-	//当前连接的编号id
+	//当前连接的服务编号
 	workerId int
 	//各种命令的回调函数
-	cmdCallback map[toServerRouter.Cmd]CmdCallback
+	cmdCallback map[protocol.Cmd]CmdCallback
 }
 
 func NewConnProcessor(conn net.Conn) *ConnProcessor {
@@ -41,11 +41,11 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:           conn,
 		sendCh:         make(chan []byte, 100),
-		receiveCh:      make(chan *toServerRouter.Router, 100),
+		receiveCh:      make(chan *protocol.Router, 100),
 		lastActiveTime: &lastActiveTime,
 		closeCh:        make(chan struct{}),
 		workerId:       0,
-		cmdCallback:    map[toServerRouter.Cmd]CmdCallback{},
+		cmdCallback:    map[protocol.Cmd]CmdCallback{},
 	}
 	return tmp
 }
@@ -76,10 +76,10 @@ func (r *ConnProcessor) LoopSend() {
 	for {
 		select {
 		case <-r.closeCh:
-			//工作进程的连接已经关闭，直接退出当前协程
+			//business与worker的连接已经关闭，直接退出当前协程
 			return
 		case <-quit.Ctx.Done():
-			//网关进程即将停止，处理通道中剩余数据，尽量保证用户消息转发到工作进程
+			//worker即将停止，处理通道中剩余数据，尽量保证客户消息转发到business
 			r.loopSendDone()
 			return
 		case data := <-r.sendCh:
@@ -114,21 +114,19 @@ func (r *ConnProcessor) send(data []byte) {
 	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
 		if _, err = r.conn.Write(data); err != nil {
 			r.Close()
-			logging.Error("Worker send error: %v", err)
+			logging.Error("Worker send to business error: %v", err)
 		}
 	} else {
 		r.Close()
-		logging.Error("Worker send error: %v", err)
+		logging.Error("Worker send to business error: %v", err)
 	}
 }
 
 func (r *ConnProcessor) Send(data []byte) {
 	select {
 	case <-r.closeCh:
-		//工作进程即将关闭，停止转发消息到工作进程
 		return
 	case <-quit.Ctx.Done():
-		//网关进程即将停止，停止转发消息到工作进程
 		return
 	default:
 		r.sendCh <- data
@@ -146,7 +144,7 @@ func (r *ConnProcessor) LoopReceive() {
 		r.Send(heartbeat.PingMessage)
 	})
 	defer func() {
-		if unregisterWorker, ok := r.cmdCallback[toServerRouter.Cmd_UnregisterWorker]; ok {
+		if unregisterWorker, ok := r.cmdCallback[protocol.Cmd_Unregister]; ok {
 			unregisterWorker(nil, r)
 		}
 		//停止心跳检查
@@ -167,16 +165,16 @@ func (r *ConnProcessor) LoopReceive() {
 		dataLenBuf = dataLenBuf[0:4]
 		//获取前4个字节，确定数据包长度
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
-			//读失败了，直接干掉这个连接，让客户端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
+			//读失败了，直接干掉这个连接，让business端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
 			r.Close()
 			break
 		}
 		//这里采用大端序，小于2个字节，则说明业务命令都没有
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
 		if dataLen < 2 || dataLen > configs.Config.WorkerReceivePackLimit {
-			//工作进程不按套路出牌，不老实，直接关闭它，因为tcp流已经无法拆解了
+			//business不按套路出牌，不老实，直接关闭它，因为tcp流已经无法拆解了
 			r.Close()
-			logging.Error("Worker receive data is too large: %d", dataLen)
+			logging.Error("Worker receive pack is too large: %d", dataLen)
 			break
 		}
 		//获取数据包
@@ -199,17 +197,17 @@ func (r *ConnProcessor) LoopReceive() {
 		if bytes.Equal(heartbeat.PongMessage, dataBuf[0:dataLen]) {
 			continue
 		}
-		toServerRoute := &toServerRouter.Router{}
-		if err := proto.Unmarshal(dataBuf[0:dataLen], toServerRoute); err != nil {
-			logging.Error("Proto unmarshal toServerRouter.Router error: %v", err)
+		router := &protocol.Router{}
+		if err := proto.Unmarshal(dataBuf[0:dataLen], router); err != nil {
+			logging.Error("Proto unmarshal protocol.Router error: %v", err)
 			continue
 		}
-		logging.Debug("Receive worker command: %s", toServerRoute.Cmd)
-		r.receiveCh <- toServerRoute
+		logging.Debug("Worker receive business command: %s", router.Cmd)
+		r.receiveCh <- router
 	}
 }
 
-// LoopCmd 循环处理工作进程发来的各种请求命令
+// LoopCmd 循环处理business发来的各种请求命令
 func (r *ConnProcessor) LoopCmd(number int) {
 	defer func() {
 		quit.Wg.Done()
@@ -265,27 +263,27 @@ func (r *ConnProcessor) loopCmdDone(number int) {
 	}
 }
 
-func (r *ConnProcessor) cmd(toServerRoute *toServerRouter.Router) {
-	if callback, ok := r.cmdCallback[toServerRoute.Cmd]; ok {
-		callback(toServerRoute.Data, r)
+func (r *ConnProcessor) cmd(router *protocol.Router) {
+	if callback, ok := r.cmdCallback[router.Cmd]; ok {
+		callback(router.Data, r)
 		return
 	}
-	//工作进程搞错了指令，直接关闭连接，让工作进程明白，不能瞎传，代码一定要通过测试
+	//business搞错了指令，直接关闭连接，让business明白，不能瞎传，代码一定要通过测试
 	r.Close()
-	logging.Error("Unknown toServerRoute.Cmd: %d", toServerRoute.Cmd)
+	logging.Error("Unknown protocol.router.Cmd: %d", router.Cmd)
 }
 
 // RegisterCmd 注册各种命令
-func (r *ConnProcessor) RegisterCmd(cmd toServerRouter.Cmd, callback CmdCallback) {
+func (r *ConnProcessor) RegisterCmd(cmd protocol.Cmd, callback CmdCallback) {
 	r.cmdCallback[cmd] = callback
 }
 
-// GetWorkerId 返回工作进程的编号
+// GetWorkerId 返回business的服务编号
 func (r *ConnProcessor) GetWorkerId() int {
 	return r.workerId
 }
 
-// SetWorkerId 设置工作进程的编号
+// SetWorkerId 设置business的服务编号
 func (r *ConnProcessor) SetWorkerId(id int) {
 	r.workerId = id
 }

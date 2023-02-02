@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package netsvr.publish;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，进行发布
+message Publish {
+  //某个主题，网关会根据主题，拿到该主题下的所有session id
+  string topic = 1;
+  //需要发给客户的数据
+  bytes data = 2;
+}

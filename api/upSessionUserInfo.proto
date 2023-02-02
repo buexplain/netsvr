@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package netsvr.setSessionUser;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，将客户信息存储到网关连接的session中，只有登录成功的连接才会进行设置，因为没登录的，在后续登录成功后也会设置一次
+message UpSessionUserInfo {
+  //连接的session id
+  uint32 sessionId = 1;
+  //存储到网关的客户信息
+  string userInfo = 3;
+  //客户在业务系统中的唯一id，当该值与网关中现有的值不一致的时候，网关中的客户信息是不会被更改的
+  //如此设定是为了避免，session id被顶号的问题
+  string userId = 4;
+  //需要发给客户的数据
+  bytes data = 5;
+}

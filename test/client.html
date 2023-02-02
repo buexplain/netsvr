@@ -12,7 +12,7 @@
             margin-top: 15px;
         }
 
-        input {
+        input, select {
             width: 450px;
         }
     </style>
@@ -28,10 +28,12 @@
 
         <div class="case">
             <label for="username">
-                <input type="text" id="username" placeholder="请输入账号" value="刘备">
-            </label>
-            <label for="password">
-                <input type="text" id="password" placeholder="请输入密码" value="123456">
+                <select id="username">
+                    <option>请选择账号</option>
+                    <option>刘备</option>
+                    <option>关羽</option>
+                    <option>张飞</option>
+                </select>
             </label>
             <button id="login">登录</button>
         </div>
@@ -41,65 +43,68 @@
             <button id="updateSessionUserInfo">更新网关中的用户信息</button>
             <button id="netSvrStatus">获取网关状态</button>
             <button id="totalSessionId">获取网关所有在线的session id</button>
+            <button id="topicList">获取已订阅的主题列表</button>
         </div>
 
         <div class="case">
             <label for="singleCastMessage">
-                <input type="text" id="singleCastMessage" placeholder="请输入要发送的信息">
+                <input type="text" id="singleCastMessage" placeholder="请输入要发送的信息" value="我是一条单播信息">
             </label>
             <label for="singleCastUserId">
-                <input type="text" id="singleCastUserId" placeholder="请输入目标用户Id">
+                <input type="text" id="singleCastUserId" placeholder="请输入目标用户Id" value="1">
             </label>
             <button id="singleCast">单播</button>
         </div>
 
         <div class="case">
             <label for="singleCastMessage">
-                <input type="text" id="multicastMessage" placeholder="请输入要发送的信息">
+                <input type="text" id="multicastMessage" placeholder="请输入要发送的信息" value="我是一条组播信息">
             </label>
             <label for="singleCastUserId">
-                <input type="text" id="multicastUserIds" placeholder="请输入目标用户Id，多个用逗号分割">
+                <input type="text" id="multicastUserIds" placeholder="请输入目标用户Id，多个用逗号分割" value="1，2，3">
             </label>
             <button id="multicast">组播</button>
         </div>
         <div class="case">
             <label for="broadcastMessage">
-                <input type="text" id="broadcastMessage" placeholder="请输入要发送的信息">
+                <input type="text" id="broadcastMessage" placeholder="请输入要发送的信息" value="我是一条广播信息">
             </label>
             <button id="broadcast">广播</button>
         </div>
         <div class="case">
             <label for="subscribe">
-                <input type="text" id="subscribeTopics" placeholder="请输入要订阅的主题，多个用逗号分割">
+                <input type="text" id="subscribeTopics" placeholder="请输入要订阅的主题，多个用逗号分割"
+                       value="小品频道，相声频道，戏曲频道，评书频道">
             </label>
             <button id="subscribe">订阅</button>
         </div>
         <div class="case">
             <label for="unsubscribe">
-                <input type="text" id="unsubscribeTopics" placeholder="请输入要取消订阅的主题，多个用逗号分割">
+                <input type="text" id="unsubscribeTopics" placeholder="请输入要取消订阅的主题，多个用逗号分割"
+                       value="相声频道，小品频道，评书频道">
             </label>
             <button id="unsubscribe">取消订阅</button>
         </div>
         <div class="case">
             <label for="connCountTopics">
                 <input type="text" id="connCountTopics"
-                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题">
+                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
             </label>
             <button id="topicsConnCount">获取主题连接数</button>
         </div>
         <div class="case">
             <label for="topicsSessionId">
                 <input type="text" id="sessionIdTopics"
-                       placeholder="请输入主题，多个用逗号分割">
+                       placeholder="请输入主题，多个用逗号分割" value="戏曲频道，评书频道">
             </label>
             <button id="topicsSessionId">获取主题的session id</button>
         </div>
         <div class="case">
             <label for="publishMessage">
-                <input type="text" id="publishMessage" placeholder="请输入要发布的信息" value="">
+                <input type="text" id="publishMessage" placeholder="请输入要发布的信息" value="我是一条发布信息">
             </label>
             <label for="publish">
-                <input type="text" id="publishTopic" placeholder="请输入要发布的主题">
+                <input type="text" id="publishTopic" placeholder="请输入要发布的主题" value="戏曲频道">
             </label>
             <button id="publish">发布</button>
         </div>
@@ -149,44 +154,25 @@
     }
 
     /**
-     * routerCmd变量的枚举初始值
-     * @type {number}
+     * 发送给business的指令
      */
-    let routerCmdEnumeration = 0;
-
-    /**
-     * 发送给工作进程的指令
-     */
-    const routerCmd = Object.freeze({
-        //连接成功
-        connOpen: ++routerCmdEnumeration,
-        //获取网关的信息
-        netSvrStatus: ++routerCmdEnumeration,
-        //获取网关所有在线的session id
-        totalSessionId: ++routerCmdEnumeration,
-        //登录
-        login: ++routerCmdEnumeration,
-        //退出登录
-        logout: ++routerCmdEnumeration,
-        //更新网关中的用户信息
-        updateSessionUserInfo: ++routerCmdEnumeration,
-        //单播给某个用户
-        singleCast: ++routerCmdEnumeration,
-        //组播给多个用户
-        multicast: ++routerCmdEnumeration,
-        //广播
-        broadcast: ++routerCmdEnumeration,
-        //订阅
-        subscribe: ++routerCmdEnumeration,
-        //取消订阅
-        unsubscribe: ++routerCmdEnumeration,
-        //获取网关中的某几个主题的连接数
-        topicsConnCount: ++routerCmdEnumeration,
-        //获取网关中的某几个主题的连接session id
-        topicsSessionId: ++routerCmdEnumeration,
-        //发布
-        publish: ++routerCmdEnumeration,
-    });
+    const routerCmd = {
+        connOpen: 1, //连接成功
+        netSvrStatus: 2,//获取网关的信息
+        totalSessionId: 3, //获取网关所有在线的session id
+        topicList: 4, //获取已订阅的主题列表
+        login: 5, //登录
+        logout: 6, //退出登录
+        updateSessionUserInfo: 7, //更新网关中的用户信息
+        singleCast: 8, //单播给某个用户
+        multicast: 9, //组播给多个用户
+        broadcast: 10, //广播
+        subscribe: 11, //订阅
+        unsubscribe: 12, //取消订阅
+        topicsConnCount: 13, //获取网关中的某几个主题的连接数
+        topicsSessionId: 14, //获取网关中的某几个主题的连接session id
+        publish: 15, //发布
+    };
 
     function open() {
         if (ws) {
@@ -253,7 +239,7 @@
                     print('等待发送给客户数据的缓冲区的大小 --> ' + data.catapultChanCap);
                     return;
                 }
-                //网关返回了所有在线的session id
+                //服务端响应了所有在线的session id
                 if (resp.cmd === routerCmd.totalSessionId) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
@@ -262,7 +248,19 @@
                     print(resp.data.message + ' --> ' + resp.data.data.totalSessionId);
                     return;
                 }
-                //服务端响应登录结果
+                if (resp.cmd === routerCmd.topicList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data.topics === null) {
+                        print("还未订阅任何主题");
+                        return;
+                    }
+                    print("已经订阅的主题有：" + resp.data.data.topics.join('、'));
+                    return;
+                }
+                //服务端响应了登录结果
                 if (resp.cmd === routerCmd.login) {
                     loginStatus = resp.data.code === 0;
                     if (loginStatus) {
@@ -274,7 +272,7 @@
                     }
                     return;
                 }
-                //服务端响应退出登录结果
+                //服务端响应了退出登录结果
                 if (resp.cmd === routerCmd.logout) {
                     loginStatus = !(resp.data.code === 0);
                     if (loginStatus === false) {
@@ -283,7 +281,7 @@
                     print(resp.data.message);
                     return;
                 }
-                //服务端响应退出登录结果
+                //服务端响应了更新网关中的用户信息的结果
                 if (resp.cmd === routerCmd.updateSessionUserInfo) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
@@ -313,13 +311,9 @@
                     print(singleCast.fromUser + ": " + singleCast.message);
                     return;
                 }
-                //服务端响应订阅结果
-                if (resp.cmd === routerCmd.subscribe) {
-                    if (resp.data.code === 0) {
-                        print(resp.data.message + '，当前在订阅的主题有：' + resp.data.data.topics.toString());
-                    } else {
-                        print(resp.data.message);
-                    }
+                //服务端响应订阅、取消订阅结果
+                if (resp.cmd === routerCmd.subscribe || resp.cmd === routerCmd.unsubscribe) {
+                    print(resp.data.message);
                     return;
                 }
                 //服务端响应了某几个主题的连接数
@@ -358,19 +352,6 @@
                     }
                     return;
                 }
-                //服务端响应取消订阅的结果
-                if (resp.cmd === routerCmd.unsubscribe) {
-                    if (resp.data.code === 0) {
-                        if (resp.data.data.topics) {
-                            print(resp.data.message + '，当前在订阅的主题有：' + resp.data.data.topics.toString());
-                        } else {
-                            print(resp.data.message + '，已经没有订阅任何主题了');
-                        }
-                    } else {
-                        print(resp.data.message);
-                    }
-                    return;
-                }
                 print("Unknown response: " + evt.data);
             } catch (e) {
                 console.error(e);
@@ -404,12 +385,19 @@
     }
 
     /**
+     * 测试获取已订阅的主题列表
+     */
+    function topicList() {
+        send(routerCmd.topicList, {});
+    }
+
+    /**
      * 测试登录
      */
     function login() {
         send(routerCmd.login, {
             username: document.getElementById("username").value,
-            password: document.getElementById("password").value
+            password: "123456"
         });
     }
 
@@ -442,7 +430,7 @@
      */
     function multicast() {
         let userIds = [];
-        document.getElementById("multicastUserIds").value.split(',').forEach(function (v) {
+        document.getElementById("multicastUserIds").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
             v = v.toString();
             if (v !== '') {
                 v = parseInt(v);
@@ -471,7 +459,7 @@
      */
     function subscribe() {
         let topics = [];
-        document.getElementById("subscribeTopics").value.split(',').forEach(function (v) {
+        document.getElementById("subscribeTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -487,7 +475,7 @@
      */
     function unsubscribe() {
         let topics = [];
-        document.getElementById("unsubscribeTopics").value.split(',').forEach(function (v) {
+        document.getElementById("unsubscribeTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -503,7 +491,7 @@
      */
     function topicsConnCount() {
         let topics = [];
-        document.getElementById("connCountTopics").value.split(',').forEach(function (v) {
+        document.getElementById("connCountTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -520,7 +508,7 @@
      */
     function topicsSessionId() {
         let topics = [];
-        document.getElementById("sessionIdTopics").value.split(',').forEach(function (v) {
+        document.getElementById("sessionIdTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -547,6 +535,7 @@
         document.getElementById("clear").onclick = clear;
         document.getElementById("netSvrStatus").onclick = netSvrStatus;
         document.getElementById("totalSessionId").onclick = totalSessionId;
+        document.getElementById("topicList").onclick = topicList;
         document.getElementById("login").onclick = login;
         document.getElementById("logout").onclick = logout;
         document.getElementById("updateSessionUserInfo").onclick = updateSessionUserInfo;

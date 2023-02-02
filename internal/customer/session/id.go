@@ -20,8 +20,8 @@ type id struct {
 	lock sync.RWMutex
 }
 
-// Get 分配一个session id出去
-func (r *id) Get() uint32 {
+// Pull 分配一个session id出去
+func (r *id) Pull() uint32 {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	for {

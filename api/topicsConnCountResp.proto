@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package netsvr.topicsConnCountResp;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应网关中的某几个主题的连接数到business
+message TopicsConnCountResp {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //key是topic，value是该主题的连接数
+  //如果topic没找到，则items中不会有该topic
+  map<string, int32> items = 2;
+}

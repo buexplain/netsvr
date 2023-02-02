@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package netsvr.router;
+
+option go_package = "internal/protocol;protocol";
+
+//worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
+enum Cmd {
+  //--------------------------------worker单向转发给business的指令 开始--------------------------------
+  Transfer = 0;//透传客户数据
+  ConnClose = 1;//连接关闭
+  ConnOpen = 2; //连接打开
+  //--------------------------------worker单向转发给business的指令 结束--------------------------------
+
+  //--------------------------------business单向请求worker的指令 开始--------------------------------
+  Register = 101; //注册business到worker，注册后，business会收到worker转发的客户信息
+  Unregister = 102; //取消注册，取消后不会再收到客户信息
+  SetUserLoginStatus = 103;//SetUserLoginStatus 设置客户登录状态
+  UpSessionUserInfo = 104;//设置网关的session面存储的客户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
+  Broadcast = 105; //广播
+  Multicast = 106; //组播
+  MulticastByBitmap = 107;//根据包含session id的bitmap进行组播
+  SingleCast = 108;//单播
+  Subscribe = 109;//订阅
+  Unsubscribe = 110;//取消订阅
+  Publish = 111;//发布
+  //--------------------------------business单向请求worker的指令 结束--------------------------------
+
+  //--------------------------------business请求worker，worker再响应business的指令 开始--------------------------------
+  TotalSessionId = 201; //网关中全部的session id
+  TopicsSessionId = 202; //某几个主题的session id
+  TopicsConnCount = 203; //网关中的某几个主题的连接数
+  SessionInfo = 204; //session信息
+  NetSvrStatus = 205; //网关的状态
+  //--------------------------------business请求worker，worker再响应business的指令 结束--------------------------------
+}
+
+//路由
+message Router {
+  //命令
+  Cmd cmd = 1;
+  //命令携带的数据
+  bytes data = 2;
+}

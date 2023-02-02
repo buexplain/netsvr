@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.unsubscribe;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，取消订阅
+message Unsubscribe {
+  //连接的session id
+  uint32 sessionId = 1;
+  //取消订阅的主题，可以一次性传递多个
+  repeated string topics = 2;
+  //需要发给客户的数据
+  bytes data = 3;
+}
