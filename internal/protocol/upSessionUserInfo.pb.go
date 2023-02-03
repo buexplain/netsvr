@@ -31,9 +31,9 @@ type UpSessionUserInfo struct {
 	// 存储到网关的客户信息
 	UserInfo string `protobuf:"bytes,3,opt,name=userInfo,proto3" json:"userInfo,omitempty"`
 	// 客户在业务系统中的唯一id，当该值与网关中现有的值不一致的时候，网关中的客户信息是不会被更改的
-	// 如此设定是为了避免，session id被顶号的问题
+	// 如此设定是为了避免，session id被顶号的问题，如果没有，可以不传
 	UserId string `protobuf:"bytes,4,opt,name=userId,proto3" json:"userId,omitempty"`
-	// 需要发给客户的数据
+	// 需要发给客户的数据，如果没有，可以不传
 	Data []byte `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
 }
 

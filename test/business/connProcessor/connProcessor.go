@@ -159,8 +159,10 @@ func (r *ConnProcessor) LoopReceive() {
 	defer func() {
 		//打印日志信息
 		if err := recover(); err != nil {
+			quit.Execute("Business receive coroutine error")
 			logging.Error("Business receive coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
 		} else {
+			quit.Execute("Business receive coroutine is closed")
 			logging.Debug("Business receive coroutine is closed, workerId: %d", r.workerId)
 		}
 	}()

@@ -11,6 +11,7 @@ type User struct {
 	Name      string
 	Password  string
 	SessionId uint32
+	Topics    []string
 }
 
 // ClientInfo 返回给客户的信息
@@ -66,10 +67,13 @@ type collect struct {
 	nameMap map[string]*User
 }
 
-func (r *collect) Add(id int, name string, password string) {
-	tmp := &User{id, name, password, 0}
+func (r *collect) Add(id int, name string, password string, topics []string) {
+	tmp := &User{id, name, password, 0, []string{}}
 	r.idMap[tmp.Id] = tmp
 	r.nameMap[tmp.Name] = tmp
+	for _, v := range topics {
+		tmp.Topics = append(tmp.Topics, v)
+	}
 }
 
 // GetUser 根据用户名字，查询一个用户
@@ -82,8 +86,12 @@ func (r *collect) GetUser(name string) *User {
 
 // SetSessionId 更新用户session id
 func (r *collect) SetSessionId(id int, sessionId uint32) {
-	if ret, ok := r.idMap[id]; ok {
-		ret.SessionId = sessionId
+	for _, v := range r.idMap {
+		if v.Id == id {
+			v.SessionId = sessionId
+		} else if v.SessionId == sessionId {
+			v.SessionId = 0
+		}
 	}
 }
 
@@ -100,7 +108,8 @@ var Collect *collect
 
 func init() {
 	Collect = &collect{idMap: map[int]*User{}, nameMap: map[string]*User{}}
-	Collect.Add(1, "刘备", "123456")
-	Collect.Add(2, "关羽", "123456")
-	Collect.Add(3, "张飞", "123456")
+	Collect.Add(1, "玄德", "123456", []string{"桃园结义", "小品频道"})
+	Collect.Add(2, "云长", "123456", []string{"桃园结义", "相声频道"})
+	Collect.Add(3, "翼德", "123456", []string{"桃园结义", "戏曲频道"})
+	Collect.Add(4, "奉先", "123456", nil)
 }

@@ -83,19 +83,20 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ := proto.Marshal(router)
 		worker.Send(data)
-		logging.Debug("Customer websocket open, session: %v", info)
+		logging.Debug("Customer websocket open, session: %#v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
 		info, ok := conn.Session().(*session.Info)
 		if !ok {
 			return
 		}
+		logging.Debug("Customer websocket close, session: %#v", info)
 		//先在连接管理中剔除该连接
 		manager.Manager.Del(info.GetSessionId())
 		//回收session id
 		session.Id.Put(info.GetSessionId())
 		//取消订阅管理中，它的session id的任何关联
-		session.Topics.Del(info.GetTopics(), info.GetSessionId())
+		session.Topics.Del(info.PullTopics(), info.GetSessionId())
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)

@@ -107,6 +107,7 @@ func (r *Info) SetLoginStatusWait() {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.loginStatus = LoginStatusWait
+	//清空登录成功的时候，存储的所有信息
 	r.userInfo = ""
 	r.userId = ""
 }
@@ -115,8 +116,6 @@ func (r *Info) SetLoginStatusIng() {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.loginStatus = LoginStatusIng
-	r.userInfo = ""
-	r.userId = ""
 }
 
 func (r *Info) SetLoginStatusOk(userInfo string, userId string) {
@@ -127,15 +126,18 @@ func (r *Info) SetLoginStatusOk(userInfo string, userId string) {
 	r.userId = userId
 }
 
-func (r *Info) GetTopics() []string {
+func (r *Info) PullTopics() []string {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	ret := make([]string, 0, len(r.topics))
-	ret = append(ret, r.topics...)
+	ret := r.topics
+	r.topics = []string{}
 	return ret
 }
 
 func (r *Info) Subscribe(topics []string) {
+	if len(topics) == 0 {
+		return
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for _, topic := range topics {
@@ -153,6 +155,9 @@ func (r *Info) Subscribe(topics []string) {
 }
 
 func (r *Info) Unsubscribe(topics []string) {
+	if len(topics) == 0 {
+		return
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for _, topic := range topics {

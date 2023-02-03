@@ -40,6 +40,8 @@ func Login(currentSessionId uint32, _ string, _ string, param string, processor 
 		ret.UserInfo = user.ToNetSvrInfo()
 		//这个id只在登录成功的时候设置
 		ret.UserId = strconv.Itoa(user.Id)
+		//初始化用户默认订阅的主题
+		ret.Topics = user.Topics
 	} else {
 		ret.LoginStatus = false
 		ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误"})

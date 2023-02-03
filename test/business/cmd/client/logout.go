@@ -18,6 +18,7 @@ func Logout(currentSessionId uint32, userInfo string, _ string, _ string, proces
 	//构建一个包含登录状态相关是业务对象
 	ret := &internalProtocol.SetUserLoginStatus{}
 	ret.SessionId = currentSessionId
+	//设置登录状态为未登录
 	ret.LoginStatus = false
 	ret.Data = workerUtils.NewResponse(protocol.RouterLogout, map[string]interface{}{"code": 0, "message": "退出登录成功"})
 	//更新用户的信息

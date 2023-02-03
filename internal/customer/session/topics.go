@@ -11,6 +11,9 @@ type topics struct {
 }
 
 func (r *topics) Set(topics []string, sessionId uint32) {
+	if len(topics) == 0 {
+		return
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for _, topic := range topics {

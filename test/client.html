@@ -30,9 +30,10 @@
             <label for="username">
                 <select id="username">
                     <option>请选择账号</option>
-                    <option>刘备</option>
-                    <option>关羽</option>
-                    <option>张飞</option>
+                    <option>玄德</option>
+                    <option>云长</option>
+                    <option>翼德</option>
+                    <option>奉先</option>
                 </select>
             </label>
             <button id="login">登录</button>
@@ -430,7 +431,7 @@
      */
     function multicast() {
         let userIds = [];
-        document.getElementById("multicastUserIds").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
+        document.getElementById("multicastUserIds").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
             v = v.toString();
             if (v !== '') {
                 v = parseInt(v);
@@ -459,7 +460,7 @@
      */
     function subscribe() {
         let topics = [];
-        document.getElementById("subscribeTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
+        document.getElementById("subscribeTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -475,7 +476,7 @@
      */
     function unsubscribe() {
         let topics = [];
-        document.getElementById("unsubscribeTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
+        document.getElementById("unsubscribeTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -491,7 +492,7 @@
      */
     function topicsConnCount() {
         let topics = [];
-        document.getElementById("connCountTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
+        document.getElementById("connCountTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
@@ -508,7 +509,7 @@
      */
     function topicsSessionId() {
         let topics = [];
-        document.getElementById("sessionIdTopics").value.replaceAll(/，/ig, ',').split(',').forEach(function (v) {
+        document.getElementById("sessionIdTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
             v = v.toString().trim();
             if (v !== '') {
                 topics.push(v);
