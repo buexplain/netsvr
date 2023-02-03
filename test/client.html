@@ -127,7 +127,7 @@
     let heartbeatInterval = 0;
     let output = document.getElementById("output");
     let print = function (message) {
-        let d = document.createElement("div");
+        let d = document.createElement("pre");
         d.textContent = message;
         output.appendChild(d);
         d.scrollIntoView();
@@ -231,16 +231,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    /**
-                     * @type {{customerConnCount: number, topicCount: number, catapultWaitSendCount: number, catapultConsumer: number, catapultChanCap: number}}
-                     */
-                    let data = resp.data.data;
-                    print('网关中的客户连接数 --> ' + data.customerConnCount);
-                    print('网关中的主题数量 --> ' + data.topicCount);
-                    print('等待转发到客户的数据量 --> ' + data.catapultWaitSendCount);
-                    print('等待转发到客户的数据量 --> ' + data.catapultWaitSendCount);
-                    print('用户于发送数据给客户的协程数量 --> ' + data.catapultConsumer);
-                    print('等待发送给客户数据的缓冲区的大小 --> ' + data.catapultChanCap);
+                    print(JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
                 //服务端响应了所有在线的session id

@@ -81,6 +81,7 @@ func Start() {
 	server = &Server{
 		listener: listen,
 	}
+	logging.Info("Worker tcp start")
 	server.Start()
 }
 

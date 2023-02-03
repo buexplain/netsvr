@@ -13,6 +13,7 @@ import (
 	"netsvr/internal/customer/heartbeat"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/session"
+	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
@@ -68,6 +69,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		info := session.NewInfo(session.Id.Pull())
 		conn.SetSession(info)
 		manager.Manager.Set(info.GetSessionId(), conn)
+		//统计打开连接次数
+		metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
 		//连接打开消息回传给business
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -83,9 +86,12 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ := proto.Marshal(router)
 		worker.Send(data)
+		//统计转发到business
+		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
 		logging.Debug("Customer websocket open, session: %#v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
+		metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
 		info, ok := conn.Session().(*session.Info)
 		if !ok {
 			return
@@ -112,6 +118,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ := proto.Marshal(router)
 		worker.Send(data)
+		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		//检查是否为心跳消息
@@ -121,9 +128,11 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				_ = conn.Close()
 			}
+			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 			return
 		} else if bytes.Equal(data, heartbeat.PongMessage) {
 			//客户端响应了服务端的心跳
+			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 			return
 		} else if messageType == websocket.PingMessage {
 			//响应客户端心跳
@@ -131,6 +140,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				_ = conn.Close()
 			}
+			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 			return
 		}
 		info, ok := conn.Session().(*session.Info)
@@ -169,6 +179,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ = proto.Marshal(router)
 		worker.Send(data)
+		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {

@@ -31,14 +31,7 @@ func NetSvrStatus(param []byte, processor *connProcessor.ConnProcessor) {
 	router.Cmd = internalProtocol.Cmd_SingleCast
 	ret := &internalProtocol.SingleCast{}
 	ret.SessionId = uint32(targetSessionId)
-	msg := map[string]interface{}{
-		"customerConnCount":     payload.CustomerConnCount,
-		"topicCount":            payload.TopicCount,
-		"catapultWaitSendCount": payload.CatapultWaitSendCount,
-		"catapultConsumer":      payload.CatapultConsumer,
-		"catapultChanCap":       payload.CatapultChanCap,
-	}
-	ret.Data = utils.NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "获取网关状态信息成功", "data": msg})
+	ret.Data = utils.NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "获取网关状态信息成功", "data": &payload})
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

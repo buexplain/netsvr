@@ -20,15 +20,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// req（request）、resp（response）时候的上下文，worker会原样回传给business
+// req（request）、resp（response）时候的上下文
+// 业务侧自己定义，如果没有，可以不传
+// worker会原样回传给business
 type ReCtx struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 什么命令发起的请求，这个是business侧自定义的，网关不做任何加工处理
+	// 什么命令发起的请求，这个是business侧自定义的，网关不做任何加工处理，如果没有，可以不传
 	Cmd int32 `protobuf:"varint,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
-	// business发起请求的时候的具体上下文是什么，网关不做任何加工处理，比如可以携带当前客户的唯一id
+	// business发起请求的时候的具体上下文是什么，网关不做任何加工处理，比如可以携带当前客户的唯一id，如果没有，可以不传
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 

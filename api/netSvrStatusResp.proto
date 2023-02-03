@@ -20,4 +20,12 @@ message NetSvrStatusResp {
   int32 catapultConsumer = 5;
   //等待发送给客户数据的缓冲区的大小
   int32 catapultChanCap = 6;
+  //统计客户连接的打开情况
+  map<string, int64> metricsCustomerConnOpen = 7;
+  //统计客户连接的关闭情况
+  map<string, int64> metricsCustomerConnClose = 8;
+  //统计客户连接的心跳情况
+  map<string, int64> metricsCustomerHeartbeat = 9;
+  //统计客户数据转发到worker的情况
+  map<string, int64> metricsCustomerTransfer = 10;
 }

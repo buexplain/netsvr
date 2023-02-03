@@ -5,6 +5,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/session"
+	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -23,6 +24,10 @@ func NetSvrStatus(param []byte, processor *workerManager.ConnProcessor) {
 	data.CatapultWaitSendCount = int32(Catapult.CountWaitSend())
 	data.CatapultConsumer = int32(configs.Config.CatapultConsumer)
 	data.CatapultChanCap = int32(configs.Config.CatapultChanCap)
+	data.MetricsCustomerConnOpen = metrics.Registry[metrics.ItemCustomerConnOpen].ToMap()
+	data.MetricsCustomerConnClose = metrics.Registry[metrics.ItemCustomerConnClose].ToMap()
+	data.MetricsCustomerHeartbeat = metrics.Registry[metrics.ItemCustomerHeartbeat].ToMap()
+	data.MetricsCustomerTransfer = metrics.Registry[metrics.ItemCustomerTransfer].ToMap()
 	route := &protocol.Router{}
 	route.Cmd = protocol.Cmd_NetSvrStatus
 	route.Data, _ = proto.Marshal(data)

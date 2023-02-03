@@ -20,3 +20,5 @@ CustomerHeartbeatIntervalSecond = 55
 CatapultConsumer = 1000
 # 等待发送给客户数据的缓冲区的大小
 CatapultChanCap = 2000
+# 统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
+MetricsItem = [0, 1, 2, 3]

@@ -15,10 +15,14 @@ type config struct {
 	CustomerListenAddress string
 	//客户服务器的url路由
 	CustomerHandlePattern string
+	//网关检查客户连接的心跳的时间间隔（单位：秒）
+	CustomerHeartbeatIntervalSecond int64
+
 	//session id的最小值，包含该值，不能为0
 	SessionIdMin uint32
 	//session id的最大值，包含该值
 	SessionIdMax uint32
+
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 	WorkerListenAddress string
 	//worker检查business连接的心跳的时间间隔（单位：秒）
@@ -27,12 +31,13 @@ type config struct {
 	WorkerReceivePackLimit uint32
 	//用于处理business发来的请求命令的协程数量
 	WorkerConsumer int
-	//网关检查客户连接的心跳的时间间隔（单位：秒）
-	CustomerHeartbeatIntervalSecond int64
+
 	//网关用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
 	CatapultChanCap int
+	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
+	MetricsItem []int
 }
 
 // rootPath 程序根目录
