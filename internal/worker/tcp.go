@@ -74,7 +74,7 @@ func (r *Server) Start() {
 var server *Server
 
 func Start() {
-	listen, err := net.Listen("tcp", "localhost:8888")
+	listen, err := net.Listen("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
 		return
 	}

@@ -129,6 +129,9 @@ func (r *Info) SetLoginStatusOk(userInfo string, userId string) {
 func (r *Info) PullTopics() []string {
 	r.mux.Lock()
 	defer r.mux.Unlock()
+	if len(r.topics) == 0 {
+		return nil
+	}
 	ret := r.topics
 	r.topics = []string{}
 	return ret

@@ -21,6 +21,9 @@
 <div style="display:flex">
     <div style="width: 65%">
         <div class="case">
+            <label for="singleCastMessage">
+                <input type="text" id="address" placeholder="请输入连接地址" value="ws://127.0.0.1:6060/netsvr">
+            </label>
             <button id="open">打开连接</button>
             <button id="close">关闭连接</button>
             <button id="clear">清屏</button>
@@ -179,7 +182,7 @@
         if (ws) {
             return;
         }
-        ws = new WebSocket("ws:\/\/127.0.0.1:8080\/gateway");
+        ws = new WebSocket(document.getElementById("address").value);
         ws.onopen = function () {
             heartbeatInterval = setInterval(function () {
                 //每隔30秒，发送一次心跳信息

@@ -1,7 +1,13 @@
+# 客户服务器监听的地址，ip:port，这个地址一般是外网地址
+CustomerListenAddress = "127.0.0.1:6060"
+# 客户服务器的url路由
+CustomerHandlePattern = "/netsvr"
 # session id的最小值，包含该值，不能为0
 SessionIdMin = 1
 # session id的最大值，包含该值
 SessionIdMax = 4294967293
+# worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
+WorkerListenAddress = "127.0.0.1:6061"
 # worker检查business连接的心跳的时间间隔（单位：秒）
 WorkerHeartbeatIntervalSecond = 55
 # worker读取business包的大小限制（单位：字节）

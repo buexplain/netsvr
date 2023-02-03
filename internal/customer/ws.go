@@ -25,10 +25,10 @@ var server *nbhttp.Server
 
 func Start() {
 	mux := &http.ServeMux{}
-	mux.HandleFunc("/gateway", onWebsocket)
+	mux.HandleFunc(configs.Config.CustomerHandlePattern, onWebsocket)
 	config := nbhttp.Config{
 		Network: "tcp",
-		Addrs:   []string{"localhost:8080"},
+		Addrs:   []string{configs.Config.CustomerListenAddress},
 		Handler: mux,
 	}
 	config.Name = "customer"

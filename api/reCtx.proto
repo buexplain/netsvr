@@ -4,10 +4,12 @@ package netsvr.reCtx;
 
 option go_package = "internal/protocol;protocol";
 
-//req（request）、resp（response）时候的上下文，worker会原样回传给business
+//req（request）、resp（response）时候的上下文
+//业务侧自己定义，如果没有，可以不传
+//worker会原样回传给business
 message ReCtx {
-  //什么命令发起的请求，这个是business侧自定义的，网关不做任何加工处理
+  //什么命令发起的请求，这个是business侧自定义的，网关不做任何加工处理，如果没有，可以不传
   int32 cmd = 1;
-  //business发起请求的时候的具体上下文是什么，网关不做任何加工处理，比如可以携带当前客户的唯一id
+  //business发起请求的时候的具体上下文是什么，网关不做任何加工处理，比如可以携带当前客户的唯一id，如果没有，可以不传
   bytes data = 2;
 }

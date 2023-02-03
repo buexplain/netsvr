@@ -11,10 +11,16 @@ import (
 )
 
 type config struct {
+	//客户服务器监听的地址，ip:port，这个地址一般是外网地址
+	CustomerListenAddress string
+	//客户服务器的url路由
+	CustomerHandlePattern string
 	//session id的最小值，包含该值，不能为0
 	SessionIdMin uint32
 	//session id的最大值，包含该值
 	SessionIdMax uint32
+	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
+	WorkerListenAddress string
 	//worker检查business连接的心跳的时间间隔（单位：秒）
 	WorkerHeartbeatIntervalSecond int64
 	//worker读取business包的大小限制（单位：字节）

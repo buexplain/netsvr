@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/lesismal/nbio/logging"
 	"net"
+	"netsvr/configs"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/cmd/client"
@@ -18,7 +19,7 @@ func init() {
 }
 
 func main() {
-	conn, err := net.Dial("tcp", "localhost:8888")
+	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
 		logging.Error("连接服务端失败，%v", err)
 		os.Exit(1)
