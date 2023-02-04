@@ -11,7 +11,6 @@ import (
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/protocol"
 	"os"
-	"time"
 )
 
 func init() {
@@ -57,8 +56,8 @@ func main() {
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()
-	//循环处理网关的请求
-	for i := 0; i < 10; i++ {
+	//循环处理worker发来的指令
+	for i := 0; i < 2; i++ {
 		quit.Wg.Add(1)
 		go processor.LoopCmd(i)
 	}
@@ -66,6 +65,7 @@ func main() {
 	quit.Wg.Add(1)
 	go processor.LoopSend()
 	//循环读
+	quit.Wg.Add(1)
 	go processor.LoopReceive()
 	//开始关闭进程
 	select {
@@ -78,8 +78,6 @@ func main() {
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
-		//关闭连接，这里暂停一下，等待数据发送出去
-		time.Sleep(time.Millisecond * 100)
 		processor.Close()
 		logging.Info("关闭business进程成功: pid --> %d", os.Getpid())
 		os.Exit(0)
