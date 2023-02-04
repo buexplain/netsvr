@@ -27,8 +27,10 @@ type config struct {
 	WorkerListenAddress string
 	//worker检查business连接的心跳的时间间隔（单位：秒）
 	WorkerHeartbeatIntervalSecond int64
-	//worker读取business包的大小限制（单位：字节）
+	//worker读取business的包的大小限制（单位：字节）
 	WorkerReceivePackLimit uint32
+	//worker发送给business的包的大小限制（单位：字节）
+	WorkerSendPackLimit uint32
 	//网关用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
@@ -105,6 +107,10 @@ func init() {
 	if Config.WorkerReceivePackLimit <= 0 {
 		//默认2MB
 		Config.WorkerReceivePackLimit = 2 * 1024 * 1024
+	}
+	if Config.WorkerSendPackLimit <= 0 {
+		//默认2MB
+		Config.WorkerSendPackLimit = 2 * 1024 * 1024
 	}
 	if Config.CustomerHeartbeatIntervalSecond <= 0 {
 		//默认55秒

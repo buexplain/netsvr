@@ -12,6 +12,9 @@ type Status struct {
 }
 
 func (r *Status) ToMap() map[string]int64 {
+	if _, ok := r.Meter.(gMetrics.NilMeter); ok {
+		return nil
+	}
 	ret := map[string]int64{}
 	ret["count"] = r.Meter.Count()
 	ret["meanRate"] = int64(r.Meter.RateMean())

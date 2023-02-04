@@ -8,6 +8,8 @@ import (
 // Unregister business取消已注册的服务编号
 func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
-	workerManager.Manager.Del(workerId, processor)
-	logging.Debug("Unregister a business by id: %d", workerId)
+	if workerManager.MinWorkerId <= workerId && workerId <= workerManager.MaxWorkerId {
+		workerManager.Manager.Del(workerId, processor)
+		logging.Debug("Unregister a business by id: %d", workerId)
+	}
 }
