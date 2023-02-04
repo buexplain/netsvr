@@ -5,11 +5,17 @@ package netsvr.register;
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，注册自己，注册成功后，当网关收到客户发送的信息的时候，会转发客户发送的信息到business
+//如果不想接收来自客户的信息，只是与网关交互，可以不发起注册指令
 message Register {
-  //服务编号，取值范围是 1~999,业务层可以自己随意安排，如果多个business共用一个服务编号，则网关在数据转发的过程中是轮询转发的
+  //服务编号，取值范围是 1~999，包含1与999
+  //业务层可以自己随意安排，如果多个business共用一个服务编号，则网关在数据转发的过程中是轮询转发的
   int32 Id = 1;
   //表示该business是否处理客户端连接关闭的信息
   bool ProcessConnClose = 2;
   //表示该business是否处理客户端连接打开的信息
   bool ProcessConnOpen = 3;
+  //表示接下来，需要worker开启多少协程来处理本business的请求
+  //如果本business，非常频繁的与worker交互，可以考虑开大一点，但是也不能无限大，开太多也许不能解决问题，建议10条左右即可
+  //请注意worker默认已经开启了一条协程来处理本business的请求，所以该值只有在大于1的时候才会开启更多协程
+  uint32 ProcessCmdGoroutineNum = 4;
 }

@@ -326,6 +326,8 @@ func (r *ConnProcessor) RegisterWorker() error {
 	router.Cmd = internalProtocol.Cmd_Register
 	reg := &internalProtocol.Register{}
 	reg.Id = int32(r.workerId)
+	//让worker为我开启10条协程
+	reg.ProcessCmdGoroutineNum = 10
 	reg.ProcessConnClose = true
 	reg.ProcessConnOpen = true
 	router.Data, _ = proto.Marshal(reg)

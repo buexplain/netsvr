@@ -29,9 +29,6 @@ type config struct {
 	WorkerHeartbeatIntervalSecond int64
 	//worker读取business包的大小限制（单位：字节）
 	WorkerReceivePackLimit uint32
-	//用于处理business发来的请求命令的协程数量
-	WorkerConsumer int
-
 	//网关用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
@@ -108,10 +105,6 @@ func init() {
 	if Config.WorkerReceivePackLimit <= 0 {
 		//默认2MB
 		Config.WorkerReceivePackLimit = 2 * 1024 * 1024
-	}
-	if Config.WorkerConsumer <= 0 {
-		//默认10条协程
-		Config.WorkerConsumer = 10
 	}
 	if Config.CustomerHeartbeatIntervalSecond <= 0 {
 		//默认55秒
