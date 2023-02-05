@@ -53,6 +53,7 @@ func main() {
 	processor.RegisterClientCmd(protocol.RouterTopicList, client.TopicList)
 	processor.RegisterClientCmd(protocol.RouterUnsubscribe, client.Unsubscribe)
 	processor.RegisterClientCmd(protocol.RouterUpdateSessionUserInfo, client.UpdateSessionUserInfo)
+	processor.RegisterClientCmd(protocol.RouterForceOffline, client.ForceOffline)
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()

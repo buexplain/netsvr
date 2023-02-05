@@ -20,6 +20,7 @@ const (
 	RouterLogin
 	RouterLogout
 	RouterUpdateSessionUserInfo
+	RouterForceOffline
 	RouterSingleCast
 	RouterMulticast
 	RouterBroadcast
@@ -38,6 +39,7 @@ var cmdName = map[Cmd]string{
 	RouterLogin:                 "RouterLogin",                 //登录
 	RouterLogout:                "RouterLogout",                //退出登录
 	RouterUpdateSessionUserInfo: "RouterUpdateSessionUserInfo", //更新网关中的用户信息
+	RouterForceOffline:          "RouterForceOffline",          //某个session id的连接强制关闭
 	RouterSingleCast:            "RouterSingleCast",            //单播给某个用户
 	RouterMulticast:             "RouterMulticast",             //组播给多个用户
 	RouterBroadcast:             "RouterBroadcast",             //广播给所有用户
@@ -66,6 +68,11 @@ func ParseClientRouter(data []byte) *ClientRouter {
 type Login struct {
 	Username string
 	Password string
+}
+
+// ForceOffline 强制踢下线某个用户
+type ForceOffline struct {
+	UserId int `json:"userId"`
 }
 
 // SingleCast 客户端发送的单播信息
