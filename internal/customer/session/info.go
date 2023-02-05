@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/antlabs/timer"
 	"netsvr/internal/protocol"
 	"sync"
 )
@@ -27,7 +28,10 @@ type Info struct {
 	topics []string
 	//当前连接最后发送消息的时间
 	lastActiveTime int64
-	mux            sync.RWMutex
+	//心跳
+	HeartbeatNode timer.TimeNoder
+	//锁
+	mux sync.RWMutex
 }
 
 func NewInfo(sessionId uint32) *Info {

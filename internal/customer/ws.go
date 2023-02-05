@@ -3,7 +3,6 @@ package customer
 import (
 	"bytes"
 	"context"
-	"github.com/antlabs/timer"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -69,8 +68,25 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		info := session.NewInfo(session.Id.Pull())
 		conn.SetSession(info)
 		manager.Manager.Set(info.GetSessionId(), conn)
+		//开启心跳
+		info.HeartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
+			if timecache.Unix()-info.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
+
+				//还在活跃期内，不做处理
+				return
+			}
+			//超过活跃期，服务端主动发送心跳
+			if err := conn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err == nil {
+				//写入数据成功，更新连接的最后活跃时间
+				info.SetLastActiveTime(timecache.Unix())
+				return
+			}
+			//写入数据失败，直接关闭连接，触发onClose回调
+			_ = conn.Close()
+		})
 		//统计打开连接次数
 		metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
+		logging.Debug("Customer websocket open, session: %#v", info)
 		//连接打开消息回传给business
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -88,21 +104,26 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		worker.Send(data)
 		//统计转发到business
 		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
-		logging.Debug("Customer websocket open, session: %#v", info)
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
-		metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
 		info, ok := conn.Session().(*session.Info)
 		if !ok {
 			return
 		}
-		logging.Debug("Customer websocket close, session: %#v", info)
 		//先在连接管理中剔除该连接
 		manager.Manager.Del(info.GetSessionId())
 		//回收session id
 		session.Id.Put(info.GetSessionId())
 		//取消订阅管理中，它的session id的任何关联
 		session.Topics.Del(info.PullTopics(), info.GetSessionId())
+		//关闭心跳
+		if info.HeartbeatNode != nil {
+			info.HeartbeatNode.Stop()
+			info.HeartbeatNode = nil
+		}
+		//统计关闭连接次数
+		metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
+		logging.Debug("Customer websocket close, session: %#v", info)
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -191,30 +212,5 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		logging.Error("Customer websocket SetReadDeadline failed: %v", err)
 		return
 	}
-	//设置心跳
-	var heartbeatNode timer.TimeNoder
-	heartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
-		info, ok := wsConn.Session().(*session.Info)
-		if !ok {
-			return
-		}
-		if timecache.Unix()-info.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
-			//还在活跃期内，不做处理
-			return
-		}
-		//超过活跃期，服务端主动发送心跳
-		if err := wsConn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err == nil {
-			//写入数据成功，更新连接的最后活跃时间
-			info.SetLastActiveTime(timecache.Unix())
-			return
-		}
-		//写入数据失败，关闭心跳
-		if heartbeatNode != nil {
-			heartbeatNode.Stop()
-			heartbeatNode = nil
-		}
-		//关闭连接
-		_ = conn.Close()
-	})
 	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
 }
