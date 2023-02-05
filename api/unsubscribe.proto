@@ -10,6 +10,10 @@ message Unsubscribe {
   uint32 sessionId = 1;
   //取消订阅的主题，可以一次性传递多个
   repeated string topics = 2;
-  //需要发给客户的数据
-  bytes data = 3;
+  //客户在业务系统中的唯一id
+  //当传递该值，且与网关中现有userId的值不一致的时候，不会修改网关中的客户主题
+  //当不传递该值，则不与网关中现有userId的值做比较，会直接修改网关中的客户主题
+  string userId = 3;
+  //取消订阅主题后，需要发给客户的数据，如果没有，可以不传
+  bytes data = 4;
 }

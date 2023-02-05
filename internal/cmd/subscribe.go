@@ -27,6 +27,13 @@ func Subscribe(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
+	//连接id对应的客户已经被顶了，则不做修改
+	if payload.UserId != "" {
+		userId := info.GetUserId()
+		if userId != "" && userId != payload.UserId {
+			return
+		}
+	}
 	//将订阅信息登记到session的info对象里面
 	info.Subscribe(payload.Topics)
 	//主题管理里面也登记上对应的关系

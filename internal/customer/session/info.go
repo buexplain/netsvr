@@ -57,6 +57,12 @@ func (r *Info) GetSessionId() uint32 {
 	return r.sessionId
 }
 
+func (r *Info) GetUserId() string {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	return r.userId
+}
+
 func (r *Info) GetToSessionInfoObj(sessionInfo *protocol.SessionInfoResp) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
@@ -90,11 +96,15 @@ func (r *Info) GetToTransferObj(transfer *protocol.Transfer) {
 func (r *Info) UpUserInfoOnLoginStatusOk(userInfo string, userId string) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	if r.loginStatus == LoginStatusOk && r.userId == userId {
-		r.userInfo = userInfo
-		return true
+	if r.loginStatus != LoginStatusOk {
+		return false
 	}
-	return false
+	//连接id对应的客户已经被顶了，则不做修改
+	if r.userId != "" && userId != "" && r.userId != userId {
+		return false
+	}
+	r.userInfo = userInfo
+	return true
 }
 
 func (r *Info) GetLoginStatus() int8 {

@@ -47,6 +47,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_Register, cmd.Register)
 			c.RegisterCmd(protocol.Cmd_Unregister, cmd.Unregister)
 			c.RegisterCmd(protocol.Cmd_Broadcast, cmd.Broadcast)
+			c.RegisterCmd(protocol.Cmd_ForceOffline, cmd.ForceOffline)
 			c.RegisterCmd(protocol.Cmd_Multicast, cmd.Multicast)
 			c.RegisterCmd(protocol.Cmd_MulticastByBitmap, cmd.MulticastByBitmap)
 			c.RegisterCmd(protocol.Cmd_Publish, cmd.Publish)

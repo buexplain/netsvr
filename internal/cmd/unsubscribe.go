@@ -27,6 +27,13 @@ func Unsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
+	//连接id对应的客户已经被顶了，则不做修改
+	if payload.UserId != "" {
+		userId := info.GetUserId()
+		if userId != "" && userId != payload.UserId {
+			return
+		}
+	}
 	//将自己的订阅信息移除掉
 	info.Unsubscribe(payload.Topics)
 	//主题管理里面也移除掉订阅关系
