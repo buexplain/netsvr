@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"github.com/lesismal/nbio/logging"
+	"html/template"
 	"net"
+	"net/http"
 	"netsvr/configs"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/pkg/quit"
@@ -17,12 +20,34 @@ func init() {
 	logging.SetLevel(logging.LevelDebug)
 }
 
+// 输出html客户端
+func clientServer() {
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		t, err := template.New("client.html").Delims("{!", "!}").ParseFiles(configs.RootPath + "test/business/client.html")
+		if err != nil {
+			logging.Error("模板解析失败：%s", err)
+			return
+		}
+		data := map[string]interface{}{}
+		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.CustomerListenAddress, configs.Config.CustomerHandlePattern)
+		err = t.Execute(writer, data)
+		if err != nil {
+			logging.Error("模板输出失败：%s", err)
+			return
+		}
+	})
+	logging.Info("点击访问客户端：http://127.0.0.1:6062/")
+	_ = http.ListenAndServe("127.0.0.1:6062", nil)
+}
+
 func main() {
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
 		logging.Error("连接服务端失败，%v", err)
 		os.Exit(1)
 	}
+	//启动html客户端的服务器
+	go clientServer()
 	processor := connProcessor.NewConnProcessor(conn, 1)
 	//注册到worker
 	if err := processor.RegisterWorker(); err != nil {

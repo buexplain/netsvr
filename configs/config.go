@@ -41,8 +41,8 @@ type config struct {
 	MetricsMaxRecordIntervalSecond int
 }
 
-// rootPath 程序根目录
-var rootPath string
+// RootPath 程序根目录
+var RootPath string
 
 func init() {
 	var dir string
@@ -71,7 +71,7 @@ func init() {
 		logging.Error("获取进程工作目录失败：%s", err)
 		os.Exit(1)
 	}
-	rootPath = strings.TrimSuffix(filepath.ToSlash(dir), "/") + "/"
+	RootPath = strings.TrimSuffix(filepath.ToSlash(dir), "/") + "/"
 }
 
 // Config 应用程序配置
@@ -79,7 +79,7 @@ var Config *config
 
 func init() {
 	var configFile string
-	flag.StringVar(&configFile, "config", filepath.Join(rootPath, "configs/config.toml"), "set configuration file")
+	flag.StringVar(&configFile, "config", filepath.Join(RootPath, "configs/config.toml"), "set configuration file")
 	flag.Parse()
 	//读取配置文件
 	c, err := os.ReadFile(configFile)

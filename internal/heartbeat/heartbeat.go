@@ -5,8 +5,8 @@ import (
 	"netsvr/pkg/quit"
 )
 
-var PingMessage []byte = []byte("~H27890027B~")
-var PongMessage []byte = []byte("~H278a0027B~")
+var PingMessage = []byte("~H27890027B~")
+var PongMessage = []byte("~H278a0027B~")
 
 var Timer timer.Timer
 
