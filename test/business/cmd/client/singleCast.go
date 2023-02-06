@@ -20,6 +20,9 @@ func SingleCast(currentSessionId uint32, userInfo string, _ string, param string
 		return
 	}
 	currentUser := userDb.ParseNetSvrInfo(userInfo)
+	if currentUser == nil {
+		return
+	}
 	//构建一个发给网关的路由
 	router := &internalProtocol.Router{}
 	//告诉网关要进行一次单播操作

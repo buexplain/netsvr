@@ -130,4 +130,5 @@ func init() {
 		//默认10秒
 		Config.MetricsMaxRecordIntervalSecond = 10
 	}
+
 }

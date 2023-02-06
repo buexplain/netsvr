@@ -102,8 +102,9 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ := proto.Marshal(router)
 		worker.Send(data)
-		//统计转发到business
-		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
 		info, ok := conn.Session().(*session.Info)
@@ -139,7 +140,9 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ := proto.Marshal(router)
 		worker.Send(data)
-		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
 	})
 	upgrade.OnMessage(func(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		//检查是否为心跳消息
@@ -200,7 +203,10 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//转发数据到business
 		data, _ = proto.Marshal(router)
 		worker.Send(data)
-		metrics.Registry[metrics.ItemCustomerTransfer].Meter.Mark(1)
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
+
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {

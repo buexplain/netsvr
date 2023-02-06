@@ -10,22 +10,37 @@ option go_package = "internal/protocol;protocol";
 message NetSvrStatusResp {
   //req（request）、resp（response）时候的上下文，worker会原样回传给business
   netsvr.reCtx.ReCtx reCtx = 1;
-  //网关中的客户连接数
+  //网关中的当前客户连接数
   int32 customerConnCount = 2;
-  //网关中的主题数量
+  //网关中的当前主题数量
   int32 topicCount = 3;
-  //等待转发到客户的数据量
+  //当前等待转发到客户的数据量
   int32 catapultWaitSendCount = 4;
-  //客户于发送数据给客户的协程数量
+  //当前客户于发送数据给客户的协程数量
   int32 catapultConsumer = 5;
-  //等待发送给客户数据的缓冲区的大小
+  //当前等待发送给客户数据的缓冲区的大小
   int32 catapultChanCap = 6;
-  //统计客户连接的打开情况
-  map<string, int64> metricsCustomerConnOpen = 7;
-  //统计客户连接的关闭情况
-  map<string, int64> metricsCustomerConnClose = 8;
-  //统计客户连接的心跳情况
-  map<string, int64> metricsCustomerHeartbeat = 9;
-  //统计客户数据转发到worker的情况
-  map<string, int64> metricsCustomerTransfer = 10;
+  //统计网关的各种速率值
+  map<string, MetricsStatusResp> metrics = 7;
+}
+
+message MetricsStatusResp {
+  //总数
+  int64 count = 1;
+  //每秒速率
+  float meanRate = 2;
+  //每秒速率的最大值
+  float meanRateMax = 3;
+  //每1分钟速率
+  float rate1 = 4;
+  //每1分钟速率的最大值
+  float  rate1Max = 5;
+  //每5分钟速率
+  float rate5 = 6;
+  //每5分钟速率的最大值
+  float  rate5Max = 7;
+  //每15分钟速率
+  float rate15 = 8;
+  //每15分钟速率的最大值
+  float  rate15Max = 9;
 }

@@ -24,10 +24,12 @@ func NetSvrStatus(param []byte, processor *workerManager.ConnProcessor) {
 	data.CatapultWaitSendCount = int32(Catapult.CountWaitSend())
 	data.CatapultConsumer = int32(configs.Config.CatapultConsumer)
 	data.CatapultChanCap = int32(configs.Config.CatapultChanCap)
-	data.MetricsCustomerConnOpen = metrics.Registry[metrics.ItemCustomerConnOpen].ToMap()
-	data.MetricsCustomerConnClose = metrics.Registry[metrics.ItemCustomerConnClose].ToMap()
-	data.MetricsCustomerHeartbeat = metrics.Registry[metrics.ItemCustomerHeartbeat].ToMap()
-	data.MetricsCustomerTransfer = metrics.Registry[metrics.ItemCustomerTransfer].ToMap()
+	data.Metrics = map[string]*protocol.MetricsStatusResp{}
+	for _, v := range metrics.Registry {
+		if tmp := v.ToStatusResp(); tmp != nil {
+			data.Metrics[v.Name] = tmp
+		}
+	}
 	route := &protocol.Router{}
 	route.Cmd = protocol.Cmd_NetSvrStatus
 	route.Data, _ = proto.Marshal(data)

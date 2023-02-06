@@ -1,6 +1,9 @@
 package metrics
 
-import gMetrics "github.com/rcrowley/go-metrics"
+import (
+	gMetrics "github.com/rcrowley/go-metrics"
+	"netsvr/internal/protocol"
+)
 
 type Status struct {
 	Name        string
@@ -11,43 +14,44 @@ type Status struct {
 	Rate15Max   gMetrics.Gauge
 }
 
-func (r *Status) ToMap() map[string]int64 {
+func (r *Status) ToStatusResp() *protocol.MetricsStatusResp {
 	if _, ok := r.Meter.(gMetrics.NilMeter); ok {
 		return nil
 	}
-	ret := map[string]int64{}
-	ret["count"] = r.Meter.Count()
-	ret["meanRate"] = int64(r.Meter.RateMean())
-	ret["meanRateMax"] = r.MeanRateMax.Value()
-	ret["rate1"] = int64(r.Meter.Rate1())
-	ret["rate1Max"] = r.Rate1Max.Value()
-	ret["rate5"] = int64(r.Meter.Rate5())
-	ret["rate5Max"] = r.Rate5Max.Value()
-	ret["rate15"] = int64(r.Meter.Rate15())
-	ret["rate15Max"] = r.Rate15Max.Value()
-	return ret
+	ret := protocol.MetricsStatusResp{}
+	r.recordMax()
+	ret.Count = r.Meter.Count()
+	ret.MeanRate = float32(r.Meter.RateMean())
+	ret.MeanRateMax = float32(r.MeanRateMax.Value())
+	ret.Rate1 = float32(r.Meter.Rate1())
+	ret.Rate1Max = float32(r.Rate1Max.Value())
+	ret.Rate5 = float32(r.Meter.Rate5())
+	ret.Rate5Max = float32(r.Rate5Max.Value())
+	ret.Rate15 = float32(r.Meter.Rate15())
+	ret.Rate15Max = float32(r.Rate15Max.Value())
+	return &ret
 }
 
-func (r *Status) RecordMax() {
+func (r *Status) recordMax() {
 	var a, b int64
 	a = int64(r.Meter.RateMean())
 	b = r.MeanRateMax.Value()
 	if b < a {
-		r.MeanRateMax.Update(b)
+		r.MeanRateMax.Update(a)
 	}
 	a = int64(r.Meter.Rate1())
 	b = r.Rate1Max.Value()
 	if b < a {
-		r.Rate1Max.Update(b)
+		r.Rate1Max.Update(a)
 	}
 	a = int64(r.Meter.Rate5())
 	b = r.Rate5Max.Value()
 	if b < a {
-		r.Rate5Max.Update(b)
+		r.Rate5Max.Update(a)
 	}
 	a = int64(r.Meter.Rate15())
 	b = r.Rate15Max.Value()
 	if b < a {
-		r.Rate15Max.Update(b)
+		r.Rate15Max.Update(a)
 	}
 }

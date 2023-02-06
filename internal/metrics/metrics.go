@@ -8,21 +8,22 @@ import (
 
 // 支持统计的服务状态
 const (
-	ItemCustomerConnOpen  = iota //统计客户连接的打开情况
-	ItemCustomerConnClose        //统计客户连接的关闭情况
-	ItemCustomerHeartbeat        //统计客户连接的心跳情况
-	ItemCustomerTransfer         //统计客户数据转发到worker的情况
-	itemLen                      //这个放最后面，用来初始化registry用户
+	ItemCustomerConnOpen       = iota //统计客户连接的打开情况
+	ItemCustomerConnClose             //统计客户连接的关闭情况
+	ItemCustomerHeartbeat             //统计客户连接的心跳情况
+	ItemCustomerTransferNumber        //统计客户数据转发到worker的次数情况
+	ItemCustomerTransferByte          //统计客户数据转发到worker的字节数情况
 )
 
 var itemName = map[int]string{
-	ItemCustomerConnOpen:  "CustomerConnOpen",
-	ItemCustomerConnClose: "CustomerConnClose",
-	ItemCustomerHeartbeat: "CustomerHeartbeat",
-	ItemCustomerTransfer:  "CustomerTransfer",
+	ItemCustomerConnOpen:       "customerConnOpen",
+	ItemCustomerConnClose:      "customerConnClose",
+	ItemCustomerHeartbeat:      "customerHeartbeat",
+	ItemCustomerTransferNumber: "customerTransferNumber",
+	ItemCustomerTransferByte:   "customerTransferByte",
 }
 
-var Registry = make([]*Status, itemLen)
+var Registry = make([]*Status, len(itemName))
 
 func init() {
 	//初始化所有要统计的服务状态
@@ -38,7 +39,7 @@ func init() {
 		}
 		return false
 	}
-	for item := 0; item < itemLen; item++ {
+	for item := 0; item < len(Registry); item++ {
 		s := Status{Name: itemName[item]}
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
@@ -71,7 +72,7 @@ func init() {
 		}()
 		for range ticker.C {
 			for _, v := range Registry {
-				v.RecordMax()
+				v.recordMax()
 			}
 		}
 	}()
