@@ -63,9 +63,9 @@ func init() {
 	if !ok {
 		return
 	}
-	//每隔30秒记录一次最大值
+	//每隔n秒记录一次最大值，这个最大值并不精确
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(time.Duration(configs.Config.MetricsMaxRecordIntervalSecond) * time.Second)
 		defer func() {
 			ticker.Stop()
 		}()

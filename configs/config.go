@@ -38,6 +38,8 @@ type config struct {
 	CatapultChanCap int
 	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
 	MetricsItem []int
+	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
+	MetricsMaxRecordIntervalSecond int
 }
 
 // rootPath 程序根目录
@@ -124,5 +126,9 @@ func init() {
 	if Config.CatapultChanCap <= 0 {
 		//缓冲区默认大小是2000
 		Config.CatapultChanCap = 2000
+	}
+	if Config.MetricsMaxRecordIntervalSecond <= 0 {
+		//默认10秒
+		Config.MetricsMaxRecordIntervalSecond = 10
 	}
 }
