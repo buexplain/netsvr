@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/antlabs/timer"
 	"netsvr/internal/protocol"
 	"sync"
 )
@@ -27,7 +28,10 @@ type Info struct {
 	topics []string
 	//当前连接最后发送消息的时间
 	lastActiveTime int64
-	mux            sync.RWMutex
+	//心跳
+	HeartbeatNode timer.TimeNoder
+	//锁
+	mux sync.RWMutex
 }
 
 func NewInfo(sessionId uint32) *Info {
@@ -55,6 +59,12 @@ func (r *Info) GetLastActiveTime() int64 {
 
 func (r *Info) GetSessionId() uint32 {
 	return r.sessionId
+}
+
+func (r *Info) GetUserId() string {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	return r.userId
 }
 
 func (r *Info) GetToSessionInfoObj(sessionInfo *protocol.SessionInfoResp) {
@@ -90,11 +100,15 @@ func (r *Info) GetToTransferObj(transfer *protocol.Transfer) {
 func (r *Info) UpUserInfoOnLoginStatusOk(userInfo string, userId string) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	if r.loginStatus == LoginStatusOk && r.userId == userId {
-		r.userInfo = userInfo
-		return true
+	if r.loginStatus != LoginStatusOk {
+		return false
 	}
-	return false
+	//连接id对应的客户已经被顶了，则不做修改
+	if r.userId != "" && userId != "" && r.userId != userId {
+		return false
+	}
+	r.userInfo = userInfo
+	return true
 }
 
 func (r *Info) GetLoginStatus() int8 {

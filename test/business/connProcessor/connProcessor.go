@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
+	"netsvr/configs"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/internal/worker/heartbeat"
 	"netsvr/pkg/quit"
@@ -23,6 +24,9 @@ type ConnProcessor struct {
 	conn net.Conn
 	//要发送给连接的数据
 	sendCh chan []byte
+	//发送缓冲区
+	sendBuf     bytes.Buffer
+	sendDataLen uint32
 	//从连接中读取的数据
 	receiveCh chan *internalProtocol.Router
 	//连接关闭信号
@@ -38,7 +42,9 @@ type ConnProcessor struct {
 func NewConnProcessor(conn net.Conn, workerId int) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:              conn,
-		sendCh:            make(chan []byte, 10),
+		sendCh:            make(chan []byte, 0),
+		sendBuf:           bytes.Buffer{},
+		sendDataLen:       0,
 		receiveCh:         make(chan *internalProtocol.Router, 100),
 		closeCh:           make(chan struct{}),
 		workerId:          workerId,
@@ -132,15 +138,34 @@ func (r *ConnProcessor) loopSendDone() {
 }
 
 func (r *ConnProcessor) send(data []byte) {
-	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
-		if _, err = r.conn.Write(data); err != nil {
+	//包太大，不发
+	r.sendDataLen = uint32(len(data))
+	if r.sendDataLen-4 > configs.Config.WorkerReceivePackLimit {
+		//不能超过worker的收包的大小，否则worker会断开连接
+		logging.Error("Business send pack is too large: %d", r.sendDataLen)
+		return
+	}
+	//先写包头，注意这是大端序
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 24))
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 16))
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 8))
+	r.sendBuf.WriteByte(byte(r.sendDataLen))
+	//再写包体
+	var err error
+	if _, err = r.sendBuf.Write(data); err == nil {
+		//一次性写入到连接中
+		_, err = r.sendBuf.WriteTo(r.conn)
+		if err == nil {
+			//写入成功，重置缓冲区
+			r.sendBuf.Reset()
+		} else {
 			r.Close()
 			logging.Error("Business send to worker error: %v", err)
 		}
-	} else {
-		r.Close()
-		logging.Error("Business send to worker error: %v", err)
+		return
 	}
+	//写缓冲区失败，重置缓冲区
+	r.sendBuf.Reset()
 }
 
 func (r *ConnProcessor) Send(data []byte) {
@@ -165,10 +190,11 @@ func (r *ConnProcessor) LoopReceive() {
 			quit.Execute("Business receive coroutine is closed")
 			logging.Debug("Business receive coroutine is closed, workerId: %d", r.workerId)
 		}
+		//减少协程wait计数器
+		quit.Wg.Done()
 	}()
-	var workerReceivePackLimit uint32 = 1024 * 1024 * 2
 	dataLenBuf := make([]byte, 4)
-	dataBuf := make([]byte, workerReceivePackLimit)
+	dataBuf := make([]byte, configs.Config.WorkerSendPackLimit)
 	for {
 		dataLenBuf = dataLenBuf[:0]
 		dataLenBuf = dataLenBuf[0:4]
@@ -178,10 +204,10 @@ func (r *ConnProcessor) LoopReceive() {
 			r.Close()
 			break
 		}
-		//这里采用大端序，小于2个字节，则说明业务命令都没有
+		//这里采用大端序
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
-		if dataLen < 2 || dataLen > workerReceivePackLimit {
-			//worker不按套路出牌，不老实，直接关闭它，因为tcp流已经无法拆解了
+		if dataLen > configs.Config.WorkerSendPackLimit || dataLen < 1 {
+			//如果数据太长，直接close对方吧
 			r.Close()
 			logging.Error("Business receive pack is too large: %d", dataLen)
 			break
@@ -326,6 +352,8 @@ func (r *ConnProcessor) RegisterWorker() error {
 	router.Cmd = internalProtocol.Cmd_Register
 	reg := &internalProtocol.Register{}
 	reg.Id = int32(r.workerId)
+	//让worker为我开启10条协程
+	reg.ProcessCmdGoroutineNum = 10
 	reg.ProcessConnClose = true
 	reg.ProcessConnOpen = true
 	router.Data, _ = proto.Marshal(reg)

@@ -13,7 +13,7 @@
         }
 
         input, select {
-            width: 450px;
+            width: 420px;
         }
     </style>
 </head>
@@ -48,6 +48,13 @@
             <button id="netSvrStatus">获取网关状态</button>
             <button id="totalSessionId">获取网关所有在线的session id</button>
             <button id="topicList">获取已订阅的主题列表</button>
+        </div>
+
+        <div class="case">
+            <label for="forceOfflineUserId">
+                <input type="text" id="forceOfflineUserId" placeholder="请输入目标用户Id" value="1">
+            </label>
+            <button id="forceOffline">强制Ta踢下线</button>
         </div>
 
         <div class="case">
@@ -168,14 +175,16 @@
         login: 5, //登录
         logout: 6, //退出登录
         updateSessionUserInfo: 7, //更新网关中的用户信息
-        singleCast: 8, //单播给某个用户
-        multicast: 9, //组播给多个用户
-        broadcast: 10, //广播
-        subscribe: 11, //订阅
-        unsubscribe: 12, //取消订阅
-        topicsConnCount: 13, //获取网关中的某几个主题的连接数
-        topicsSessionId: 14, //获取网关中的某几个主题的连接session id
-        publish: 15, //发布
+        forceOffline: 8, //某个session id的连接强制关闭
+        singleCast: 9, //单播给某个用户
+        multicast: 10, //组播给多个用户
+        broadcast: 11, //广播
+        subscribe: 12, //订阅
+        unsubscribe: 13, //取消订阅
+        topicsConnCount: 14, //获取网关中的某几个主题的连接数
+        topicsSessionId: 15, //获取网关中的某几个主题的连接session id
+        publish: 16, //发布
+
     };
 
     function open() {
@@ -411,6 +420,15 @@
     }
 
     /**
+     * 测试某个session id的连接强制关闭
+     */
+    function forceOffline() {
+        send(routerCmd.forceOffline, {
+            userId: parseInt(document.getElementById("forceOfflineUserId").value)
+        });
+    }
+
+    /**
      * 测试单播给某个用户
      */
     function singleCast() {
@@ -534,6 +552,7 @@
         document.getElementById("login").onclick = login;
         document.getElementById("logout").onclick = logout;
         document.getElementById("updateSessionUserInfo").onclick = updateSessionUserInfo;
+        document.getElementById("forceOffline").onclick = forceOffline;
         document.getElementById("singleCast").onclick = singleCast;
         document.getElementById("multicast").onclick = multicast;
         document.getElementById("broadcast").onclick = broadcast;

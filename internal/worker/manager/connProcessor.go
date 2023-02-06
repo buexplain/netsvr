@@ -24,6 +24,9 @@ type ConnProcessor struct {
 	conn net.Conn
 	//要发送给连接的数据
 	sendCh chan []byte
+	//发送缓冲区
+	sendBuf     bytes.Buffer
+	sendDataLen uint32
 	//从连接中读取的数据
 	receiveCh chan *protocol.Router
 	//连接最后发送消息的时间
@@ -41,6 +44,8 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:           conn,
 		sendCh:         make(chan []byte, 100),
+		sendBuf:        bytes.Buffer{},
+		sendDataLen:    0,
 		receiveCh:      make(chan *protocol.Router, 100),
 		lastActiveTime: &lastActiveTime,
 		closeCh:        make(chan struct{}),
@@ -111,15 +116,33 @@ func (r *ConnProcessor) loopSendDone() {
 }
 
 func (r *ConnProcessor) send(data []byte) {
-	if err := binary.Write(r.conn, binary.BigEndian, uint32(len(data))); err == nil {
-		if _, err = r.conn.Write(data); err != nil {
+	//包太大，不发
+	r.sendDataLen = uint32(len(data))
+	if r.sendDataLen-4 > configs.Config.WorkerSendPackLimit {
+		logging.Error("Worker send pack is too large: %d", r.sendDataLen)
+		return
+	}
+	//先写包头，注意这是大端序
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 24))
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 16))
+	r.sendBuf.WriteByte(byte(r.sendDataLen >> 8))
+	r.sendBuf.WriteByte(byte(r.sendDataLen))
+	//再写包体
+	var err error
+	if _, err = r.sendBuf.Write(data); err == nil {
+		//一次性写入到连接中
+		_, err = r.sendBuf.WriteTo(r.conn)
+		if err == nil {
+			//写入成功，重置缓冲区
+			r.sendBuf.Reset()
+		} else {
 			r.Close()
 			logging.Error("Worker send to business error: %v", err)
 		}
-	} else {
-		r.Close()
-		logging.Error("Worker send to business error: %v", err)
+		return
 	}
+	//写缓冲区失败，重置缓冲区
+	r.sendBuf.Reset()
 }
 
 func (r *ConnProcessor) Send(data []byte) {
@@ -159,23 +182,43 @@ func (r *ConnProcessor) LoopReceive() {
 		quit.Wg.Done()
 	}()
 	dataLenBuf := make([]byte, 4)
-	dataBuf := make([]byte, configs.Config.WorkerReceivePackLimit)
+	//先分配4kb，不够的话，中途再分配
+	var dataBufCap uint32 = 4096
+	dataBuf := make([]byte, dataBufCap)
 	for {
 		dataLenBuf = dataLenBuf[:0]
 		dataLenBuf = dataLenBuf[0:4]
 		//获取前4个字节，确定数据包长度
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
 			//读失败了，直接干掉这个连接，让business端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
+			//关掉重来，是最好的办法
 			r.Close()
 			break
 		}
-		//这里采用大端序，小于2个字节，则说明业务命令都没有
+		//这里采用大端序
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
-		if dataLen < 2 || dataLen > configs.Config.WorkerReceivePackLimit {
-			//business不按套路出牌，不老实，直接关闭它，因为tcp流已经无法拆解了
+		//判断数据长度是否异常
+		if dataLen > configs.Config.WorkerReceivePackLimit || dataLen < 1 {
+			//如果数据太长，则接下来的make([]byte, dataBufCap)有可能导致程序崩溃，所以直接close对方吧
 			r.Close()
 			logging.Error("Worker receive pack is too large: %d", dataLen)
 			break
+		}
+		//判断装载数据的缓存区是否足够
+		if dataLen > dataBufCap {
+			for {
+				dataBufCap *= 2
+				if dataBufCap < dataLen {
+					//一次翻倍不够，继续翻倍
+					continue
+				}
+				if dataBufCap > configs.Config.WorkerReceivePackLimit {
+					//n倍之后，溢出限制大小，则变更为限制大小值
+					dataBufCap = configs.Config.WorkerReceivePackLimit
+				}
+				dataBuf = make([]byte, dataBufCap)
+				break
+			}
 		}
 		//获取数据包
 		dataBuf = dataBuf[:0]

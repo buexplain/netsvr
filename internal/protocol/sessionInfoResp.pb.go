@@ -30,7 +30,7 @@ type SessionInfoResp struct {
 	ReCtx *ReCtx `protobuf:"bytes,1,opt,name=reCtx,proto3" json:"reCtx,omitempty"`
 	// 连接的session id
 	SessionId uint32 `protobuf:"varint,2,opt,name=sessionId,proto3" json:"sessionId,omitempty"`
-	// 客户登录后，存储在网关中的信息，如果未登录，则是空字符串
+	// 客户登录后，存储在网关中的信息，如果未登录或者登录了，但是没有设置，则是空字符串
 	UserInfo string `protobuf:"bytes,3,opt,name=userInfo,proto3" json:"userInfo,omitempty"`
 	// 客户在业务系统中的唯一id
 	UserId string `protobuf:"bytes,4,opt,name=userId,proto3" json:"userId,omitempty"`

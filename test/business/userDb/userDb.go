@@ -103,6 +103,14 @@ func (r *collect) GetSessionId(userId int) uint32 {
 	return 0
 }
 
+// GetUserById 根据用户id查询用户
+func (r *collect) GetUserById(userId int) *User {
+	if ret, ok := r.idMap[userId]; ok {
+		return ret
+	}
+	return nil
+}
+
 // Collect 模拟数据库信息
 var Collect *collect
 

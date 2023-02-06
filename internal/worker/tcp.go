@@ -47,6 +47,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_Register, cmd.Register)
 			c.RegisterCmd(protocol.Cmd_Unregister, cmd.Unregister)
 			c.RegisterCmd(protocol.Cmd_Broadcast, cmd.Broadcast)
+			c.RegisterCmd(protocol.Cmd_ForceOffline, cmd.ForceOffline)
 			c.RegisterCmd(protocol.Cmd_Multicast, cmd.Multicast)
 			c.RegisterCmd(protocol.Cmd_MulticastByBitmap, cmd.MulticastByBitmap)
 			c.RegisterCmd(protocol.Cmd_Publish, cmd.Publish)
@@ -60,11 +61,9 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_TopicsConnCount, cmd.TopicsConnCount)
 			c.RegisterCmd(protocol.Cmd_SessionInfo, cmd.SessionInfo)
 			c.RegisterCmd(protocol.Cmd_NetSvrStatus, cmd.NetSvrStatus)
-			for i := 0; i < configs.Config.WorkerConsumer; i++ {
-				quit.Wg.Add(1)
-				go c.LoopCmd(i)
-			}
-			quit.Wg.Add(2)
+			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启
+			quit.Wg.Add(3)
+			go c.LoopCmd(0)
 			go c.LoopReceive()
 			go c.LoopSend()
 		}

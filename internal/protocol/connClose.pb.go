@@ -28,9 +28,9 @@ type ConnClose struct {
 
 	// 连接的session id
 	SessionId uint32 `protobuf:"varint,1,opt,name=sessionId,proto3" json:"sessionId,omitempty"`
-	// 客户登录后，存储在网关中的信息，如果未登录，则是空字符串
+	// 客户登录后，存储在网关中的信息，如果未登录或者登录了，但是没有设置，则是空字符串
 	UserInfo string `protobuf:"bytes,2,opt,name=userInfo,proto3" json:"userInfo,omitempty"`
-	// 客户在业务系统中的唯一id，如果未登录，则是空字符串
+	// 客户登录后，存储在网关中的唯一id，如果未登录或者登录了，但是没有设置，则是空字符串
 	UserId string `protobuf:"bytes,3,opt,name=userId,proto3" json:"userId,omitempty"`
 }
 

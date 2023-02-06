@@ -32,12 +32,13 @@ type SetUserLoginStatus struct {
 	LoginStatus bool `protobuf:"varint,2,opt,name=loginStatus,proto3" json:"loginStatus,omitempty"`
 	// 存储到网关的客户信息，登录成功会使用该值进行设置，登录失败会强制设置空字符串，如果没有，可以不传
 	UserInfo string `protobuf:"bytes,3,opt,name=userInfo,proto3" json:"userInfo,omitempty"`
-	// 客户在业务系统中的唯一id，该值只在设置登录状态的时候存储到网关中，其它任何时候都是只读，如果没有，可以不传
+	// 客户在业务系统中的唯一id，登录成功会使用该值进行设置，登录失败会强制设置空字符串，如果没有，可以不传
+	// 该值只在设置登录成功状态的时候存储到网关中，其它任何时候都是只读
 	UserId string `protobuf:"bytes,4,opt,name=userId,proto3" json:"userId,omitempty"`
 	// 登录成的时候，订阅的主题，可以一次性传递多个，如果没有，可以不传
 	// 登录失败的时候，会取消网关中现有的所有主题
 	Topics []string `protobuf:"bytes,5,rep,name=topics,proto3" json:"topics,omitempty"`
-	// 需要发给客户的数据，如果没有，可以不传
+	// 修改登录状态后，需要发给客户的数据，如果没有，可以不传
 	Data []byte `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
 }
 
