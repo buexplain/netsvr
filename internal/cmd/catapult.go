@@ -11,24 +11,24 @@ import (
 )
 
 type Payload struct {
-	SessionId uint32
-	Data      []byte
+	uuid string
+	Data []byte
 }
 
-func (r Payload) GetSessionId() uint32 {
-	return r.SessionId
+func (r Payload) GetUniqId() string {
+	return r.uuid
 }
 
 func (r Payload) GetData() []byte {
 	return r.Data
 }
 
-func NewPayload(sessionId uint32, data []byte) *Payload {
-	return &Payload{SessionId: sessionId, Data: data}
+func NewPayload(uuid string, data []byte) *Payload {
+	return &Payload{uuid: uuid, Data: data}
 }
 
 type PayloadInterface interface {
-	GetSessionId() uint32
+	GetUniqId() string
 	GetData() []byte
 }
 
@@ -47,7 +47,7 @@ func (r *catapult) Put(payload PayloadInterface) {
 }
 
 func (r *catapult) write(payload PayloadInterface) {
-	conn := manager.Manager.Get(payload.GetSessionId())
+	conn := manager.Manager.Get(payload.GetUniqId())
 	if conn != nil {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.GetData()); err != nil {
 			logging.Debug("Catapult write message error: %v", err)

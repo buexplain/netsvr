@@ -1,5 +1,15 @@
 package utils
 
+import (
+	"encoding/binary"
+	"hash/adler32"
+	"math/rand"
+	"netsvr/configs"
+	"netsvr/pkg/timecache"
+	"sync/atomic"
+	"unsafe"
+)
+
 // BytesToInt 截取前digit个字节并转成int
 // 该方法比strconv.Atoi快三倍,单个耗时在8.557纳秒
 func BytesToInt(data []byte, digit int) int {
@@ -41,4 +51,22 @@ func byteToInt(b byte) int {
 	default:
 		return 0
 	}
+}
+
+var uuidPrefix = adler32.Checksum([]byte(configs.Config.WorkerListenAddress))
+var uuidSuffix = uint32(rand.Int31())
+
+// UniqId 生成一个唯一id，网关地址+时间戳+自增值，共24个字符
+func UniqId() string {
+	buf := make([]byte, 24)
+	binary.BigEndian.PutUint32(buf[12:], uuidPrefix)
+	binary.BigEndian.PutUint32(buf[16:], uint32(timecache.Unix()))
+	binary.BigEndian.PutUint32(buf[20:], atomic.AddUint32(&uuidSuffix, 1))
+	var j int8
+	for _, v := range buf[12:] {
+		buf[j] = "0123456789abcdef"[v>>4]
+		buf[j+1] = "0123456789abcdef"[v&0x0f]
+		j += 2
+	}
+	return unsafe.String(&buf[0], 24)
 }

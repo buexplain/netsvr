@@ -7,11 +7,11 @@ import (
 )
 
 type User struct {
-	Id        int
-	Name      string
-	Password  string
-	SessionId uint32
-	Topics    []string
+	Id       int
+	Name     string
+	Password string
+	IsOnline bool
+	Topics   []string
 }
 
 // ClientInfo 返回给客户的信息
@@ -68,7 +68,7 @@ type collect struct {
 }
 
 func (r *collect) Add(id int, name string, password string, topics []string) {
-	tmp := &User{id, name, password, 0, []string{}}
+	tmp := &User{id, name, password, false, []string{}}
 	r.idMap[tmp.Id] = tmp
 	r.nameMap[tmp.Name] = tmp
 	for _, v := range topics {
@@ -82,25 +82,6 @@ func (r *collect) GetUser(name string) *User {
 		return &(*ret)
 	}
 	return nil
-}
-
-// SetSessionId 更新用户session id
-func (r *collect) SetSessionId(id int, sessionId uint32) {
-	for _, v := range r.idMap {
-		if v.Id == id {
-			v.SessionId = sessionId
-		} else if v.SessionId == sessionId {
-			v.SessionId = 0
-		}
-	}
-}
-
-// GetSessionId 根据用户id查询用户的session
-func (r *collect) GetSessionId(userId int) uint32 {
-	if ret, ok := r.idMap[userId]; ok {
-		return ret.SessionId
-	}
-	return 0
 }
 
 // GetUserById 根据用户id查询用户

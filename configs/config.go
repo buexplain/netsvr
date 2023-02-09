@@ -18,9 +18,9 @@ type config struct {
 	//网关检查客户连接的心跳的时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
 
-	//session id的最小值，包含该值，不能为0
+	//info id的最小值，包含该值，不能为0
 	SessionIdMin uint32
-	//session id的最大值，包含该值
+	//info id的最大值，包含该值
 	SessionIdMax uint32
 
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
@@ -95,11 +95,11 @@ func init() {
 	}
 	//检查各种参数
 	if Config.SessionIdMin < 1 {
-		logging.Error("session id的最小值不能为0")
+		logging.Error("info id的最小值不能为0")
 		os.Exit(1)
 	}
 	if Config.SessionIdMax < Config.SessionIdMin {
-		logging.Error("session id的最大值配置，必须大于session id的最小值配置")
+		logging.Error("info id的最大值配置，必须大于session id的最小值配置")
 		os.Exit(1)
 	}
 	if Config.WorkerHeartbeatIntervalSecond <= 0 {

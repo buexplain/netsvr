@@ -13,42 +13,38 @@ import (
 )
 
 // Login 登录
-func Login(currentSessionId uint32, _ string, _ string, param string, processor *connProcessor.ConnProcessor) {
-	//解析客户端发来的数据
+func Login(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	login := new(protocol.Login)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), login); err != nil {
 		logging.Error("Parse protocol.Login request error: %v", err)
 		return
 	}
-	//构建一个发给网关的路由
-	router := &internalProtocol.Router{}
-	//要求网关设定登录状态
-	router.Cmd = internalProtocol.Cmd_SetUserLoginStatus
-	//构建一个包含登录状态相关是业务对象
-	ret := &internalProtocol.SetUserLoginStatus{}
-	ret.SessionId = currentSessionId
+	if login.Username == "" && login.Password == "" {
+		return
+	}
+	ret := &internalProtocol.UpdateInfo{}
+	ret.UniqId = tf.UniqId
 	//查找用户
 	user := userDb.Collect.GetUser(login.Username)
 	//校验账号密码，判断是否登录成功
 	if user != nil && user.Password == login.Password {
-		//更新用户的session id
-		userDb.Collect.SetSessionId(user.Id, currentSessionId)
-		ret.LoginStatus = true
-		//响应给客户端的数据
-		ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})
-		//存储到网关的用户信息
-		ret.UserInfo = user.ToNetSvrInfo()
-		//这个id只在登录成功的时候设置
-		ret.UserId = strconv.Itoa(user.Id)
-		//初始化用户默认订阅的主题
-		ret.Topics = user.Topics
+		if user.IsOnline {
+			//已经登录
+			ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "登录失败，您的帐号在另一地点登录！"})
+		} else {
+			user.IsOnline = true
+			ret.NewUniqId = strconv.Itoa(user.Id)
+			ret.NewSession = user.ToNetSvrInfo()
+			ret.NewTopics = user.Topics
+			ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})
+		}
 	} else {
-		ret.LoginStatus = false
 		ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误"})
 	}
-	//将业务对象放到路由上
+	//回写给网关服务器
+	router := &internalProtocol.Router{}
+	router.Cmd = internalProtocol.Cmd_UpdateInfo
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
-	//回写给网关服务器
 	processor.Send(pt)
 }

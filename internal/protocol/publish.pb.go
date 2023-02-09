@@ -20,13 +20,13 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，进行发布
+// business向worker请求，给某个主题发布信息
 type Publish struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 某个主题，网关会根据主题，拿到该主题下的所有session id
+	// 目标主题
 	Topic string `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
 	// 需要发给客户的数据
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`

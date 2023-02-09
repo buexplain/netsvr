@@ -12,21 +12,19 @@ import (
 	"strconv"
 )
 
-// ForceOffline 某个session id的连接强制关闭
-func ForceOffline(_ uint32, _ string, _ string, param string, processor *connProcessor.ConnProcessor) {
-	//解析客户端发来的数据
-	payload := protocol.ForceOffline{}
+// ForceOfflineForUserId 强制关闭某个用户的连接
+func ForceOfflineForUserId(_ *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := protocol.ForceOfflineForUserId{}
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse protocol.ForceOffline request error: %v", err)
+		logging.Error("Parse protocol.ForceOfflineForUserId request error: %v", err)
 		return
 	}
 	user := userDb.Collect.GetUserById(payload.UserId)
-	if user == nil || user.SessionId == 0 {
+	if user == nil || user.IsOnline == false {
 		return
 	}
 	ret := &internalProtocol.ForceOffline{}
-	ret.SessionId = user.SessionId
-	ret.UserId = strconv.Itoa(user.Id)
+	ret.UniqId = strconv.Itoa(user.Id)
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_ForceOffline
 	router.Data, _ = proto.Marshal(ret)

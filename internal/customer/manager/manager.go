@@ -2,62 +2,86 @@ package manager
 
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
+	"hash/adler32"
 	"sync"
+	"unsafe"
 )
 
 type collect struct {
-	conn map[uint32]*websocket.Conn
-	lock sync.RWMutex
+	conn map[string]*websocket.Conn
+	mux  sync.RWMutex
 }
 
-func (r *collect) Get(sessionId uint32) *websocket.Conn {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-	if c, ok := r.conn[sessionId]; ok {
+func (r *collect) Len() int {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	return len(r.conn)
+}
+
+func (r *collect) GetUniqIds(uniqIds *[]string) {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	for uniqId := range r.conn {
+		*uniqIds = append(*uniqIds, uniqId)
+	}
+}
+
+func (r *collect) Has(uniqId string) bool {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	_, ok := r.conn[uniqId]
+	return ok
+}
+
+func (r *collect) Get(uniqId string) *websocket.Conn {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	if c, ok := r.conn[uniqId]; ok {
 		return c
 	}
 	return nil
 }
 
-func (r *collect) Set(sessionId uint32, conn *websocket.Conn) {
-	r.lock.Lock()
-	r.conn[sessionId] = conn
-	r.lock.Unlock()
+func (r *collect) Set(uniqId string, conn *websocket.Conn) {
+	r.mux.Lock()
+	r.conn[uniqId] = conn
+	r.mux.Unlock()
 }
 
-func (r *collect) Del(sessionId uint32) {
-	r.lock.Lock()
-	delete(r.conn, sessionId)
-	r.lock.Unlock()
+func (r *collect) Del(uniqId string) {
+	r.mux.Lock()
+	delete(r.conn, uniqId)
+	r.mux.Unlock()
 }
 
 const managerLen = 8
 
 type manager [managerLen]*collect
 
-func (r manager) Get(sessionId uint32) *websocket.Conn {
-	//根据session id取模，将连接分布在不同的集合中
-	//1. 避免单个map存储的连接数太多，导致gc抖动
-	//2. 避免大锁
-	index := sessionId % managerLen
-	return r[index].Get(sessionId)
+func (r manager) Has(uniqId string) bool {
+	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+	return r[index].Has(uniqId)
 }
 
-func (r manager) Set(sessionId uint32, conn *websocket.Conn) {
-	index := sessionId % managerLen
-	r[index].Set(sessionId, conn)
+func (r manager) Get(uniqId string) *websocket.Conn {
+	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+	return r[index].Get(uniqId)
 }
 
-func (r manager) Del(sessionId uint32) {
-	index := sessionId % managerLen
-	r[index].Del(sessionId)
+func (r manager) Set(uniqId string, conn *websocket.Conn) {
+	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+	r[index].Set(uniqId, conn)
+}
+
+func (r manager) Del(uniqId string) {
+	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+	r[index].Del(uniqId)
 }
 
 var Manager manager
 
 func init() {
-	Manager = manager{}
 	for i := 0; i < len(Manager); i++ {
-		Manager[i] = &collect{conn: map[uint32]*websocket.Conn{}, lock: sync.RWMutex{}}
+		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 1000), mux: sync.RWMutex{}}
 	}
 }

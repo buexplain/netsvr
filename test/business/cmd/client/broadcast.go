@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	internalProtocol "netsvr/internal/protocol"
@@ -12,25 +13,25 @@ import (
 )
 
 // Broadcast 广播
-func Broadcast(_ uint32, userInfo string, _ string, param string, processor *connProcessor.ConnProcessor) {
-	//解析客户端发来的数据
+func Broadcast(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	target := new(protocol.Broadcast)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), target); err != nil {
 		logging.Error("Parse protocol.Broadcast request error: %v", err)
 		return
 	}
-	currentUser := userDb.ParseNetSvrInfo(userInfo)
-	//构建一个发给网关的路由
-	router := &internalProtocol.Router{}
-	//告诉网关要进行一次广播操作
-	router.Cmd = internalProtocol.Cmd_Broadcast
-	//构造网关需要的广播数据
+	var fromUser string
+	currentUser := userDb.ParseNetSvrInfo(tf.Session)
+	if currentUser == nil {
+		fromUser = fmt.Sprintf("uniqId: %s", tf.UniqId)
+	} else {
+		fromUser = currentUser.Name
+	}
 	ret := &internalProtocol.Broadcast{}
-	//构造客户端需要的数据
-	msg := map[string]interface{}{"fromUser": currentUser.Name, "message": target.Message}
+	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
 	ret.Data = workerUtils.NewResponse(protocol.RouterBroadcast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
+	router := &internalProtocol.Router{}
+	router.Cmd = internalProtocol.Cmd_Broadcast
 	router.Data, _ = proto.Marshal(ret)
-	//发送给网关
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)
 }

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package netsvr.deleteInfo;
+
+option go_package = "internal/protocol;protocol";
+
+//删除连接的info信息
+message DeleteInfo {
+  //目标uniqId
+  string uniqId = 1;
+  //是否删除uniqId，true：重新随机生成一个uniqId，false：不处理
+  bool delUniqId = 2;
+  //是否删除session，true：设置session为空字符串，false：不处理
+  bool delSession = 3;
+  //是否删除topic，true：设置topic为空[]string，false：不处理
+  bool delTopic = 4;
+  //需要发给客户的数据，传递了则转发给客户
+  bytes data = 5;
+}

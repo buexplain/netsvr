@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	internalProtocol "netsvr/internal/protocol"
@@ -12,15 +13,21 @@ import (
 )
 
 // Publish 处理客户的发布请求
-func Publish(_ uint32, userInfo string, _ string, param string, processor *connProcessor.ConnProcessor) {
+func Publish(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	//解析客户端发来的数据
 	target := new(protocol.Publish)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), target); err != nil {
-		logging.Error("Parse protocol.Publish request error: %v", err)
+		logging.Error("Parse protocol.Publish error: %v", err)
 		return
 	}
-	currentUser := userDb.ParseNetSvrInfo(userInfo)
-	msg := map[string]interface{}{"fromUser": currentUser.Name, "message": target.Message}
+	var fromUser string
+	currentUser := userDb.ParseNetSvrInfo(tf.Session)
+	if currentUser == nil {
+		fromUser = fmt.Sprintf("uniqId(%s)", tf.UniqId)
+	} else {
+		fromUser = currentUser.Name
+	}
+	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
 	ret := &internalProtocol.Publish{}
 	ret.Topic = target.Topic
 	ret.Data = workerUtils.NewResponse(protocol.RouterPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})

@@ -7,7 +7,6 @@ import (
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/protocol"
 	"netsvr/test/business/utils"
-	"strconv"
 )
 
 // NetSvrStatus 处理worker发送过来的网关状态信息
@@ -21,16 +20,19 @@ func NetSvrStatus(param []byte, processor *connProcessor.ConnProcessor) {
 	if payload.ReCtx.Cmd != int32(protocol.RouterNetSvrStatus) {
 		return
 	}
-	//解析请求上下文中存储的session id
-	targetSessionId, _ := strconv.ParseInt(string(payload.ReCtx.Data), 10, 64)
-	if targetSessionId == 0 {
+	if len(payload.ReCtx.Data) == 0 {
+		return
+	}
+	//解析请求上下文中存储的uniqId
+	uniqId := utils.BytesToReadOnlyString(payload.ReCtx.Data)
+	if uniqId == "" {
 		return
 	}
 	//将结果单播给客户端
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_SingleCast
 	ret := &internalProtocol.SingleCast{}
-	ret.SessionId = uint32(targetSessionId)
+	ret.UniqId = uniqId
 	ret.Data = utils.NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "获取网关状态信息成功", "data": &payload})
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)

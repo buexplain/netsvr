@@ -15,24 +15,23 @@ enum Cmd {
   //--------------------------------business单向请求worker的指令 开始--------------------------------
   Register = 101; //注册business到worker，注册后，business会收到worker转发的客户信息
   Unregister = 102; //取消注册，取消后不会再收到客户信息
-  SetUserLoginStatus = 103;//SetUserLoginStatus 设置客户登录状态
-  UpSessionUserInfo = 104;//设置网关的session面存储的客户信息，只有登录成功的才会生效，因为没登录的，在后续登录成功后也会设置一次
+  UpdateInfo = 103;//更新连接的info信息
+  DeleteInfo = 104;//删除连接的info信息
   Broadcast = 105; //广播
   Multicast = 106; //组播
-  MulticastByBitmap = 107;//根据包含session id的bitmap进行组播
-  SingleCast = 108;//单播
-  Subscribe = 109;//订阅
-  Unsubscribe = 110;//取消订阅
-  Publish = 111;//发布
-  ForceOffline = 112;//强制关闭某个连接
+  SingleCast = 107;//单播
+  Subscribe = 108;//订阅
+  Unsubscribe = 109;//取消订阅
+  Publish = 110;//发布
+  ForceOffline = 111;//强制关闭某个连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker，worker再响应business的指令 开始--------------------------------
-  TotalSessionId = 201; //网关中全部的session id
-  TopicsSessionId = 202; //某几个主题的session id
-  TopicsConnCount = 203; //网关中的某几个主题的连接数
-  SessionInfo = 204; //session信息
-  NetSvrStatus = 205; //网关的状态
+  TotalUniqIdsRe = 201; //获取网关中全部的uniqId
+  TopicUniqIdsRe = 202; //获取网关中主题包含的uniqId
+  TopicsUniqIdCountRe = 203; //获取网关中的某几个主题的uniqId数量
+  InfoRe = 204; //获取连接的信息
+  NetSvrStatusRe = 205; //获取网关的状态
   //--------------------------------business请求worker，worker再响应business的指令 结束--------------------------------
 }
 

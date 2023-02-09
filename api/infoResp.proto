@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package netsvr.infoResp;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应business，返回网关中的info
+message InfoResp {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //最新的uniqId
+  string uniqId = 2;
+  //最新的session
+  string session = 3;
+  //最新的主题
+  repeated string topics = 4;
+}

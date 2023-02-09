@@ -17,13 +17,13 @@ func ConnOpen(param []byte, processor *connProcessor.ConnProcessor) {
 		logging.Error("Proto unmarshal connOpen.ConnOpen error:%v", err)
 		return
 	}
-	router := &internalProtocol.Router{}
-	router.Cmd = internalProtocol.Cmd_SingleCast
 	//构造单播数据
 	ret := &internalProtocol.SingleCast{}
-	ret.SessionId = payload.SessionId
-	ret.Data = utils.NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{"code": 0, "message": fmt.Sprintf("连接网关成功，sessionId: %d", payload.SessionId)})
-	//将业务数据放到路由上
+	ret.UniqId = payload.UniqId
+	ret.Data = utils.NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{"code": 0, "message": fmt.Sprintf("连接网关成功，uniqId: %s", payload.UniqId)})
+	//发送到网关
+	router := &internalProtocol.Router{}
+	router.Cmd = internalProtocol.Cmd_SingleCast
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

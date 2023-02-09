@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.topicUniqIdsReq;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，获取网关中的主题包含的uniqId
+message TopicUniqIdsReq {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //目标主题
+  string topic = 2;
+}

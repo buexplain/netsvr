@@ -12,7 +12,7 @@ import (
 )
 
 // Subscribe 处理客户的订阅请求
-func Subscribe(currentSessionId uint32, _ string, _ string, param string, processor *connProcessor.ConnProcessor) {
+func Subscribe(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	//解析客户端发来的数据
 	payload := new(protocol.Subscribe)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), payload); err != nil {
@@ -26,7 +26,7 @@ func Subscribe(currentSessionId uint32, _ string, _ string, param string, proces
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_Subscribe
 	ret := &internalProtocol.Subscribe{}
-	ret.SessionId = currentSessionId
+	ret.UniqId = tf.UniqId
 	ret.Topics = payload.Topics
 	ret.Data = businessUtils.NewResponse(protocol.RouterSubscribe, map[string]interface{}{"code": 0, "message": "订阅成功", "data": nil})
 	router.Data, _ = proto.Marshal(ret)

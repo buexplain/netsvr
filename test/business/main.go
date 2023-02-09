@@ -29,7 +29,12 @@ func clientServer() {
 			return
 		}
 		data := map[string]interface{}{}
+		//注入连接地址
 		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.CustomerListenAddress, configs.Config.CustomerHandlePattern)
+		//把所有的命令注入到客户端
+		for cmd, name := range protocol.CmdName {
+			data[name] = int(cmd)
+		}
 		err = t.Execute(writer, data)
 		if err != nil {
 			logging.Error("模板输出失败：%s", err)
@@ -58,27 +63,28 @@ func main() {
 	//注册网关发送过来的命令的处理函数
 	processor.RegisterSvrCmd(internalProtocol.Cmd_ConnOpen, svr.ConnOpen)
 	processor.RegisterSvrCmd(internalProtocol.Cmd_ConnClose, svr.ConnClose)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_NetSvrStatus, svr.NetSvrStatus)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_SessionInfo, svr.SessionInfo)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicsConnCount, svr.TopicsConnCount)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicsSessionId, svr.TopicsSessionId)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TotalSessionId, svr.TotalSessionId)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_NetSvrStatusRe, svr.NetSvrStatus)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_InfoRe, svr.InfoRe)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicsUniqIdCountRe, svr.TopicsUniqIdCount)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicUniqIdsRe, svr.TopicUniqIds)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_TotalUniqIdsRe, svr.TotalUniqIds)
 	//注册用户发送过来的命令的处理函数
 	processor.RegisterClientCmd(protocol.RouterBroadcast, client.Broadcast)
 	processor.RegisterClientCmd(protocol.RouterLogin, client.Login)
 	processor.RegisterClientCmd(protocol.RouterLogout, client.Logout)
-	processor.RegisterClientCmd(protocol.RouterMulticast, client.Multicast)
+	processor.RegisterClientCmd(protocol.RouterMulticastForUserId, client.MulticastForUserId)
+	processor.RegisterClientCmd(protocol.RouterMulticastForUniqId, client.MulticastForUniqId)
 	processor.RegisterClientCmd(protocol.RouterNetSvrStatus, client.NetSvrStatus)
 	processor.RegisterClientCmd(protocol.RouterPublish, client.Publish)
-	processor.RegisterClientCmd(protocol.RouterSingleCast, client.SingleCast)
+	processor.RegisterClientCmd(protocol.RouterSingleCastForUserId, client.SingleCastForUserId)
+	processor.RegisterClientCmd(protocol.RouterSingleCastForUniqId, client.SingleCastForUniqId)
 	processor.RegisterClientCmd(protocol.RouterSubscribe, client.Subscribe)
-	processor.RegisterClientCmd(protocol.RouterTopicsConnCount, client.TopicsConnCount)
-	processor.RegisterClientCmd(protocol.RouterTopicsSessionId, client.TopicsSessionId)
-	processor.RegisterClientCmd(protocol.RouterTotalSessionId, client.TotalSessionId)
+	processor.RegisterClientCmd(protocol.RouterTopicsUniqIdCount, client.TopicsUniqIdCount)
+	processor.RegisterClientCmd(protocol.RouterTopicUniqIds, client.TopicUniqIds)
+	processor.RegisterClientCmd(protocol.RouterTotalUniqIds, client.TotalUniqIds)
 	processor.RegisterClientCmd(protocol.RouterTopicList, client.TopicList)
 	processor.RegisterClientCmd(protocol.RouterUnsubscribe, client.Unsubscribe)
-	processor.RegisterClientCmd(protocol.RouterUpdateSessionUserInfo, client.UpdateSessionUserInfo)
-	processor.RegisterClientCmd(protocol.RouterForceOffline, client.ForceOffline)
+	processor.RegisterClientCmd(protocol.RouterForceOfflineForUserId, client.ForceOfflineForUserId)
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()

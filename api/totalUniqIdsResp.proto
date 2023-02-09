@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.totalUniqIdsResp;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应business，返回网关中全部的uniqId
+message TotalUniqIdsResp {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //包含的uniqId
+  repeated string uniqIds = 3;
+}

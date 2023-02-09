@@ -17,7 +17,7 @@ func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.Data) == 0 {
 		return
 	}
-	for _, sessionId := range payload.SessionIds {
-		Catapult.Put(NewPayload(sessionId, payload.Data))
+	for _, uniqId := range payload.UniqIds {
+		Catapult.Put(NewPayload(uniqId, payload.Data))
 	}
 }

@@ -16,22 +16,75 @@
             width: 420px;
         }
     </style>
+    <script>
+        /**
+         * 转成 int[]
+         * @param value
+         * @returns {*[]}
+         */
+        window.processorToIntArr = function (value) {
+            let ret = [];
+            value.toString().trim().replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
+                v = v.toString().trim();
+                v = parseInt(v);
+                if (typeof v === 'number') {
+                    ret.push(v);
+                }
+            });
+            return ret;
+        }
+
+        /**
+         * 转成 string[]
+         * @param value
+         * @returns {*[]}
+         */
+        window.processorToStringArr = function (value) {
+            let ret = [];
+            value.toString().trim().replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
+                v = v.toString().trim();
+                if (v !== '') {
+                    ret.push(v);
+                }
+            });
+            return ret;
+        }
+
+        /**
+         * 转成string
+         * @param value
+         * @returns {int}
+         */
+        window.processorToInt = function (value) {
+            value = value.toString().trim();
+            return parseInt(value === '' ? '0' : value);
+        }
+
+        /**
+         * 转成string
+         * @param value
+         * @returns {string}
+         */
+        window.processorToString = function (value) {
+            return value.toString().trim();
+        }
+    </script>
 </head>
 <body>
 <div style="display:flex">
     <div style="width: 65%">
         <div class="case">
-            <label for="singleCastMessage">
+            <label for="address">
                 <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
             </label>
-            <button id="open">打开连接</button>
-            <button id="close">关闭连接</button>
-            <button id="clear">清屏</button>
+            <button onclick="openWebsocket()">打开连接</button>
+            <button onclick="closeWebsocket()">关闭连接</button>
+            <button onclick="clearScreen()">清屏</button>
         </div>
 
         <div class="case">
-            <label for="username">
-                <select id="username">
+            <label>
+                <select name="username" data-processor="processorToString">
                     <option>请选择账号</option>
                     <option>玄德</option>
                     <option>云长</option>
@@ -39,100 +92,175 @@
                     <option>奉先</option>
                 </select>
             </label>
-            <button id="login">登录</button>
+            <input type="hidden" name="password" data-processor="processorToString" value="123456">
+            <button onclick="send(this,routerCmd.login)">登录</button>
         </div>
 
         <div class="case">
-            <button id="logout">退出登录</button>
-            <button id="updateSessionUserInfo">更新网关中的用户信息</button>
-            <button id="netSvrStatus">获取网关状态</button>
-            <button id="totalSessionId">获取网关所有在线的session id</button>
-            <button id="topicList">获取已订阅的主题列表</button>
+            <button onclick="send(null,routerCmd.logout)">退出登录</button>
+            <button onclick="send(null,routerCmd.netSvrStatus)">获取网关状态</button>
+            <button onclick="send(null,routerCmd.totalUniqIds)">获取网关所有uniqId</button>
+            <button onclick="send(null,routerCmd.topicList)">获取已订阅的主题列表</button>
         </div>
 
         <div class="case">
-            <label for="forceOfflineUserId">
-                <input type="text" id="forceOfflineUserId" placeholder="请输入目标用户Id" value="1">
+            <label>
+                <input type="text" name="userId" data-processor="processorToInt" placeholder="请输入目标用户Id"
+                       value="1">
             </label>
-            <button id="forceOffline">强制Ta踢下线</button>
+            <button onclick="send(this,routerCmd.forceOfflineForUserId)">强制Ta踢下线</button>
         </div>
 
         <div class="case">
-            <label for="singleCastMessage">
-                <input type="text" id="singleCastMessage" placeholder="请输入要发送的信息" value="我是一条单播信息">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条按用户id的单播的信息">
             </label>
-            <label for="singleCastUserId">
-                <input type="text" id="singleCastUserId" placeholder="请输入目标用户Id" value="1">
+            <label>
+                <input type="text" name="userId" data-processor="processorToInt" placeholder="请输入目标用户Id"
+                       value="1">
             </label>
-            <button id="singleCast">单播</button>
+            <button onclick="send(this,routerCmd.singleCastForUserId)">按用户id单播</button>
         </div>
 
         <div class="case">
-            <label for="singleCastMessage">
-                <input type="text" id="multicastMessage" placeholder="请输入要发送的信息" value="我是一条组播信息">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条按uniqId单播的信息">
             </label>
-            <label for="singleCastUserId">
-                <input type="text" id="multicastUserIds" placeholder="请输入目标用户Id，多个用逗号分割" value="1，2，3">
+            <label>
+                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                       value="">
             </label>
-            <button id="multicast">组播</button>
+            <button onclick="send(this,routerCmd.singleCastForUniqId)">按uniqId单播</button>
         </div>
+
         <div class="case">
-            <label for="broadcastMessage">
-                <input type="text" id="broadcastMessage" placeholder="请输入要发送的信息" value="我是一条广播信息">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条按用户id组播的信息">
             </label>
-            <button id="broadcast">广播</button>
+            <label>
+                <input type="text" name="userIds" data-processor="processorToIntArr"
+                       placeholder="请输入目标用户Id，多个用逗号分割"
+                       value="1，2，3">
+            </label>
+            <button onclick="send(this,routerCmd.multicastForUserId)">按用户id组播</button>
         </div>
+
         <div class="case">
-            <label for="subscribe">
-                <input type="text" id="subscribeTopics" placeholder="请输入要订阅的主题，多个用逗号分割"
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条按uniqId组播的信息">
+            </label>
+            <label>
+                <input type="text" name="uniqIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标uniqId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.multicastForUniqId)">按uniqId组播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条广播信息">
+            </label>
+            <button onclick="send(this,routerCmd.broadcast)">广播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要订阅的主题，多个用逗号分割"
                        value="小品频道，相声频道，戏曲频道，评书频道">
             </label>
-            <button id="subscribe">订阅</button>
+            <button onclick="send(this,routerCmd.subscribe)">订阅</button>
         </div>
+
         <div class="case">
-            <label for="unsubscribe">
-                <input type="text" id="unsubscribeTopics" placeholder="请输入要取消订阅的主题，多个用逗号分割"
+            <label>
+                <input type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要取消订阅的主题，多个用逗号分割"
                        value="相声频道，小品频道，评书频道">
             </label>
-            <button id="unsubscribe">取消订阅</button>
+            <button onclick="send(this,routerCmd.unsubscribe)">取消订阅</button>
         </div>
+
         <div class="case">
-            <label for="connCountTopics">
-                <input type="text" id="connCountTopics"
+            <label>
+                <input type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
             </label>
-            <button id="topicsConnCount">获取主题连接数</button>
+            <button onclick="send(this,routerCmd.topicsUniqIdCount)">获取主题连接数</button>
         </div>
+
         <div class="case">
-            <label for="topicsSessionId">
-                <input type="text" id="sessionIdTopics"
-                       placeholder="请输入主题，多个用逗号分割" value="戏曲频道，评书频道">
+            <label>
+                <input type="text" name="topic" data-processor="processorToString"
+                       placeholder="请输入主题" value="戏曲频道">
             </label>
-            <button id="topicsSessionId">获取主题的session id</button>
+            <button onclick="send(this,routerCmd.topicUniqIds)">获取主题的uniqId</button>
         </div>
+
         <div class="case">
-            <label for="publishMessage">
-                <input type="text" id="publishMessage" placeholder="请输入要发布的信息" value="我是一条发布信息">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发布的信息"
+                       value="我是一条发布信息">
             </label>
-            <label for="publish">
-                <input type="text" id="publishTopic" placeholder="请输入要发布的主题" value="戏曲频道">
+            <label>
+                <input type="text" name="topic" data-processor="processorToString" placeholder="请输入要发布的主题"
+                       value="戏曲频道">
             </label>
-            <button id="publish">发布</button>
+            <button onclick="send(this,routerCmd.publish)">发布</button>
         </div>
     </div>
     <div style="width: 30%;max-height: 70vh;overflow-y: auto;">
-        <div id="sessionId"></div>
-        <div id="loginInfo"></div>
+        <div id="topInfo"></div>
         <div id="output"></div>
     </div>
 </div>
 
 <script>
+    /**
+     * 发送给business的指令
+     */
+    const routerCmd = {
+        connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
+        netSvrStatus: parseInt("{!.RouterNetSvrStatus!}"),//获取网关的信息
+        totalUniqIds: parseInt("{!.RouterTotalUniqIds!}"), //获取网关所有的uniqId
+        topicList: parseInt("{!.RouterTopicList!}"), //获取已订阅的主题列表
+        login: parseInt("{!.RouterLogin!}"), //登录
+        logout: parseInt("{!.RouterLogout!}"), //退出登录
+        forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
+        singleCastForUserId: parseInt("{!.RouterSingleCastForUserId!}"), //单播给某个用户
+        singleCastForUniqId: parseInt("{!.RouterSingleCastForUniqId!}"), //单播给某个uniqId
+        multicastForUserId: parseInt("{!.RouterMulticastForUserId!}"), //组播给多个用户
+        multicastForUniqId: parseInt("{!.RouterMulticastForUniqId!}"), //组播给多个uniqId
+        broadcast: parseInt("{!.RouterBroadcast!}"), //广播
+        subscribe: parseInt("{!.RouterSubscribe!}"), //订阅
+        unsubscribe: parseInt("{!.RouterUnsubscribe!}"), //取消订阅
+        topicsUniqIdCount: parseInt("{!.RouterTopicsUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
+        topicUniqIds: parseInt("{!.RouterTopicUniqIds!}"), //获取网关中的某个主题包含的uniqId
+        publish: parseInt("{!.RouterPublish!}"), //发布
+    };
+
+    //当前连接
     let ws;
+
+    //是否登录
     let loginStatus = false;
+
+    //business的服务编号
     let workerId = '001';
+
+    //心跳间隔函数的index
     let heartbeatInterval = 0;
+
+    //输入从容器
     let output = document.getElementById("output");
+
+    //输出函数
     let print = function (message) {
         let d = document.createElement("pre");
         d.textContent = message;
@@ -145,49 +273,50 @@
     let pongMessage = "~H278a0027B~";
 
     /**
-     * 发送数据到服务端
-     * @param cmd number
-     * @param data object|string
+     * 关闭连接
      */
-    function send(cmd, data) {
+    function closeWebsocket() {
+        ws && ws.close();
+    }
+
+    /**
+     * 清空屏幕
+     */
+    function clearScreen() {
+        output.innerHTML = '';
+    }
+
+    /**
+     * 发送
+     * @param btn
+     * @param cmd
+     */
+    function send(btn, cmd) {
+        let param = {};
+        if (btn) {
+            btn.parentNode.querySelectorAll('input').forEach(function (input) {
+                let processor = input.getAttribute('data-processor');
+                param[input.name] = processor ? window[processor](input.value) : input.value;
+            });
+            btn.parentNode.querySelectorAll('select').forEach(function (select) {
+                let processor = select.getAttribute('data-processor');
+                param[select.name] = processor ? window[processor](select.value) : select.value;
+            });
+        }
         if (!ws) {
             print("请先打开连接");
             return;
         }
-        if (cmd !== routerCmd.login && loginStatus === false) {
-            print("请先登录");
-            return;
-        }
         ws.send(workerId + JSON.stringify({
             cmd: cmd,
-            data: typeof data == 'object' ? JSON.stringify(data) : data
+            data: JSON.stringify(param)
         }));
     }
 
     /**
-     * 发送给business的指令
+     * 打开连接
      */
-    const routerCmd = {
-        connOpen: 1, //连接成功
-        netSvrStatus: 2,//获取网关的信息
-        totalSessionId: 3, //获取网关所有在线的session id
-        topicList: 4, //获取已订阅的主题列表
-        login: 5, //登录
-        logout: 6, //退出登录
-        updateSessionUserInfo: 7, //更新网关中的用户信息
-        forceOffline: 8, //某个session id的连接强制关闭
-        singleCast: 9, //单播给某个用户
-        multicast: 10, //组播给多个用户
-        broadcast: 11, //广播
-        subscribe: 12, //订阅
-        unsubscribe: 13, //取消订阅
-        topicsConnCount: 14, //获取网关中的某几个主题的连接数
-        topicsSessionId: 15, //获取网关中的某几个主题的连接session id
-        publish: 16, //发布
-
-    };
-
-    function open() {
+    function openWebsocket() {
         if (ws) {
             return;
         }
@@ -204,13 +333,11 @@
             heartbeatInterval = 0;
             if (evt.code === 1005) {
                 //客户端主动断开
-                document.getElementById("sessionId").innerText = '断开网关成功，sessionId: 0';
+                document.getElementById("topInfo").innerText = '断开网关成功';
             } else if (evt.code === 1006) {
                 //服务端挂了
-                document.getElementById("sessionId").innerText = '连接网关失败，网关服务器异常';
+                document.getElementById("topInfo").innerText = '连接网关失败，网关服务器异常';
             }
-            //清空登录成功后的信息
-            document.getElementById("loginInfo").innerText = '';
         }
         ws.onmessage = function (evt) {
             //服务端发送心跳检查，则响应一个心跳给服务端
@@ -230,8 +357,23 @@
                 let resp = JSON.parse(evt.data);
                 //连接成功，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
-                    clear();
-                    document.getElementById("sessionId").innerText = resp.data.message;
+                    clearScreen();
+                    document.getElementById("topInfo").innerText = resp.data.message;
+                    return;
+                }
+                //服务端响应了登录结果
+                if (resp.cmd === routerCmd.login) {
+                    loginStatus = resp.data.code === 0;
+                    if (loginStatus) {
+                        clearScreen();
+                        if (resp.data.data === null) {
+                            print(resp.data.message);
+                        } else {
+                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，您的uniqId是：' + resp.data.data.id;
+                        }
+                    } else {
+                        print(resp.data.message);
+                    }
                     return;
                 }
                 //服务端响应网关状态信息
@@ -243,15 +385,16 @@
                     print(JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
-                //服务端响应了所有在线的session id
-                if (resp.cmd === routerCmd.totalSessionId) {
+                //服务端响应了所有在线的uniqId
+                if (resp.cmd === routerCmd.totalUniqIds) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
                     }
-                    print(resp.data.message + ' --> ' + resp.data.data.totalSessionId);
+                    print(resp.data.message + '：\n' + resp.data.data.totalUniqIds.join('\n'));
                     return;
                 }
+                //服务端响应了所有的主题列表
                 if (resp.cmd === routerCmd.topicList) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
@@ -264,46 +407,25 @@
                     print("已经订阅的主题有：" + resp.data.data.topics.join('、'));
                     return;
                 }
-                //服务端响应了登录结果
-                if (resp.cmd === routerCmd.login) {
-                    loginStatus = resp.data.code === 0;
-                    if (loginStatus) {
-                        clear();
-                        document.getElementById("loginInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的Id是：' + resp.data.data.id;
-                    } else {
-                        document.getElementById("loginInfo").innerText = '';
-                        print(resp.data.message);
-                    }
-                    return;
-                }
+
                 //服务端响应了退出登录结果
                 if (resp.cmd === routerCmd.logout) {
                     loginStatus = !(resp.data.code === 0);
                     if (loginStatus === false) {
-                        document.getElementById("loginInfo").innerText = '';
+                        document.getElementById("topInfo").innerText = '';
                     }
                     print(resp.data.message);
                     return;
                 }
-                //服务端响应了更新网关中的用户信息的结果
-                if (resp.cmd === routerCmd.updateSessionUserInfo) {
-                    if (resp.data.code !== 0) {
-                        print(resp.data.message);
-                        return;
-                    }
-                    /**
-                     * @type {{netSvrInfo: object}}
-                     */
-                    let data = resp.data.data;
-                    /**
-                     * @type {{LastUpdateTime: string}}
-                     */
-                    let netSvrInfo = data.netSvrInfo;
-                    print('最后更新时间：' + netSvrInfo.LastUpdateTime);
-                    return;
-                }
                 //某某某发来了一条信息
-                if (resp.cmd === routerCmd.singleCast || resp.cmd === routerCmd.multicast || resp.cmd === routerCmd.broadcast || resp.cmd === routerCmd.publish) {
+                if (
+                    resp.cmd === routerCmd.singleCastForUserId
+                    || resp.cmd === routerCmd.singleCastForUniqId
+                    || resp.cmd === routerCmd.multicastForUniqId
+                    || resp.cmd === routerCmd.multicastForUserId
+                    || resp.cmd === routerCmd.broadcast
+                    || resp.cmd === routerCmd.publish
+                ) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
@@ -320,8 +442,8 @@
                     print(resp.data.message);
                     return;
                 }
-                //服务端响应了某几个主题的连接数
-                if (resp.cmd === routerCmd.topicsConnCount) {
+                //服务端响应了某几个主题的uniqId数量
+                if (resp.cmd === routerCmd.topicsUniqIdCount) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
@@ -338,22 +460,14 @@
                     }
                     return;
                 }
-                //服务端响应了某几个主题的session id
-                if (resp.cmd === routerCmd.topicsSessionId) {
+                //服务端响应了个主题的uniqId
+                if (resp.cmd === routerCmd.topicUniqIds) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
                     }
-                    if (resp.data.data === null) {
-                        print("未找到任何主题");
-                        return;
-                    }
-                    for (let topic in resp.data.data) {
-                        if (!resp.data.data.hasOwnProperty(topic)) {
-                            continue;
-                        }
-                        print('主题：' + topic + ' --> ' + resp.data.data[topic]);
-                    }
+                    print(resp.data.message);
+                    resp.data.data && print(resp.data.data.join('\n'));
                     return;
                 }
                 print("Unknown response: " + evt.data);
@@ -362,206 +476,9 @@
             }
         }
         ws.onerror = function () {
-            document.getElementById("sessionId").innerText = '连接网关失败';
+            document.getElementById("topInfo").innerText = '连接网关失败';
         }
     }
-
-    function close() {
-        ws && ws.close();
-    }
-
-    function clear() {
-        output.innerHTML = '';
-    }
-
-    /**
-     * 测试获取网关的信息
-     */
-    function netSvrStatus() {
-        send(routerCmd.netSvrStatus, {});
-    }
-
-    /**
-     * 测试获取网关所有在线的session id
-     */
-    function totalSessionId() {
-        send(routerCmd.totalSessionId, {});
-    }
-
-    /**
-     * 测试获取已订阅的主题列表
-     */
-    function topicList() {
-        send(routerCmd.topicList, {});
-    }
-
-    /**
-     * 测试登录
-     */
-    function login() {
-        send(routerCmd.login, {
-            username: document.getElementById("username").value,
-            password: "123456"
-        });
-    }
-
-    /**
-     * 测试退出登录
-     */
-    function logout() {
-        send(routerCmd.logout, {});
-    }
-
-    /**
-     * 测试更新网关中的用户信息
-     */
-    function updateSessionUserInfo() {
-        send(routerCmd.updateSessionUserInfo, {});
-    }
-
-    /**
-     * 测试某个session id的连接强制关闭
-     */
-    function forceOffline() {
-        send(routerCmd.forceOffline, {
-            userId: parseInt(document.getElementById("forceOfflineUserId").value)
-        });
-    }
-
-    /**
-     * 测试单播给某个用户
-     */
-    function singleCast() {
-        send(routerCmd.singleCast, {
-            message: document.getElementById("singleCastMessage").value,
-            userId: parseInt(document.getElementById("singleCastUserId").value)
-        });
-    }
-
-    /**
-     * 测试组播给多个用户
-     */
-    function multicast() {
-        let userIds = [];
-        document.getElementById("multicastUserIds").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
-            v = v.toString();
-            if (v !== '') {
-                v = parseInt(v);
-                if (typeof v === 'number') {
-                    userIds.push(v);
-                }
-            }
-        });
-        send(routerCmd.multicast, {
-            message: document.getElementById("multicastMessage").value,
-            userIds: userIds
-        });
-    }
-
-    /**
-     * 广播
-     */
-    function broadcast() {
-        send(routerCmd.broadcast, {
-            message: document.getElementById("broadcastMessage").value,
-        });
-    }
-
-    /**
-     * 订阅
-     */
-    function subscribe() {
-        let topics = [];
-        document.getElementById("subscribeTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
-            v = v.toString().trim();
-            if (v !== '') {
-                topics.push(v);
-            }
-        });
-        send(routerCmd.subscribe, {
-            topics: topics,
-        });
-    }
-
-    /**
-     * 取消订阅
-     */
-    function unsubscribe() {
-        let topics = [];
-        document.getElementById("unsubscribeTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
-            v = v.toString().trim();
-            if (v !== '') {
-                topics.push(v);
-            }
-        });
-        send(routerCmd.unsubscribe, {
-            topics: topics,
-        });
-    }
-
-    /**
-     * 测试获取网关中的某几个主题的连接数
-     */
-    function topicsConnCount() {
-        let topics = [];
-        document.getElementById("connCountTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
-            v = v.toString().trim();
-            if (v !== '') {
-                topics.push(v);
-            }
-        });
-        send(routerCmd.topicsConnCount, {
-            topics: topics,
-            getAll: topics.length === 0
-        });
-    }
-
-    /**
-     * 测试获取网关中的某几个主题的连接session id
-     */
-    function topicsSessionId() {
-        let topics = [];
-        document.getElementById("sessionIdTopics").value.replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
-            v = v.toString().trim();
-            if (v !== '') {
-                topics.push(v);
-            }
-        });
-        send(routerCmd.topicsSessionId, {
-            topics: topics,
-        });
-    }
-
-    /**
-     * 测试发布
-     */
-    function publish() {
-        send(routerCmd.publish, {
-            message: document.getElementById("publishMessage").value,
-            topic: document.getElementById("publishTopic").value
-        });
-    }
-
-    window.addEventListener("load", function () {
-        document.getElementById("open").onclick = open;
-        document.getElementById("close").onclick = close;
-        document.getElementById("clear").onclick = clear;
-        document.getElementById("netSvrStatus").onclick = netSvrStatus;
-        document.getElementById("totalSessionId").onclick = totalSessionId;
-        document.getElementById("topicList").onclick = topicList;
-        document.getElementById("login").onclick = login;
-        document.getElementById("logout").onclick = logout;
-        document.getElementById("updateSessionUserInfo").onclick = updateSessionUserInfo;
-        document.getElementById("forceOffline").onclick = forceOffline;
-        document.getElementById("singleCast").onclick = singleCast;
-        document.getElementById("multicast").onclick = multicast;
-        document.getElementById("broadcast").onclick = broadcast;
-        document.getElementById("subscribe").onclick = subscribe;
-        document.getElementById("unsubscribe").onclick = unsubscribe;
-        document.getElementById("topicsConnCount").onclick = topicsConnCount;
-        document.getElementById("topicsSessionId").onclick = topicsSessionId;
-        document.getElementById("publish").onclick = publish;
-    });
 </script>
 </body>
 </html>

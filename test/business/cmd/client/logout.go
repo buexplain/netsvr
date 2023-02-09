@@ -10,29 +10,26 @@ import (
 )
 
 // Logout 退出登录
-func Logout(currentSessionId uint32, userInfo string, _ string, _ string, processor *connProcessor.ConnProcessor) {
-	//构建一个发给网关的路由
-	router := &internalProtocol.Router{}
-	//要求网关设定登录状态
-	router.Cmd = internalProtocol.Cmd_SetUserLoginStatus
-	//构建一个包含登录状态相关是业务对象
-	ret := &internalProtocol.SetUserLoginStatus{}
-	ret.SessionId = currentSessionId
-	//设置登录状态为未登录
-	ret.LoginStatus = false
-	ret.Data = workerUtils.NewResponse(protocol.RouterLogout, map[string]interface{}{"code": 0, "message": "退出登录成功"})
+func Logout(tf *internalProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	//更新用户的信息
-	currentUser := userDb.ParseNetSvrInfo(userInfo)
+	currentUser := userDb.ParseNetSvrInfo(tf.Session)
 	if currentUser != nil {
 		user := userDb.Collect.GetUser(currentUser.Name)
 		if user != nil {
-			//更新用户的session id
-			userDb.Collect.SetSessionId(user.Id, 0)
+			user.IsOnline = false
 		}
 	}
-	//将业务对象放到路由上
+	//删除网关信息
+	ret := &internalProtocol.DeleteInfo{}
+	ret.UniqId = tf.UniqId
+	ret.DelUniqId = true
+	ret.DelSession = true
+	ret.DelTopic = true
+	ret.Data = workerUtils.NewResponse(protocol.RouterLogout, map[string]interface{}{"code": 0, "message": "退出登录成功"})
+	//回写给网关服务器
+	router := &internalProtocol.Router{}
+	router.Cmd = internalProtocol.Cmd_DeleteInfo
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
-	//回写给网关服务器
 	processor.Send(pt)
 }

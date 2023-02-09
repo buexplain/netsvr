@@ -6,8 +6,8 @@ option go_package = "internal/protocol;protocol";
 
 //business向worker请求，进行组播
 message Multicast {
-  //连接的session id集合
-  repeated uint32 sessionIds = 1;
+  //目标uniqId
+  repeated string uniqIds = 1;
   //需要发给客户的数据
   bytes data = 2;
 }

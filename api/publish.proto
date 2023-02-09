@@ -4,9 +4,9 @@ package netsvr.publish;
 
 option go_package = "internal/protocol;protocol";
 
-//business向worker请求，进行发布
+//business向worker请求，给某个主题发布信息
 message Publish {
-  //某个主题，网关会根据主题，拿到该主题下的所有session id
+  //目标主题
   string topic = 1;
   //需要发给客户的数据
   bytes data = 2;

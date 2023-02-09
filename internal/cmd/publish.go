@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/customer/session"
+	"netsvr/internal/customer/topic"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -18,12 +18,12 @@ func Publish(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.Data) == 0 || payload.Topic == "" {
 		return
 	}
-	bitmap := session.Topics.Get(payload.Topic)
-	if bitmap == nil {
+	uniqIds := topic.Topic.Get(payload.Topic)
+	if len(uniqIds) == 0 {
 		return
 	}
-	peekAble := bitmap.Iterator()
-	for peekAble.HasNext() {
-		Catapult.Put(NewPayload(peekAble.Next(), payload.Data))
+	for _, uuid := range uniqIds {
+		Catapult.Put(NewPayload(uuid, payload.Data))
 	}
+	uniqIds = uniqIds[:0]
 }

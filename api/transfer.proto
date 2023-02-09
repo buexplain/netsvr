@@ -6,12 +6,10 @@ option go_package = "internal/protocol;protocol";
 
 //worker转发客户发送的信息到business
 message Transfer {
-  //连接的session id
-  uint32 sessionId = 1;
-  //客户登录后，存储在网关中的信息，如果未登录或者登录了，但是没有设置，则是空字符串
-  string userInfo = 2;
-  //客户登录后，存储在网关中的唯一id，如果未登录或者登录了，但是没有设置，则是空字符串
-  string userId = 3;
+  //当前客户的uniqId
+  string uniqId = 1;
+  //当前客户的session
+  string session = 2;
   //客户发送的信息
-  bytes data = 4;
+  bytes data = 3;
 }

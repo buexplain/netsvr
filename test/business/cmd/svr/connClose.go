@@ -16,9 +16,11 @@ func ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 		return
 	}
 	//解析网关中存储的用户信息
-	user := userDb.ParseNetSvrInfo(payload.UserInfo)
+	user := userDb.ParseNetSvrInfo(payload.Session)
 	if user != nil {
-		//用户关闭连接，更新数据库中的session id为0
-		userDb.Collect.SetSessionId(user.Id, 0)
+		//更新数据库，标记用户已经下线
+		if u := userDb.Collect.GetUserById(user.Id); u != nil {
+			u.IsOnline = false
+		}
 	}
 }

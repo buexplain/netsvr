@@ -14,7 +14,7 @@ func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 		logging.Error("Proto unmarshal protocol.SingleCast error: %v", err)
 		return
 	}
-	if payload.SessionId > 0 && len(payload.Data) > 0 {
+	if payload.UniqId != "" && len(payload.Data) > 0 {
 		Catapult.Put(payload)
 	}
 }

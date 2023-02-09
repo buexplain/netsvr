@@ -1,15 +1,11 @@
 syntax = "proto3";
 
-package netsvr.subscribe;
+package netsvr.forceOffline;
 
 option go_package = "internal/protocol;protocol";
 
-//business向worker请求，将某个session id的连接强制关闭
+//business向worker请求，将某个连接强制关闭
 message ForceOffline {
-  //连接的session id
-  uint32 sessionId = 1;
-  //客户在业务系统中的唯一id
-  //当传递该值，且与网关中现有userId的值不一致的时候，不会关闭连接
-  //当不传递该值，则不与网关中现有userId的值做比较，会直接关闭连接
-  string userId = 2;
+  //目标uniqId
+  string uniqId = 1;
 }

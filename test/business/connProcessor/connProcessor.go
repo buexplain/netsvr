@@ -17,7 +17,7 @@ import (
 )
 
 type WorkerCmdCallback func(data []byte, processor *ConnProcessor)
-type ClientCmdCallback func(currentSessionId uint32, userInfo string, userId string, param string, processor *ConnProcessor)
+type ClientCmdCallback func(tf *internalProtocol.Transfer, param string, processor *ConnProcessor)
 
 type ConnProcessor struct {
 	//business与worker的连接
@@ -312,7 +312,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		logging.Debug("Business receive client command: %s", clientRoute.Cmd)
 		//客户发来的命令
 		if callback, ok := r.clientCmdCallback[clientRoute.Cmd]; ok {
-			callback(tf.SessionId, tf.UserInfo, tf.UserId, clientRoute.Data, r)
+			callback(tf, clientRoute.Data, r)
 			return
 		}
 		//客户请求了错误的命令
