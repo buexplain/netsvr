@@ -3,6 +3,7 @@ package customer
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -65,11 +66,14 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
-		//分配session id，并将添加到管理器中
-		u := utils.UniqId()
-		session := info.NewInfo(u)
+		//统计打开连接次数
+		metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
+		//分配uniqId，并将添加到管理器中
+		uniqId := utils.UniqId()
+		session := info.NewInfo(uniqId)
 		conn.SetSession(session)
-		manager.Manager.Set(u, conn)
+		manager.Manager.Set(uniqId, conn)
+		logging.Debug("Customer websocket open, info: %#v", session)
 		//开启心跳
 		session.HeartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
 			if timecache.Unix()-session.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
@@ -86,9 +90,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			//写入数据失败，直接关闭连接，触发onClose回调
 			_ = conn.Close()
 		})
-		//统计打开连接次数
-		metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
-		logging.Debug("Customer websocket open, info: %#v", session)
 		//获取处理连接打开的worker
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -109,22 +110,25 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
 	})
 	upgrade.OnClose(func(conn *websocket.Conn, err error) {
+		//统计关闭连接次数
+		metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
 		session, ok := conn.Session().(*info.Info)
 		if !ok {
 			return
 		}
-		//先在连接管理中剔除该连接
-		manager.Manager.Del(session.GetUniqId())
-		//取消所有订阅
-		topic.Topic.Del(session.PullTopics(), session.GetUniqId())
-		//关闭心跳
-		if session.HeartbeatNode != nil {
-			session.HeartbeatNode.Stop()
-			session.HeartbeatNode = nil
+		uniqId := session.GetUniqId()
+		fmt.Println("uniqId关闭", uniqId)
+		if uniqId == "" {
+			//当前连接已经被清空了uniqId
+			return
 		}
-		//统计关闭连接次数
-		metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
 		logging.Debug("Customer websocket close, info: %#v", session)
+		//从连接管理器中删除
+		manager.Manager.Del(uniqId)
+		//删除订阅关系
+		topic.Topic.Del(session.PullTopics(), uniqId)
+		//关闭心跳
+		session.HeartbeatStop()
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)

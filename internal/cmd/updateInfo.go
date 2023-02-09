@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
+	"netsvr/internal/heartbeat"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"time"
 )
 
 // UpdateInfo 更新连接的info信息
@@ -30,16 +34,35 @@ func UpdateInfo(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//设置uniqId
 	if payload.NewUniqId != "" && payload.NewUniqId != payload.UniqId {
-		//如果新的uniqId已经存在，则不做任何设置
-		if manager.Manager.Has(payload.NewUniqId) {
-			logging.Debug("Update info new uniqId conflict error: %s", payload.NewUniqId)
-			return
+		//如果新的uniqId已经存在
+		conflictConn := manager.Manager.Get(payload.NewUniqId)
+		if conflictConn != nil {
+			//从连接管理器中删除
+			manager.Manager.Del(payload.NewUniqId)
+			//删除订阅关系、删除uniqId、关闭心跳
+			if conflictSession, ok := conn.Session().(*info.Info); ok {
+				fmt.Println("删除冲突的uid")
+				//TODO 调试，这个顶掉登录的问题
+				topic.Topic.Del(conflictSession.PullTopics(), conflictSession.PullUniqId())
+				session.HeartbeatStop()
+			}
+			//判断是否转发数据
+			if len(payload.DataAsNewUniqIdExisted) == 0 {
+				//无须转达任何数据，直接关闭连接
+				_ = conflictConn.Close()
+			} else {
+				//写入数据，并在一定倒计时后关闭连接
+				_ = conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted)
+				heartbeat.Timer.AfterFunc(time.Second*6, func() {
+					_ = conflictConn.Close()
+				})
+			}
 		}
 		//处理连接管理器中的关系
 		manager.Manager.Del(payload.UniqId)
 		manager.Manager.Set(payload.NewUniqId, conn)
 		//处理主题管理器中的关系
-		topics := session.SetUniqIdAndGetTopics(payload.UniqId)
+		topics := session.SetUniqIdAndGetTopics(payload.NewUniqId)
 		//删除旧关系，构建新关系
 		topic.Topic.Del(topics, payload.UniqId)
 		topic.Topic.Set(topics, payload.NewUniqId)

@@ -19,8 +19,6 @@ func ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 	user := userDb.ParseNetSvrInfo(payload.Session)
 	if user != nil {
 		//更新数据库，标记用户已经下线
-		if u := userDb.Collect.GetUserById(user.Id); u != nil {
-			u.IsOnline = false
-		}
+		userDb.Collect.SetOnline(user.Id, false)
 	}
 }

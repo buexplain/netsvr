@@ -14,9 +14,9 @@ func Logout(tf *internalProtocol.Transfer, _ string, processor *connProcessor.Co
 	//更新用户的信息
 	currentUser := userDb.ParseNetSvrInfo(tf.Session)
 	if currentUser != nil {
-		user := userDb.Collect.GetUser(currentUser.Name)
+		user := userDb.Collect.GetUserById(currentUser.Id)
 		if user != nil {
-			user.IsOnline = false
+			userDb.Collect.SetOnline(user.Id, false)
 		}
 	}
 	//删除网关信息

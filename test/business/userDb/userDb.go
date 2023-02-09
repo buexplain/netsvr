@@ -2,6 +2,7 @@ package userDb
 
 import (
 	"encoding/json"
+	"github.com/lesismal/nbio/logging"
 	workerUtils "netsvr/test/business/utils"
 	"time"
 )
@@ -39,6 +40,7 @@ func ParseNetSvrInfo(netSvrInfo string) *NetSvrInfo {
 	tmp := &NetSvrInfo{}
 	err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(netSvrInfo), tmp)
 	if err != nil {
+		logging.Debug("Parse userDb.ParseNetSvrInfo error: %v", err)
 		return nil
 	}
 	return tmp
@@ -87,9 +89,15 @@ func (r *collect) GetUser(name string) *User {
 // GetUserById 根据用户id查询用户
 func (r *collect) GetUserById(userId int) *User {
 	if ret, ok := r.idMap[userId]; ok {
-		return ret
+		return &(*ret)
 	}
 	return nil
+}
+
+func (r *collect) SetOnline(userId int, online bool) {
+	if ret, ok := r.idMap[userId]; ok {
+		ret.IsOnline = online
+	}
 }
 
 // Collect 模拟数据库信息

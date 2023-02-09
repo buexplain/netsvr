@@ -18,7 +18,7 @@ type Info struct {
 func NewInfo(uniqId string) *Info {
 	return &Info{
 		uniqId:         uniqId,
-		topics:         []string{},
+		topics:         nil,
 		lastActiveTime: 0,
 		mux:            sync.RWMutex{},
 	}
@@ -35,6 +35,24 @@ func (r *Info) GetLastActiveTime() int64 {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	return r.lastActiveTime
+}
+
+func (r *Info) HeartbeatStop() {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	if r.HeartbeatNode == nil {
+		return
+	}
+	r.HeartbeatNode.Stop()
+	r.HeartbeatNode = nil
+}
+
+func (r *Info) PullUniqId() string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	uniqId := r.uniqId
+	r.uniqId = ""
+	return uniqId
 }
 
 func (r *Info) GetUniqId() string {
@@ -91,13 +109,13 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 }
 
 func (r *Info) PullTopics() []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
 	if len(r.topics) == 0 {
 		return nil
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
 	ret := r.topics
-	r.topics = []string{}
+	r.topics = nil
 	return ret
 }
 
@@ -108,6 +126,15 @@ func (r *Info) Subscribe(topics []string) []string {
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
+	//如果是空，则全部赋值
+	if r.topics == nil {
+		r.topics = make([]string, 0, len(topics))
+		for _, topic := range topics {
+			r.topics = append(r.topics, topic)
+		}
+		return topics
+	}
+	//不为空，判断是否存在，不存在的，则赋值
 	ret := make([]string, 0)
 	for _, topic := range topics {
 		ok := false
@@ -132,6 +159,11 @@ func (r *Info) Unsubscribe(topics []string) []string {
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
+	//为空，则无需任何操作
+	if r.topics == nil {
+		return nil
+	}
+	//判断已经存在的才删除
 	ret := make([]string, 0)
 	for _, topic := range topics {
 		for k, has := range r.topics {

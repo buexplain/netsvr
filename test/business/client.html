@@ -363,16 +363,14 @@
                 }
                 //服务端响应了登录结果
                 if (resp.cmd === routerCmd.login) {
+                    print(resp.data.message);
                     loginStatus = resp.data.code === 0;
                     if (loginStatus) {
-                        clearScreen();
                         if (resp.data.data === null) {
                             print(resp.data.message);
                         } else {
                             document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，您的uniqId是：' + resp.data.data.id;
                         }
-                    } else {
-                        print(resp.data.message);
                     }
                     return;
                 }

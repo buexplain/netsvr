@@ -26,5 +26,5 @@ func BytesToReadOnlyString(bt []byte) string {
 	if len(bt) == 0 {
 		return ""
 	}
-	return unsafe.String(&bt[0], unsafe.IntegerType(len(bt)))
+	return unsafe.String(&bt[0], len(bt))
 }

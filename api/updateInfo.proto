@@ -9,11 +9,13 @@ message UpdateInfo {
   //目标uniqId
   string uniqId = 1;
   //最新的uniqId，传递了则覆盖
-  string NewUniqId = 2;
+  string newUniqId = 2;
+  //最新的uniqId冲突的时候，需要转发给已经存在的连接的数据，有这个数据，则转发给该连接，并在6秒倒计时后强制删除连接，反之，立马删除连接
+  bytes dataAsNewUniqIdExisted = 3;
   //最新的session，传递了则覆盖
-  string NewSession = 3;
+  string newSession = 4;
   //最新的主题，传递了则覆盖
-  repeated string NewTopics = 4;
+  repeated string newTopics = 5;
   //需要发给客户的数据，传递了则转发给客户
-  bytes data = 5;
+  bytes data = 6;
 }

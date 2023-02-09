@@ -58,24 +58,24 @@ const managerLen = 8
 
 type manager [managerLen]*collect
 
+func (r manager) index(uniqId string) uint32 {
+	return adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+}
+
 func (r manager) Has(uniqId string) bool {
-	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
-	return r[index].Has(uniqId)
+	return r[r.index(uniqId)].Has(uniqId)
 }
 
 func (r manager) Get(uniqId string) *websocket.Conn {
-	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
-	return r[index].Get(uniqId)
+	return r[r.index(uniqId)].Get(uniqId)
 }
 
 func (r manager) Set(uniqId string, conn *websocket.Conn) {
-	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
-	r[index].Set(uniqId, conn)
+	r[r.index(uniqId)].Set(uniqId, conn)
 }
 
 func (r manager) Del(uniqId string) {
-	index := adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
-	r[index].Del(uniqId)
+	r[r.index(uniqId)].Del(uniqId)
 }
 
 var Manager manager
