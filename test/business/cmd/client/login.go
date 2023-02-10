@@ -22,27 +22,28 @@ func Login(tf *internalProtocol.Transfer, param string, processor *connProcessor
 	if login.Username == "" && login.Password == "" {
 		return
 	}
-	ret := &internalProtocol.UpdateInfo{}
+	ret := &internalProtocol.InfoUpdate{}
 	ret.UniqId = tf.UniqId
 	//查找用户
 	user := userDb.Collect.GetUser(login.Username)
 	//校验账号密码，判断是否登录成功
-	if user != nil && user.Password != login.Password {
+	if user == nil || user.Password != login.Password {
 		ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误"})
+	} else {
+		if tf.Session == "" && user.IsOnline {
+			//账号已经被登录了，通知已经登录者
+			ret.DataAsNewUniqIdExisted = workerUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您的帐号在另一地点登录！"})
+		}
+		//设置当前登录信息
+		userDb.Collect.SetOnline(user.Id, true)
+		ret.NewUniqId = strconv.Itoa(user.Id)
+		ret.NewSession = user.ToNetSvrInfo()
+		ret.NewTopics = user.Topics
+		ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})
 	}
-	//账号已经被登录了，通知已经登录者
-	if tf.Session == "" && user.IsOnline {
-		ret.DataAsNewUniqIdExisted = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 1, "message": "您的帐号在另一地点登录！"})
-	}
-	//设置当前登录信息
-	userDb.Collect.SetOnline(user.Id, true)
-	ret.NewUniqId = strconv.Itoa(user.Id)
-	ret.NewSession = user.ToNetSvrInfo()
-	ret.NewTopics = user.Topics
-	ret.Data = workerUtils.NewResponse(protocol.RouterLogin, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})
 	//回写给网关服务器
 	router := &internalProtocol.Router{}
-	router.Cmd = internalProtocol.Cmd_UpdateInfo
+	router.Cmd = internalProtocol.Cmd_InfoUpdate
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

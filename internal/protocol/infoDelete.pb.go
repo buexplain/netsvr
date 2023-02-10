@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.26.0
 // 	protoc        v3.21.12
-// source: deleteInfo.proto
+// source: infoDelete.proto
 
 package protocol
 
@@ -21,7 +21,7 @@ const (
 )
 
 // 删除连接的info信息
-type DeleteInfo struct {
+type InfoDelete struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -38,23 +38,23 @@ type DeleteInfo struct {
 	Data []byte `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (x *DeleteInfo) Reset() {
-	*x = DeleteInfo{}
+func (x *InfoDelete) Reset() {
+	*x = InfoDelete{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_deleteInfo_proto_msgTypes[0]
+		mi := &file_infoDelete_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *DeleteInfo) String() string {
+func (x *InfoDelete) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteInfo) ProtoMessage() {}
+func (*InfoDelete) ProtoMessage() {}
 
-func (x *DeleteInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_deleteInfo_proto_msgTypes[0]
+func (x *InfoDelete) ProtoReflect() protoreflect.Message {
+	mi := &file_infoDelete_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65,53 +65,53 @@ func (x *DeleteInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInfo.ProtoReflect.Descriptor instead.
-func (*DeleteInfo) Descriptor() ([]byte, []int) {
-	return file_deleteInfo_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use InfoDelete.ProtoReflect.Descriptor instead.
+func (*InfoDelete) Descriptor() ([]byte, []int) {
+	return file_infoDelete_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *DeleteInfo) GetUniqId() string {
+func (x *InfoDelete) GetUniqId() string {
 	if x != nil {
 		return x.UniqId
 	}
 	return ""
 }
 
-func (x *DeleteInfo) GetDelUniqId() bool {
+func (x *InfoDelete) GetDelUniqId() bool {
 	if x != nil {
 		return x.DelUniqId
 	}
 	return false
 }
 
-func (x *DeleteInfo) GetDelSession() bool {
+func (x *InfoDelete) GetDelSession() bool {
 	if x != nil {
 		return x.DelSession
 	}
 	return false
 }
 
-func (x *DeleteInfo) GetDelTopic() bool {
+func (x *InfoDelete) GetDelTopic() bool {
 	if x != nil {
 		return x.DelTopic
 	}
 	return false
 }
 
-func (x *DeleteInfo) GetData() []byte {
+func (x *InfoDelete) GetData() []byte {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-var File_deleteInfo_proto protoreflect.FileDescriptor
+var File_infoDelete_proto protoreflect.FileDescriptor
 
-var file_deleteInfo_proto_rawDesc = []byte{
-	0x0a, 0x10, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x11, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x64, 0x65, 0x6c, 0x65, 0x74,
-	0x65, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x92, 0x01, 0x0a, 0x0a, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,
-	0x49, 0x6e, 0x66, 0x6f, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x01,
+var file_infoDelete_proto_rawDesc = []byte{
+	0x0a, 0x10, 0x69, 0x6e, 0x66, 0x6f, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x12, 0x11, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x69, 0x6e, 0x66, 0x6f, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x22, 0x92, 0x01, 0x0a, 0x0a, 0x49, 0x6e, 0x66, 0x6f, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x09,
 	0x64, 0x65, 0x6c, 0x55, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52,
 	0x09, 0x64, 0x65, 0x6c, 0x55, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x12, 0x1e, 0x0a, 0x0a, 0x64, 0x65,
@@ -125,22 +125,22 @@ var file_deleteInfo_proto_rawDesc = []byte{
 }
 
 var (
-	file_deleteInfo_proto_rawDescOnce sync.Once
-	file_deleteInfo_proto_rawDescData = file_deleteInfo_proto_rawDesc
+	file_infoDelete_proto_rawDescOnce sync.Once
+	file_infoDelete_proto_rawDescData = file_infoDelete_proto_rawDesc
 )
 
-func file_deleteInfo_proto_rawDescGZIP() []byte {
-	file_deleteInfo_proto_rawDescOnce.Do(func() {
-		file_deleteInfo_proto_rawDescData = protoimpl.X.CompressGZIP(file_deleteInfo_proto_rawDescData)
+func file_infoDelete_proto_rawDescGZIP() []byte {
+	file_infoDelete_proto_rawDescOnce.Do(func() {
+		file_infoDelete_proto_rawDescData = protoimpl.X.CompressGZIP(file_infoDelete_proto_rawDescData)
 	})
-	return file_deleteInfo_proto_rawDescData
+	return file_infoDelete_proto_rawDescData
 }
 
-var file_deleteInfo_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_deleteInfo_proto_goTypes = []interface{}{
-	(*DeleteInfo)(nil), // 0: netsvr.deleteInfo.DeleteInfo
+var file_infoDelete_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_infoDelete_proto_goTypes = []interface{}{
+	(*InfoDelete)(nil), // 0: netsvr.infoDelete.InfoDelete
 }
-var file_deleteInfo_proto_depIdxs = []int32{
+var file_infoDelete_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -148,14 +148,14 @@ var file_deleteInfo_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_deleteInfo_proto_init() }
-func file_deleteInfo_proto_init() {
-	if File_deleteInfo_proto != nil {
+func init() { file_infoDelete_proto_init() }
+func file_infoDelete_proto_init() {
+	if File_infoDelete_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_deleteInfo_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteInfo); i {
+		file_infoDelete_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InfoDelete); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -171,18 +171,18 @@ func file_deleteInfo_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_deleteInfo_proto_rawDesc,
+			RawDescriptor: file_infoDelete_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_deleteInfo_proto_goTypes,
-		DependencyIndexes: file_deleteInfo_proto_depIdxs,
-		MessageInfos:      file_deleteInfo_proto_msgTypes,
+		GoTypes:           file_infoDelete_proto_goTypes,
+		DependencyIndexes: file_infoDelete_proto_depIdxs,
+		MessageInfos:      file_infoDelete_proto_msgTypes,
 	}.Build()
-	File_deleteInfo_proto = out.File
-	file_deleteInfo_proto_rawDesc = nil
-	file_deleteInfo_proto_goTypes = nil
-	file_deleteInfo_proto_depIdxs = nil
+	File_infoDelete_proto = out.File
+	file_infoDelete_proto_rawDesc = nil
+	file_infoDelete_proto_goTypes = nil
+	file_infoDelete_proto_depIdxs = nil
 }

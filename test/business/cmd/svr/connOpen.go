@@ -14,7 +14,7 @@ import (
 func ConnOpen(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.ConnOpen{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal connOpen.ConnOpen error:%v", err)
+		logging.Error("Proto unmarshal internalProtocol.ConnOpen error:%v", err)
 		return
 	}
 	//构造单播数据

@@ -12,4 +12,10 @@ for file in $match; do
   proto="$(basename "$file")"
   echo "protoc --go_out=$root_dir --proto_path=$proto_path $proto"
   protoc --go_out="$root_dir" --proto_path="$proto_path" "$proto"
+  # shellcheck disable=SC2181
+  if [ $? != 0 ]; then
+    # shellcheck disable=SC2162
+    read
+    exit $?
+  fi
 done

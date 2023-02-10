@@ -14,12 +14,15 @@ func (r Cmd) String() string {
 // 客户端Cmd路由
 const (
 	RouterRespConnOpen Cmd = iota + 1
+	RouterRespConnClose
 	RouterNetSvrStatus
 	RouterTotalUniqIds
 	RouterTopicList
 	RouterLogin
 	RouterLogout
+	RouterCheckOnlineForUniqId
 	RouterForceOfflineForUserId
+	RouterForceOfflineForUniqId
 	RouterSingleCastForUserId
 	RouterSingleCastForUniqId
 	RouterMulticastForUserId
@@ -34,12 +37,15 @@ const (
 
 var CmdName = map[Cmd]string{
 	RouterRespConnOpen:          "RouterRespConnOpen",          //响应连接成功信息
+	RouterRespConnClose:         "RouterRespConnClose",         //响应连接成功信息
 	RouterNetSvrStatus:          "RouterNetSvrStatus",          //获取网关的信息
 	RouterTotalUniqIds:          "RouterTotalUniqIds",          //获取网关所有在线的session id
 	RouterTopicList:             "RouterTopicList",             //获取已订阅的主题列表
 	RouterLogin:                 "RouterLogin",                 //登录
 	RouterLogout:                "RouterLogout",                //退出登录
+	RouterCheckOnlineForUniqId:  "RouterCheckOnlineForUniqId",  //检查某几个连接是否在线
 	RouterForceOfflineForUserId: "RouterForceOfflineForUserId", //强制关闭某个连接
+	RouterForceOfflineForUniqId: "RouterForceOfflineForUniqId", //强制关闭某个连接
 	RouterSingleCastForUserId:   "RouterSingleCastForUserId",   //单播给某个用户
 	RouterSingleCastForUniqId:   "RouterSingleCastForUniqId",   //单播给某个session id
 	RouterMulticastForUserId:    "RouterMulticastForUserId",    //组播给多个用户
@@ -75,6 +81,16 @@ type Login struct {
 // ForceOfflineForUserId 强制踢下线某个用户
 type ForceOfflineForUserId struct {
 	UserId int `json:"userId"`
+}
+
+// ForceOfflineForUniqId 强制踢下线某个用户
+type ForceOfflineForUniqId struct {
+	UniqId string `json:"uniqId"`
+}
+
+// CheckOnlineForUniqId 检查某几个连接是否在线
+type CheckOnlineForUniqId struct {
+	UniqIds []string `json:"uniqIds"`
 }
 
 // SingleCastForUserId 客户端发送的单播信息

@@ -15,6 +15,10 @@
         input, select {
             width: 420px;
         }
+
+        label {
+            user-select: none;
+        }
     </style>
     <script>
         /**
@@ -63,6 +67,15 @@
         /**
          * 转成string
          * @param value
+         * @returns {boolean}
+         */
+        window.processorToBool = function (value) {
+            return !(value === null || value === '' || value === 'false' || value === '0' || value === 'no');
+        }
+
+        /**
+         * 转成string
+         * @param value
          * @returns {string}
          */
         window.processorToString = function (value) {
@@ -105,10 +118,27 @@
 
         <div class="case">
             <label>
+                <input type="text" name="uniqIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标uniqId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.checkOnlineForUniqId)">检查uniqId是否在线</button>
+        </div>
+
+        <div class="case">
+            <label>
                 <input type="text" name="userId" data-processor="processorToInt" placeholder="请输入目标用户Id"
                        value="1">
             </label>
-            <button onclick="send(this,routerCmd.forceOfflineForUserId)">强制Ta踢下线</button>
+            <button onclick="send(this,routerCmd.forceOfflineForUserId)">按用户id强制下线</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.forceOfflineForUniqId)">按uniqId强制下线</button>
         </div>
 
         <div class="case">
@@ -223,16 +253,19 @@
 
 <script>
     /**
-     * 发送给business的指令
+     * 发送给business的指令，这个指令与go的business的protocol一致
      */
     const routerCmd = {
         connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
+        connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
         netSvrStatus: parseInt("{!.RouterNetSvrStatus!}"),//获取网关的信息
         totalUniqIds: parseInt("{!.RouterTotalUniqIds!}"), //获取网关所有的uniqId
         topicList: parseInt("{!.RouterTopicList!}"), //获取已订阅的主题列表
         login: parseInt("{!.RouterLogin!}"), //登录
         logout: parseInt("{!.RouterLogout!}"), //退出登录
+        checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
         forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
+        forceOfflineForUniqId: parseInt("{!.RouterForceOfflineForUniqId!}"), //强制关闭
         singleCastForUserId: parseInt("{!.RouterSingleCastForUserId!}"), //单播给某个用户
         singleCastForUniqId: parseInt("{!.RouterSingleCastForUniqId!}"), //单播给某个uniqId
         multicastForUserId: parseInt("{!.RouterMulticastForUserId!}"), //组播给多个用户
@@ -247,9 +280,6 @@
 
     //当前连接
     let ws;
-
-    //是否登录
-    let loginStatus = false;
 
     //business的服务编号
     let workerId = '001';
@@ -291,16 +321,23 @@
      * @param btn
      * @param cmd
      */
+    xxx = '';
+
     function send(btn, cmd) {
         let param = {};
         if (btn) {
-            btn.parentNode.querySelectorAll('input').forEach(function (input) {
+            ['input[type="text"]', 'input[type="hidden"]', 'select'].forEach(function (selectors) {
+                btn.parentNode.querySelectorAll(selectors).forEach(function (input) {
+                    let processor = input.getAttribute('data-processor');
+                    param[input.name] = processor ? window[processor](input.value) : input.value;
+                });
+            });
+            btn.parentNode.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                if (input.checked === false) {
+                    return;
+                }
                 let processor = input.getAttribute('data-processor');
                 param[input.name] = processor ? window[processor](input.value) : input.value;
-            });
-            btn.parentNode.querySelectorAll('select').forEach(function (select) {
-                let processor = select.getAttribute('data-processor');
-                param[select.name] = processor ? window[processor](select.value) : select.value;
             });
         }
         if (!ws) {
@@ -355,25 +392,44 @@
                  * @type {{data: any, cmd: number}}
                  */
                 let resp = JSON.parse(evt.data);
-                //连接成功，服务端发来了相关信息
+
+                //连接打开，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
                     clearScreen();
                     document.getElementById("topInfo").innerText = resp.data.message;
                     return;
                 }
+
+                //连接关闭，服务端发来了相关信息
+                if (resp.cmd === routerCmd.connClose) {
+                    print(resp.data.message);
+                    closeWebsocket();
+                    return;
+                }
+
                 //服务端响应了登录结果
                 if (resp.cmd === routerCmd.login) {
                     print(resp.data.message);
-                    loginStatus = resp.data.code === 0;
-                    if (loginStatus) {
+                    if (resp.data.code === 0) {
                         if (resp.data.data === null) {
                             print(resp.data.message);
                         } else {
-                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，您的uniqId是：' + resp.data.data.id;
+                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，uniqId是：' + resp.data.data.id;
                         }
                     }
                     return;
                 }
+
+                //服务端响应了退出登录结果
+                if (resp.cmd === routerCmd.logout) {
+                    if (resp.data.code === 0) {
+                        document.getElementById("topInfo").innerText = resp.data.message;
+                    } else {
+                        print(resp.data.message);
+                    }
+                    return;
+                }
+
                 //服务端响应网关状态信息
                 if (resp.cmd === routerCmd.netSvrStatus) {
                     if (resp.data.code !== 0) {
@@ -406,15 +462,6 @@
                     return;
                 }
 
-                //服务端响应了退出登录结果
-                if (resp.cmd === routerCmd.logout) {
-                    loginStatus = !(resp.data.code === 0);
-                    if (loginStatus === false) {
-                        document.getElementById("topInfo").innerText = '';
-                    }
-                    print(resp.data.message);
-                    return;
-                }
                 //某某某发来了一条信息
                 if (
                     resp.cmd === routerCmd.singleCastForUserId

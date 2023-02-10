@@ -22,7 +22,7 @@ func Broadcast(tf *internalProtocol.Transfer, param string, processor *connProce
 	var fromUser string
 	currentUser := userDb.ParseNetSvrInfo(tf.Session)
 	if currentUser == nil {
-		fromUser = fmt.Sprintf("uniqId: %s", tf.UniqId)
+		fromUser = fmt.Sprintf("uniqId(%s)", tf.UniqId)
 	} else {
 		fromUser = currentUser.Name
 	}

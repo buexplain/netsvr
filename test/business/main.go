@@ -68,6 +68,7 @@ func main() {
 	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicsUniqIdCountRe, svr.TopicsUniqIdCount)
 	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicUniqIdsRe, svr.TopicUniqIds)
 	processor.RegisterSvrCmd(internalProtocol.Cmd_TotalUniqIdsRe, svr.TotalUniqIds)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_CheckOnlineRe, svr.CheckOnline)
 	//注册用户发送过来的命令的处理函数
 	processor.RegisterClientCmd(protocol.RouterBroadcast, client.Broadcast)
 	processor.RegisterClientCmd(protocol.RouterLogin, client.Login)
@@ -85,6 +86,8 @@ func main() {
 	processor.RegisterClientCmd(protocol.RouterTopicList, client.TopicList)
 	processor.RegisterClientCmd(protocol.RouterUnsubscribe, client.Unsubscribe)
 	processor.RegisterClientCmd(protocol.RouterForceOfflineForUserId, client.ForceOfflineForUserId)
+	processor.RegisterClientCmd(protocol.RouterForceOfflineForUniqId, client.ForceOfflineForUniqId)
+	processor.RegisterClientCmd(protocol.RouterCheckOnlineForUniqId, client.CheckOnlineForUniqId)
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()

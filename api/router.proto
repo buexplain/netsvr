@@ -15,8 +15,8 @@ enum Cmd {
   //--------------------------------business单向请求worker的指令 开始--------------------------------
   Register = 101; //注册business到worker，注册后，business会收到worker转发的客户信息
   Unregister = 102; //取消注册，取消后不会再收到客户信息
-  UpdateInfo = 103;//更新连接的info信息
-  DeleteInfo = 104;//删除连接的info信息
+  InfoUpdate = 103;//更新连接的info信息
+  InfoDelete = 104;//删除连接的info信息
   Broadcast = 105; //广播
   Multicast = 106; //组播
   SingleCast = 107;//单播
@@ -32,6 +32,7 @@ enum Cmd {
   TopicsUniqIdCountRe = 203; //获取网关中的某几个主题的uniqId数量
   InfoRe = 204; //获取连接的信息
   NetSvrStatusRe = 205; //获取网关的状态
+  CheckOnlineRe = 206; //判断uniqId是否在网关中
   //--------------------------------business请求worker，worker再响应business的指令 结束--------------------------------
 }
 

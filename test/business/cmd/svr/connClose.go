@@ -12,7 +12,7 @@ import (
 func ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 	payload := internalProtocol.ConnClose{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal connClose.ConnClose error:%v", err)
+		logging.Error("Proto unmarshal internalProtocol.ConnClose error:%v", err)
 		return
 	}
 	//解析网关中存储的用户信息

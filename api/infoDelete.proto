@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.deleteInfo;
+package netsvr.infoDelete;
 
 option go_package = "internal/protocol;protocol";
 
 //删除连接的info信息
-message DeleteInfo {
+message InfoDelete {
   //目标uniqId
   string uniqId = 1;
   //是否删除uniqId，true：重新随机生成一个uniqId，false：不处理

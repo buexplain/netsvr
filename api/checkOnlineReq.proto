@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package netsvr.checkOnlineReq;
+
+import "reCtx.proto";
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应business，检查网关中是否包含某几个uniqId
+message CheckOnlineReq {
+  //req（request）、resp（response）时候的上下文，worker会原样回传给business
+  netsvr.reCtx.ReCtx reCtx = 1;
+  //目标uniqId
+  repeated string uniqIds = 2;
+}

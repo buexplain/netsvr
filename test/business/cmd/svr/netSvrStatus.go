@@ -20,9 +20,6 @@ func NetSvrStatus(param []byte, processor *connProcessor.ConnProcessor) {
 	if payload.ReCtx.Cmd != int32(protocol.RouterNetSvrStatus) {
 		return
 	}
-	if len(payload.ReCtx.Data) == 0 {
-		return
-	}
 	//解析请求上下文中存储的uniqId
 	uniqId := utils.BytesToReadOnlyString(payload.ReCtx.Data)
 	if uniqId == "" {

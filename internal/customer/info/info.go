@@ -88,13 +88,6 @@ func (r *Info) GetToProtocolTransfer(tf *protocol.Transfer) {
 	tf.UniqId = r.uniqId
 }
 
-func (r *Info) GetToProtocolConnClose(cl *protocol.ConnClose) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	cl.Session = r.session
-	cl.UniqId = r.uniqId
-}
-
 func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
@@ -106,6 +99,26 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 			infoResp.Topics = append(infoResp.Topics, topic)
 		}
 	}
+}
+
+func (r *Info) Clear() (topics []string, uniqId string, session string) {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	//停止心跳函数
+	if r.HeartbeatNode != nil {
+		r.HeartbeatNode.Stop()
+		r.HeartbeatNode = nil
+	}
+	//删除所有订阅
+	topics = r.topics
+	r.topics = nil
+	//删除唯一id
+	uniqId = r.uniqId
+	r.uniqId = ""
+	//删除session
+	session = r.session
+	r.session = ""
+	return
 }
 
 func (r *Info) PullTopics() []string {

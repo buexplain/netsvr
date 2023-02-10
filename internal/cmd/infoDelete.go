@@ -11,11 +11,11 @@ import (
 	"netsvr/pkg/utils"
 )
 
-// DeleteInfo 删除连接的info信息
-func DeleteInfo(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.DeleteInfo{}
+// InfoDelete 删除连接的info信息
+func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
+	payload := &protocol.InfoDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal protocol.DeleteInfo error: %v", err)
+		logging.Error("Proto unmarshal protocol.InfoDelete error: %v", err)
 		return
 	}
 	if payload.UniqId == "" {

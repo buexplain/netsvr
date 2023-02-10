@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.26.0
 // 	protoc        v3.21.12
-// source: updateInfo.proto
+// source: infoUpdate.proto
 
 package protocol
 
@@ -21,7 +21,7 @@ const (
 )
 
 // 更新连接的info信息
-type UpdateInfo struct {
+type InfoUpdate struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -30,7 +30,7 @@ type UpdateInfo struct {
 	UniqId string `protobuf:"bytes,1,opt,name=uniqId,proto3" json:"uniqId,omitempty"`
 	// 最新的uniqId，传递了则覆盖
 	NewUniqId string `protobuf:"bytes,2,opt,name=newUniqId,proto3" json:"newUniqId,omitempty"`
-	// 最新的uniqId冲突的时候，需要转发给已经存在的连接的数据，有这个数据，则转发给该连接，并在6秒倒计时后强制删除连接，反之，立马删除连接
+	// 最新的uniqId冲突的时候，需要转发给已经存在的连接的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
 	DataAsNewUniqIdExisted []byte `protobuf:"bytes,3,opt,name=dataAsNewUniqIdExisted,proto3" json:"dataAsNewUniqIdExisted,omitempty"`
 	// 最新的session，传递了则覆盖
 	NewSession string `protobuf:"bytes,4,opt,name=newSession,proto3" json:"newSession,omitempty"`
@@ -40,23 +40,23 @@ type UpdateInfo struct {
 	Data []byte `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (x *UpdateInfo) Reset() {
-	*x = UpdateInfo{}
+func (x *InfoUpdate) Reset() {
+	*x = InfoUpdate{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_updateInfo_proto_msgTypes[0]
+		mi := &file_infoUpdate_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *UpdateInfo) String() string {
+func (x *InfoUpdate) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateInfo) ProtoMessage() {}
+func (*InfoUpdate) ProtoMessage() {}
 
-func (x *UpdateInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_updateInfo_proto_msgTypes[0]
+func (x *InfoUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_infoUpdate_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -67,60 +67,60 @@ func (x *UpdateInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInfo.ProtoReflect.Descriptor instead.
-func (*UpdateInfo) Descriptor() ([]byte, []int) {
-	return file_updateInfo_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use InfoUpdate.ProtoReflect.Descriptor instead.
+func (*InfoUpdate) Descriptor() ([]byte, []int) {
+	return file_infoUpdate_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *UpdateInfo) GetUniqId() string {
+func (x *InfoUpdate) GetUniqId() string {
 	if x != nil {
 		return x.UniqId
 	}
 	return ""
 }
 
-func (x *UpdateInfo) GetNewUniqId() string {
+func (x *InfoUpdate) GetNewUniqId() string {
 	if x != nil {
 		return x.NewUniqId
 	}
 	return ""
 }
 
-func (x *UpdateInfo) GetDataAsNewUniqIdExisted() []byte {
+func (x *InfoUpdate) GetDataAsNewUniqIdExisted() []byte {
 	if x != nil {
 		return x.DataAsNewUniqIdExisted
 	}
 	return nil
 }
 
-func (x *UpdateInfo) GetNewSession() string {
+func (x *InfoUpdate) GetNewSession() string {
 	if x != nil {
 		return x.NewSession
 	}
 	return ""
 }
 
-func (x *UpdateInfo) GetNewTopics() []string {
+func (x *InfoUpdate) GetNewTopics() []string {
 	if x != nil {
 		return x.NewTopics
 	}
 	return nil
 }
 
-func (x *UpdateInfo) GetData() []byte {
+func (x *InfoUpdate) GetData() []byte {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-var File_updateInfo_proto protoreflect.FileDescriptor
+var File_infoUpdate_proto protoreflect.FileDescriptor
 
-var file_updateInfo_proto_rawDesc = []byte{
-	0x0a, 0x10, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x11, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x75, 0x70, 0x64, 0x61, 0x74,
-	0x65, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0xcc, 0x01, 0x0a, 0x0a, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x49, 0x6e, 0x66, 0x6f, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x01,
+var file_infoUpdate_proto_rawDesc = []byte{
+	0x0a, 0x10, 0x69, 0x6e, 0x66, 0x6f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x12, 0x11, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x69, 0x6e, 0x66, 0x6f, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x22, 0xcc, 0x01, 0x0a, 0x0a, 0x49, 0x6e, 0x66, 0x6f, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x75, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x09,
 	0x6e, 0x65, 0x77, 0x55, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
 	0x09, 0x6e, 0x65, 0x77, 0x55, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x12, 0x36, 0x0a, 0x16, 0x64, 0x61,
@@ -138,22 +138,22 @@ var file_updateInfo_proto_rawDesc = []byte{
 }
 
 var (
-	file_updateInfo_proto_rawDescOnce sync.Once
-	file_updateInfo_proto_rawDescData = file_updateInfo_proto_rawDesc
+	file_infoUpdate_proto_rawDescOnce sync.Once
+	file_infoUpdate_proto_rawDescData = file_infoUpdate_proto_rawDesc
 )
 
-func file_updateInfo_proto_rawDescGZIP() []byte {
-	file_updateInfo_proto_rawDescOnce.Do(func() {
-		file_updateInfo_proto_rawDescData = protoimpl.X.CompressGZIP(file_updateInfo_proto_rawDescData)
+func file_infoUpdate_proto_rawDescGZIP() []byte {
+	file_infoUpdate_proto_rawDescOnce.Do(func() {
+		file_infoUpdate_proto_rawDescData = protoimpl.X.CompressGZIP(file_infoUpdate_proto_rawDescData)
 	})
-	return file_updateInfo_proto_rawDescData
+	return file_infoUpdate_proto_rawDescData
 }
 
-var file_updateInfo_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_updateInfo_proto_goTypes = []interface{}{
-	(*UpdateInfo)(nil), // 0: netsvr.updateInfo.UpdateInfo
+var file_infoUpdate_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_infoUpdate_proto_goTypes = []interface{}{
+	(*InfoUpdate)(nil), // 0: netsvr.infoUpdate.InfoUpdate
 }
-var file_updateInfo_proto_depIdxs = []int32{
+var file_infoUpdate_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -161,14 +161,14 @@ var file_updateInfo_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_updateInfo_proto_init() }
-func file_updateInfo_proto_init() {
-	if File_updateInfo_proto != nil {
+func init() { file_infoUpdate_proto_init() }
+func file_infoUpdate_proto_init() {
+	if File_infoUpdate_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_updateInfo_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateInfo); i {
+		file_infoUpdate_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InfoUpdate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -184,18 +184,18 @@ func file_updateInfo_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_updateInfo_proto_rawDesc,
+			RawDescriptor: file_infoUpdate_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_updateInfo_proto_goTypes,
-		DependencyIndexes: file_updateInfo_proto_depIdxs,
-		MessageInfos:      file_updateInfo_proto_msgTypes,
+		GoTypes:           file_infoUpdate_proto_goTypes,
+		DependencyIndexes: file_infoUpdate_proto_depIdxs,
+		MessageInfos:      file_infoUpdate_proto_msgTypes,
 	}.Build()
-	File_updateInfo_proto = out.File
-	file_updateInfo_proto_rawDesc = nil
-	file_updateInfo_proto_goTypes = nil
-	file_updateInfo_proto_depIdxs = nil
+	File_infoUpdate_proto = out.File
+	file_infoUpdate_proto_rawDesc = nil
+	file_infoUpdate_proto_goTypes = nil
+	file_infoUpdate_proto_depIdxs = nil
 }

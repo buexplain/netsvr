@@ -3,7 +3,6 @@ package customer
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -116,19 +115,16 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		uniqId := session.GetUniqId()
-		fmt.Println("uniqId关闭", uniqId)
+		topics, uniqId, userSession := session.Clear()
 		if uniqId == "" {
-			//当前连接已经被清空了uniqId
+			//当前连接已经被清空了uniqId，无需进行接下来的逻辑
 			return
 		}
 		logging.Debug("Customer websocket close, info: %#v", session)
 		//从连接管理器中删除
 		manager.Manager.Del(uniqId)
 		//删除订阅关系
-		topic.Topic.Del(session.PullTopics(), uniqId)
-		//关闭心跳
-		session.HeartbeatStop()
+		topic.Topic.Del(topics, uniqId)
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -138,7 +134,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 		//转发数据到business
 		cl := &protocol.ConnClose{}
-		session.GetToProtocolConnClose(cl)
+		cl.UniqId = uniqId
+		cl.Session = userSession
 		router := &protocol.Router{}
 		router.Cmd = protocol.Cmd_ConnClose
 		router.Data, _ = proto.Marshal(cl)
@@ -179,19 +176,18 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		session.SetLastActiveTime(timecache.Unix())
 		//读取前三个字节，转成business的服务编号
 		workerId := utils.BytesToInt(data, 3)
-		//编码数据成business需要的格式
-		tf := &protocol.Transfer{}
-		tf.Data = data[3:]
-		tf.Session = session.GetUniqId()
-		session.GetToProtocolTransfer(tf)
-		router := &protocol.Router{}
-		router.Cmd = protocol.Cmd_Transfer
-		router.Data, _ = proto.Marshal(tf)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
 			logging.Debug("Not found business by id: %d", workerId)
 			return
 		}
+		//编码数据成business需要的格式
+		tf := &protocol.Transfer{}
+		tf.Data = data[3:]
+		session.GetToProtocolTransfer(tf)
+		router := &protocol.Router{}
+		router.Cmd = protocol.Cmd_Transfer
+		router.Data, _ = proto.Marshal(tf)
 		//转发数据到business
 		data, _ = proto.Marshal(router)
 		worker.Send(data)
