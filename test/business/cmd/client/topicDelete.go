@@ -11,23 +11,22 @@ import (
 	workerUtils "netsvr/test/business/utils"
 )
 
-// Unsubscribe 处理客户的取消订阅请求
-func Unsubscribe(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+// TopicDelete 处理客户的删除主题请求
+func TopicDelete(_ *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	//解析客户端发来的数据
-	payload := new(protocol.Unsubscribe)
+	payload := new(protocol.TopicDelete)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse protocol.Unsubscribe error: %v", err)
+		logging.Error("Parse protocol.TopicDelete error: %v", err)
 		return
 	}
 	if len(payload.Topics) == 0 {
 		return
 	}
 	router := &internalProtocol.Router{}
-	router.Cmd = internalProtocol.Cmd_Unsubscribe
-	ret := &internalProtocol.Unsubscribe{}
-	ret.UniqId = tf.UniqId
+	router.Cmd = internalProtocol.Cmd_TopicDelete
+	ret := &internalProtocol.TopicDelete{}
 	ret.Topics = payload.Topics
-	ret.Data = businessUtils.NewResponse(protocol.RouterSubscribe, map[string]interface{}{"code": 0, "message": "取消订阅成功", "data": nil})
+	ret.Data = businessUtils.NewResponse(protocol.RouterTopicDelete, map[string]interface{}{"code": 0, "message": "删除主题成功", "data": nil})
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

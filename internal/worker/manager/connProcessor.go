@@ -10,6 +10,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/heartbeat"
 	"netsvr/internal/protocol"
+	"netsvr/internal/timer"
 	"netsvr/pkg/quit"
 	"netsvr/pkg/timecache"
 	"runtime/debug"
@@ -158,7 +159,7 @@ func (r *ConnProcessor) Send(data []byte) {
 }
 
 func (r *ConnProcessor) LoopReceive() {
-	heartbeatNode := heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.WorkerHeartbeatIntervalSecond)*time.Second, func() {
+	heartbeatNode := timer.Timer.ScheduleFunc(time.Duration(configs.Config.WorkerHeartbeatIntervalSecond)*time.Second, func() {
 		if timecache.Unix()-atomic.LoadInt64(r.lastActiveTime) < configs.Config.WorkerHeartbeatIntervalSecond {
 			//还在活跃期内，不做处理
 			return

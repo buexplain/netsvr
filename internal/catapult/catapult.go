@@ -1,4 +1,4 @@
-package cmd
+package catapult
 
 import (
 	"github.com/lesismal/nbio/logging"
@@ -11,20 +11,20 @@ import (
 )
 
 type Payload struct {
-	uuid string
-	Data []byte
+	uniqId string
+	Data   []byte
 }
 
 func (r Payload) GetUniqId() string {
-	return r.uuid
+	return r.uniqId
 }
 
 func (r Payload) GetData() []byte {
 	return r.Data
 }
 
-func NewPayload(uuid string, data []byte) *Payload {
-	return &Payload{uuid: uuid, Data: data}
+func NewPayload(uniqId string, data []byte) *Payload {
+	return &Payload{uniqId: uniqId, Data: data}
 }
 
 type PayloadInterface interface {

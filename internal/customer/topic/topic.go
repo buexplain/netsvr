@@ -54,6 +54,24 @@ func (r *collect) Set(topics []string, uniqId string) {
 	}
 }
 
+func (r *collect) Pull(topic string, uniqIds *[]string) *[]string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	c, ok := r.topic[topic]
+	if !ok {
+		return uniqIds
+	}
+	delete(r.topic, topic)
+	if uniqIds == nil {
+		tmp := make([]string, 0, len(c))
+		uniqIds = &tmp
+	}
+	for uniqId := range c {
+		*uniqIds = append(*uniqIds, uniqId)
+	}
+	return uniqIds
+}
+
 func (r *collect) Get(topic string) (uniqIds []string) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()

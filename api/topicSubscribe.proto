@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.subscribe;
+package netsvr.topicSubscribe;
 
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，进行订阅操作
-message Subscribe {
+message TopicSubscribe {
   //目标uniqId
   string uniqId = 1;
   //需要订阅的主题

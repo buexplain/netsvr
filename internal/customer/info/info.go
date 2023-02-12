@@ -132,8 +132,8 @@ func (r *Info) PullTopics() []string {
 	return ret
 }
 
-// Subscribe 订阅，并返回成功订阅的主题
-func (r *Info) Subscribe(topics []string) []string {
+// SubscribeTopics 订阅，并返回成功订阅的主题
+func (r *Info) SubscribeTopics(topics []string) []string {
 	if len(topics) == 0 {
 		return nil
 	}
@@ -165,8 +165,8 @@ func (r *Info) Subscribe(topics []string) []string {
 	return ret
 }
 
-// Unsubscribe 取消订阅，并返回成功取消订阅的主题
-func (r *Info) Unsubscribe(topics []string) []string {
+// UnsubscribeTopics 取消订阅，并返回成功取消订阅的主题
+func (r *Info) UnsubscribeTopics(topics []string) []string {
 	if len(topics) == 0 {
 		return nil
 	}
@@ -188,4 +188,22 @@ func (r *Info) Unsubscribe(topics []string) []string {
 		}
 	}
 	return ret
+}
+
+// UnsubscribeTopic 取消订阅
+func (r *Info) UnsubscribeTopic(topic string) bool {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	//为空，则无需任何操作
+	if r.topics == nil {
+		return false
+	}
+	//判断已经存在的才删除
+	for k, has := range r.topics {
+		if topic == has {
+			r.topics = append(r.topics[0:k], r.topics[k+1:]...)
+			return true
+		}
+	}
+	return false
 }

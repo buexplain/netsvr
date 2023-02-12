@@ -316,7 +316,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 			return
 		}
 		//客户请求了错误的命令
-		logging.Debug("Unknown protocol.clientRoute.Cmd: %d", router.Cmd)
+		logging.Debug("Unknown protocol.clientRoute.Cmd: %s", clientRoute.Cmd)
 		return
 	}
 	//回调worker发来的命令
@@ -326,7 +326,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 	}
 	//worker传递了错误的命令
 	r.Close()
-	logging.Error("Unknown internalProtocol.Router.Cmd: %d", router.Cmd)
+	logging.Error("Unknown internalProtocol.Router.Cmd: %s", router.Cmd)
 }
 
 func (r *ConnProcessor) RegisterSvrCmd(cmd internalProtocol.Cmd, callback WorkerCmdCallback) {

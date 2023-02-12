@@ -12,12 +12,12 @@ import (
 	workerUtils "netsvr/test/business/utils"
 )
 
-// Publish 处理客户的发布请求
-func Publish(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+// TopicPublish 处理客户的发布请求
+func TopicPublish(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	//解析客户端发来的数据
-	target := new(protocol.Publish)
+	target := new(protocol.TopicPublish)
 	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), target); err != nil {
-		logging.Error("Parse protocol.Publish error: %v", err)
+		logging.Error("Parse protocol.TopicPublish error: %v", err)
 		return
 	}
 	var fromUser string
@@ -28,11 +28,11 @@ func Publish(tf *internalProtocol.Transfer, param string, processor *connProcess
 		fromUser = currentUser.Name
 	}
 	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
-	ret := &internalProtocol.Publish{}
+	ret := &internalProtocol.TopicPublish{}
 	ret.Topic = target.Topic
-	ret.Data = workerUtils.NewResponse(protocol.RouterPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
+	ret.Data = workerUtils.NewResponse(protocol.RouterTopicPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	router := &internalProtocol.Router{}
-	router.Cmd = internalProtocol.Cmd_Publish
+	router.Cmd = internalProtocol.Cmd_TopicPublish
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

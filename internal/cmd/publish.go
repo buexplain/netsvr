@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/catapult"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
@@ -10,7 +11,7 @@ import (
 
 // Publish 发布
 func Publish(param []byte, _ *workerManager.ConnProcessor) {
-	payload := protocol.Publish{}
+	payload := protocol.TopicPublish{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal publish.Publish error: %v", err)
 		return
@@ -23,7 +24,7 @@ func Publish(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	for _, uuid := range uniqIds {
-		Catapult.Put(NewPayload(uuid, payload.Data))
+		catapult.Catapult.Put(catapult.NewPayload(uuid, payload.Data))
 	}
 	uniqIds = uniqIds[:0]
 }

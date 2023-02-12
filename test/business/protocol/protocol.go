@@ -28,11 +28,12 @@ const (
 	RouterMulticastForUserId
 	RouterMulticastForUniqId
 	RouterBroadcast
-	RouterSubscribe
-	RouterUnsubscribe
+	RouterTopicSubscribe
+	RouterTopicUnsubscribe
+	RouterTopicDelete
 	RouterTopicsUniqIdCount
 	RouterTopicUniqIds
-	RouterPublish
+	RouterTopicPublish
 )
 
 var CmdName = map[Cmd]string{
@@ -51,11 +52,12 @@ var CmdName = map[Cmd]string{
 	RouterMulticastForUserId:    "RouterMulticastForUserId",    //组播给多个用户
 	RouterMulticastForUniqId:    "RouterMulticastForUniqId",    //组播给多个uniqId
 	RouterBroadcast:             "RouterBroadcast",             //广播给所有用户
-	RouterSubscribe:             "RouterSubscribe",             //订阅
-	RouterUnsubscribe:           "RouterUnsubscribe",           //取消订阅
+	RouterTopicSubscribe:        "RouterTopicSubscribe",        //订阅
+	RouterTopicUnsubscribe:      "RouterTopicUnsubscribe",      //取消订阅
+	RouterTopicDelete:           "RouterTopicDelete",           //删除主题
 	RouterTopicsUniqIdCount:     "RouterTopicsUniqIdCount",     //获取网关中的某几个主题的连接数
 	RouterTopicUniqIds:          "RouterTopicUniqIds",          //获取网关中的某个主题包含的uniqId
-	RouterPublish:               "RouterPublish",               //发布信息
+	RouterTopicPublish:          "RouterTopicPublish",          //发布信息
 }
 
 type ClientRouter struct {
@@ -122,13 +124,18 @@ type Broadcast struct {
 	Message string
 }
 
-// Subscribe 客户端发送的订阅信息
-type Subscribe struct {
+// TopicSubscribe 客户端发送的订阅信息
+type TopicSubscribe struct {
 	Topics []string
 }
 
-// Unsubscribe 客户端发送的取消订阅信息
-type Unsubscribe struct {
+// TopicUnsubscribe 客户端发送的取消订阅信息
+type TopicUnsubscribe struct {
+	Topics []string
+}
+
+// TopicDelete 客户端发送要删除的主题
+type TopicDelete struct {
 	Topics []string
 }
 
@@ -143,8 +150,8 @@ type TopicsUniqIdCount struct {
 	Topics   []string
 }
 
-// Publish 客户端发送的发布信息
-type Publish struct {
+// TopicPublish 客户端发送的发布信息
+type TopicPublish struct {
 	Message string
 	Topic   string
 }

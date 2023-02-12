@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.unsubscribe;
+package netsvr.topicUnsubscribe;
 
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，进行取消订阅操作
-message Unsubscribe {
+message TopicUnsubscribe {
   //目标uniqId
   string uniqId = 1;
   //需要取消订阅的主题

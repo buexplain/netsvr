@@ -4,6 +4,7 @@ import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
+	"netsvr/internal/catapult"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/metrics"
@@ -24,7 +25,7 @@ func NetSvrStatusRe(param []byte, processor *workerManager.ConnProcessor) {
 		ret.CustomerConnCount += int32(c.Len())
 	}
 	ret.TopicCount = int32(topic.Topic.Len())
-	ret.CatapultWaitSendCount = int32(Catapult.CountWaitSend())
+	ret.CatapultWaitSendCount = int32(catapult.Catapult.CountWaitSend())
 	ret.CatapultConsumer = int32(configs.Config.CatapultConsumer)
 	ret.CatapultChanCap = int32(configs.Config.CatapultChanCap)
 	ret.Metrics = map[string]*protocol.MetricsStatusResp{}

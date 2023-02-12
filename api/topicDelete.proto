@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package netsvr.topicDelete;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，进行删除操作
+message TopicDelete {
+  //需要删除的主题
+  repeated string topics = 1;
+  //删除主题后，需要发给客户的数据，如果没有，可以不传
+  bytes data = 2;
+}

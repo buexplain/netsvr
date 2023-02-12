@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/catapult"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
@@ -55,6 +56,6 @@ func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		Catapult.Put(payload)
+		catapult.Catapult.Put(payload)
 	}
 }

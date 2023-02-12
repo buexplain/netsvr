@@ -2,7 +2,6 @@ package configs
 
 import (
 	"flag"
-	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
 	"os"
@@ -18,11 +17,6 @@ type config struct {
 	//网关检查客户连接的心跳的时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
 
-	//info id的最小值，包含该值，不能为0
-	SessionIdMin uint32
-	//info id的最大值，包含该值
-	SessionIdMax uint32
-
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 	WorkerListenAddress string
 	//worker检查business连接的心跳的时间间隔（单位：秒）
@@ -31,10 +25,12 @@ type config struct {
 	WorkerReceivePackLimit uint32
 	//worker发送给business的包的大小限制（单位：字节）
 	WorkerSendPackLimit uint32
+
 	//网关用于发送数据给客户的协程数量
 	CatapultConsumer int
 	//等待发送给客户数据的缓冲区的大小
 	CatapultChanCap int
+
 	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
 	MetricsItem []int
 	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
@@ -49,7 +45,6 @@ func init() {
 	var err error
 	//兼容GoLand编辑器下的go run命令
 	tmp := strings.ToLower(os.Args[0])
-	fmt.Println(tmp)
 	features := []string{"go_build", "go-build", "tmp", "temp"}
 	isGoBuildRun := false
 	for _, v := range features {
@@ -94,14 +89,6 @@ func init() {
 		os.Exit(1)
 	}
 	//检查各种参数
-	if Config.SessionIdMin < 1 {
-		logging.Error("info id的最小值不能为0")
-		os.Exit(1)
-	}
-	if Config.SessionIdMax < Config.SessionIdMin {
-		logging.Error("info id的最大值配置，必须大于session id的最小值配置")
-		os.Exit(1)
-	}
 	if Config.WorkerHeartbeatIntervalSecond <= 0 {
 		//默认55秒
 		Config.WorkerHeartbeatIntervalSecond = 55

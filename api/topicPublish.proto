@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.publish;
+package netsvr.topicPublish;
 
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，给某个主题发布信息
-message Publish {
+message TopicPublish {
   //目标主题
   string topic = 1;
   //需要发给客户的数据

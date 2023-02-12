@@ -15,6 +15,7 @@ import (
 	"netsvr/internal/heartbeat"
 	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
+	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"netsvr/pkg/timecache"
@@ -74,7 +75,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		manager.Manager.Set(uniqId, conn)
 		logging.Debug("Customer websocket open, info: %#v", session)
 		//开启心跳
-		session.HeartbeatNode = heartbeat.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
+		session.HeartbeatNode = timer.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
 			if timecache.Unix()-session.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
 
 				//还在活跃期内，不做处理

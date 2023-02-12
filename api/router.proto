@@ -20,10 +20,11 @@ enum Cmd {
   Broadcast = 105; //广播
   Multicast = 106; //组播
   SingleCast = 107;//单播
-  Subscribe = 108;//订阅
-  Unsubscribe = 109;//取消订阅
-  Publish = 110;//发布
-  ForceOffline = 111;//强制关闭某个连接
+  TopicSubscribe = 108;//订阅
+  TopicUnsubscribe = 109;//取消订阅
+  TopicDelete = 110;//删除主题
+  TopicPublish = 111;//发布
+  ForceOffline = 112;//强制关闭某个连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker，worker再响应business的指令 开始--------------------------------

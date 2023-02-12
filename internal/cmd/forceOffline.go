@@ -7,8 +7,8 @@ import (
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
-	"netsvr/internal/heartbeat"
 	"netsvr/internal/protocol"
+	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"time"
 )
@@ -44,7 +44,7 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 	} else {
 		//写入数据，并在一定倒计时后关闭连接
 		_ = conn.WriteMessage(websocket.TextMessage, payload.Data)
-		heartbeat.Timer.AfterFunc(time.Second*3, func() {
+		timer.Timer.AfterFunc(time.Second*3, func() {
 			_ = conn.Close()
 		})
 	}

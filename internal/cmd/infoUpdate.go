@@ -4,11 +4,12 @@ import (
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/catapult"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
-	"netsvr/internal/heartbeat"
 	"netsvr/internal/protocol"
+	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"time"
 )
@@ -50,7 +51,7 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 			} else {
 				//写入数据，并在一定倒计时后关闭连接
 				_ = conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted)
-				heartbeat.Timer.AfterFunc(time.Second*3, func() {
+				timer.Timer.AfterFunc(time.Second*3, func() {
 					_ = conflictConn.Close()
 				})
 			}
@@ -74,11 +75,11 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.NewTopics) > 0 {
 		topics := session.PullTopics()
 		topic.Topic.Del(topics, payload.UniqId)
-		session.Subscribe(payload.NewTopics)
+		session.SubscribeTopics(payload.NewTopics)
 		topic.Topic.Set(payload.NewTopics, payload.UniqId)
 	}
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		Catapult.Put(payload)
+		catapult.Catapult.Put(payload)
 	}
 }

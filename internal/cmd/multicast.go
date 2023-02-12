@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/catapult"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -18,6 +19,6 @@ func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	for _, uniqId := range payload.UniqIds {
-		Catapult.Put(NewPayload(uniqId, payload.Data))
+		catapult.Catapult.Put(catapult.NewPayload(uniqId, payload.Data))
 	}
 }
