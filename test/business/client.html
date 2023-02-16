@@ -113,7 +113,9 @@
             <button onclick="send(null,routerCmd.logout)">退出登录</button>
             <button onclick="send(null,routerCmd.netSvrStatus)">获取网关状态</button>
             <button onclick="send(null,routerCmd.totalUniqIds)">获取网关所有uniqId</button>
-            <button onclick="send(null,routerCmd.topicList)">获取已订阅的主题列表</button>
+            <button onclick="send(null,routerCmd.topicMyList)">获取我已订阅的主题列表</button>
+            <button onclick="send(null,routerCmd.topicList)">获取网关中的主题</button>
+            <button onclick="send(null,routerCmd.topicCount)">获取网关中的主题数量</button>
         </div>
 
         <div class="case">
@@ -269,7 +271,9 @@
         connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
         netSvrStatus: parseInt("{!.RouterNetSvrStatus!}"),//获取网关的信息
         totalUniqIds: parseInt("{!.RouterTotalUniqIds!}"), //获取网关所有的uniqId
-        topicList: parseInt("{!.RouterTopicList!}"), //获取已订阅的主题列表
+        topicMyList: parseInt("{!.RouterTopicMyList!}"), //获取已订阅的主题列表
+        topicCount: parseInt("{!.RouterTopicCount!}"), //获取网关中的主题
+        topicList: parseInt("{!.RouterTopicList!}"), //获取网关中的主题数量
         login: parseInt("{!.RouterLogin!}"), //登录
         logout: parseInt("{!.RouterLogout!}"), //退出登录
         checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
@@ -458,17 +462,42 @@
                     print(resp.data.message + '：\n' + resp.data.data.totalUniqIds.join('\n'));
                     return;
                 }
-                //服务端响应了所有的主题列表
+
+                //服务端响应了我已订阅的主题列表
+                if (resp.cmd === routerCmd.topicMyList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data.topics === null) {
+                        print("您还未订阅任何主题");
+                        return;
+                    }
+                    print("您已经订阅的主题有：" + resp.data.data.topics.join('、'));
+                    return;
+                }
+
+                //服务端响应了网关中的主题列表
                 if (resp.cmd === routerCmd.topicList) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
                     }
                     if (resp.data.data.topics === null) {
-                        print("还未订阅任何主题");
+                        print("没有用户订阅过主题");
                         return;
                     }
                     print("已经订阅的主题有：" + resp.data.data.topics.join('、'));
+                    return;
+                }
+
+                //服务端响应了网关中的主题数量
+                if (resp.cmd === routerCmd.topicCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print("网关现有主题数是：" + resp.data.data.count);
                     return;
                 }
 

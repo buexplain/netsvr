@@ -17,6 +17,8 @@ const (
 	RouterRespConnClose
 	RouterNetSvrStatus
 	RouterTotalUniqIds
+	RouterTopicMyList
+	RouterTopicCount
 	RouterTopicList
 	RouterLogin
 	RouterLogout
@@ -41,7 +43,9 @@ var CmdName = map[Cmd]string{
 	RouterRespConnClose:         "RouterRespConnClose",         //响应连接成功信息
 	RouterNetSvrStatus:          "RouterNetSvrStatus",          //获取网关的信息
 	RouterTotalUniqIds:          "RouterTotalUniqIds",          //获取网关所有在线的session id
-	RouterTopicList:             "RouterTopicList",             //获取已订阅的主题列表
+	RouterTopicMyList:           "RouterTopicMyList",           //获取已订阅的主题列表
+	RouterTopicCount:            "RouterTopicCount",            //获取网关中的主题
+	RouterTopicList:             "RouterTopicList",             //获取网关中的主题数量
 	RouterLogin:                 "RouterLogin",                 //登录
 	RouterLogout:                "RouterLogout",                //退出登录
 	RouterCheckOnlineForUniqId:  "RouterCheckOnlineForUniqId",  //检查某几个连接是否在线

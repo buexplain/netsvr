@@ -29,11 +29,13 @@ enum Cmd {
 
   //--------------------------------business请求worker，worker再响应business的指令 开始--------------------------------
   TotalUniqIdsRe = 201; //获取网关中全部的uniqId
-  TopicUniqIdsRe = 202; //获取网关中主题包含的uniqId
-  TopicsUniqIdCountRe = 203; //获取网关中的某几个主题的uniqId数量
-  InfoRe = 204; //获取连接的信息
-  NetSvrStatusRe = 205; //获取网关的状态
-  CheckOnlineRe = 206; //判断uniqId是否在网关中
+  TopicUniqIdsRe = 202; //获取网关中某个主题包含的uniqId
+  TopicsUniqIdCountRe = 203; //获取网关中的某个主题的uniqId数量
+  TopicCountRe = 204; //获取网关中的主题数量
+  TopicListRe = 205; //获取网关中的主题
+  InfoRe = 206; //获取连接的信息
+  NetSvrStatusRe = 207; //获取网关的状态
+  CheckOnlineRe = 208; //判断uniqId是否在网关中
   //--------------------------------business请求worker，worker再响应business的指令 结束--------------------------------
 }
 

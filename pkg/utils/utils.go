@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/binary"
-	"hash/adler32"
 	"math/rand"
 	"netsvr/configs"
 	"netsvr/pkg/timecache"
@@ -53,20 +52,20 @@ func byteToInt(b byte) int {
 	}
 }
 
-var uuidPrefix = adler32.Checksum([]byte(configs.Config.WorkerListenAddress))
 var uuidSuffix = uint32(rand.Int31())
 
-// UniqId 生成一个唯一id，网关地址+时间戳+自增值，共24个字符
+// UniqId 生成一个唯一id，服务编号+时间戳+自增值，共18个字符
 func UniqId() string {
-	buf := make([]byte, 24)
-	binary.BigEndian.PutUint32(buf[12:], uuidPrefix)
-	binary.BigEndian.PutUint32(buf[16:], uint32(timecache.Unix()))
-	binary.BigEndian.PutUint32(buf[20:], atomic.AddUint32(&uuidSuffix, 1))
+	buf := make([]byte, 18)
+	buf[9] = configs.Config.ServerId
+	binary.BigEndian.PutUint32(buf[10:], uint32(timecache.Unix()))
+	binary.BigEndian.PutUint32(buf[14:], atomic.AddUint32(&uuidSuffix, 1))
 	var j int8
-	for _, v := range buf[12:] {
-		buf[j] = "0123456789abcdef"[v>>4]
-		buf[j+1] = "0123456789abcdef"[v&0x0f]
+	for _, v := range buf[9:] {
+		//这里保持字母大写，作为服务编号之外的第二个特征吧
+		buf[j] = "0123456789ABCDEF"[v>>4]
+		buf[j+1] = "0123456789ABCDEF"[v&0x0f]
 		j += 2
 	}
-	return unsafe.String(&buf[0], 24)
+	return unsafe.String(&buf[0], 18)
 }

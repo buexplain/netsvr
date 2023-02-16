@@ -9,17 +9,17 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// Publish 发布
-func Publish(param []byte, _ *workerManager.ConnProcessor) {
+// TopicPublish 发布
+func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 	payload := protocol.TopicPublish{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal publish.Publish error: %v", err)
+		logging.Error("Proto unmarshal publish.TopicPublish error: %v", err)
 		return
 	}
 	if len(payload.Data) == 0 || payload.Topic == "" {
 		return
 	}
-	uniqIds := topic.Topic.Get(payload.Topic)
+	uniqIds := topic.Topic.GetUniqIds(payload.Topic)
 	if len(uniqIds) == 0 {
 		return
 	}

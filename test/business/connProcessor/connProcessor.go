@@ -324,8 +324,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		callback(router.Data, r)
 		return
 	}
-	//worker传递了错误的命令
-	r.Close()
+	//worker传递了未知的命令
 	logging.Error("Unknown internalProtocol.Router.Cmd: %s", router.Cmd)
 }
 

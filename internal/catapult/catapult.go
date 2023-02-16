@@ -109,7 +109,7 @@ func (r *catapult) consumer(number int) {
 	}
 }
 
-func (r *catapult) CountWaitSend() int {
+func (r *catapult) Len() int {
 	return len(r.ch)
 }
 

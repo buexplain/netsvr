@@ -21,7 +21,7 @@ func TopicUniqIdsRe(param []byte, processor *workerManager.ConnProcessor) {
 	ret := &protocol.TopicUniqIdsResp{}
 	ret.ReCtx = payload.ReCtx
 	ret.Topic = payload.Topic
-	ret.UniqIds = topic.Topic.Get(payload.Topic)
+	ret.UniqIds = topic.Topic.GetUniqIds(payload.Topic)
 	route := &protocol.Router{}
 	route.Cmd = protocol.Cmd_TopicUniqIdsRe
 	route.Data, _ = proto.Marshal(ret)

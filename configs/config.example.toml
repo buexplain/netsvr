@@ -1,7 +1,12 @@
+# 服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
+# 如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
+ServerId = 0
 # 客户服务器监听的地址，ip:port，这个地址一般是外网地址
 CustomerListenAddress = "127.0.0.1:6060"
 # 客户服务器的url路由
 CustomerHandlePattern = "/netsvr"
+# 最大连接数
+CustomerMaxOnlineNum = 100000
 # worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 WorkerListenAddress = "127.0.0.1:6061"
 # worker检查business连接的心跳的时间间隔（单位：秒）

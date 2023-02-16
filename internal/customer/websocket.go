@@ -32,6 +32,8 @@ func Start() {
 		Network: "tcp",
 		Addrs:   []string{configs.Config.CustomerListenAddress},
 		Handler: mux,
+		MaxLoad: configs.Config.CustomerMaxOnlineNum,
+		//TODO 测试更多的配置信息
 	}
 	config.Name = "customer"
 	server = nbhttp.NewServer(config)

@@ -6,7 +6,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/catapult"
 	customerManager "netsvr/internal/customer/manager"
-	"netsvr/internal/customer/topic"
 	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
@@ -24,10 +23,10 @@ func NetSvrStatusRe(param []byte, processor *workerManager.ConnProcessor) {
 	for _, c := range customerManager.Manager {
 		ret.CustomerConnCount += int32(c.Len())
 	}
-	ret.TopicCount = int32(topic.Topic.Len())
-	ret.CatapultWaitSendCount = int32(catapult.Catapult.CountWaitSend())
-	ret.CatapultConsumer = int32(configs.Config.CatapultConsumer)
-	ret.CatapultChanCap = int32(configs.Config.CatapultChanCap)
+	ret.Catapult = &protocol.CatapultResp{}
+	ret.Catapult.ChanLen = int32(catapult.Catapult.Len())
+	ret.Catapult.Consumer = int32(configs.Config.CatapultConsumer)
+	ret.Catapult.ChanCap = int32(configs.Config.CatapultChanCap)
 	ret.Metrics = map[string]*protocol.MetricsStatusResp{}
 	for _, v := range metrics.Registry {
 		if tmp := v.ToStatusResp(); tmp != nil {

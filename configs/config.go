@@ -10,12 +10,17 @@ import (
 )
 
 type config struct {
+	//服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
+	//如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
+	ServerId uint8
 	//客户服务器监听的地址，ip:port，这个地址一般是外网地址
 	CustomerListenAddress string
 	//客户服务器的url路由
 	CustomerHandlePattern string
 	//网关检查客户连接的心跳的时间间隔（单位：秒）
 	CustomerHeartbeatIntervalSecond int64
+	//最大连接数
+	CustomerMaxOnlineNum int
 
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 	WorkerListenAddress string
@@ -41,27 +46,7 @@ type config struct {
 var RootPath string
 
 func init() {
-	var dir string
-	var err error
-	//兼容GoLand编辑器下的go run命令
-	tmp := strings.ToLower(os.Args[0])
-	features := []string{"go_build", "go-build", "tmp", "temp"}
-	isGoBuildRun := false
-	for _, v := range features {
-		if strings.Contains(tmp, v) {
-			isGoBuildRun = true
-			break
-		}
-	}
-	if isGoBuildRun {
-		dir, err = os.Getwd()
-		//兼容go run .\cmd\main.go
-		if err == nil && strings.HasSuffix(dir, "cmd") {
-			dir = filepath.Dir(dir)
-		}
-	} else {
-		dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
-	}
+	dir, err := os.Getwd()
 	if err != nil {
 		logging.Error("获取进程工作目录失败：%s", err)
 		os.Exit(1)
@@ -93,6 +78,10 @@ func init() {
 		//默认55秒
 		Config.WorkerHeartbeatIntervalSecond = 55
 	}
+	if Config.CustomerMaxOnlineNum <= 0 {
+		//默认最多负载十万个连接
+		Config.CustomerMaxOnlineNum = 10 * 10000
+	}
 	if Config.WorkerReceivePackLimit <= 0 {
 		//默认2MB
 		Config.WorkerReceivePackLimit = 2 * 1024 * 1024
@@ -117,5 +106,4 @@ func init() {
 		//默认10秒
 		Config.MetricsMaxRecordIntervalSecond = 10
 	}
-
 }

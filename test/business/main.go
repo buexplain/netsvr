@@ -69,6 +69,8 @@ func main() {
 	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicUniqIdsRe, svr.TopicUniqIds)
 	processor.RegisterSvrCmd(internalProtocol.Cmd_TotalUniqIdsRe, svr.TotalUniqIds)
 	processor.RegisterSvrCmd(internalProtocol.Cmd_CheckOnlineRe, svr.CheckOnline)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicCountRe, svr.TopicCountRe)
+	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicListRe, svr.TopicListRe)
 	//注册用户发送过来的命令的处理函数
 	processor.RegisterClientCmd(protocol.RouterBroadcast, client.Broadcast)
 	processor.RegisterClientCmd(protocol.RouterLogin, client.Login)
@@ -85,6 +87,8 @@ func main() {
 	processor.RegisterClientCmd(protocol.RouterTopicsUniqIdCount, client.TopicsUniqIdCount)
 	processor.RegisterClientCmd(protocol.RouterTopicUniqIds, client.TopicUniqIds)
 	processor.RegisterClientCmd(protocol.RouterTotalUniqIds, client.TotalUniqIds)
+	processor.RegisterClientCmd(protocol.RouterTopicMyList, client.TopicMyList)
+	processor.RegisterClientCmd(protocol.RouterTopicCount, client.TopicCount)
 	processor.RegisterClientCmd(protocol.RouterTopicList, client.TopicList)
 	processor.RegisterClientCmd(protocol.RouterForceOfflineForUserId, client.ForceOfflineForUserId)
 	processor.RegisterClientCmd(protocol.RouterForceOfflineForUniqId, client.ForceOfflineForUniqId)
