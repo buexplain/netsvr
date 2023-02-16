@@ -375,6 +375,7 @@
         ws.onopen = function () {
             heartbeatInterval = setInterval(function () {
                 //每隔30秒，发送一次心跳信息
+                //这个心跳一定要发，否则服务端会把连接干掉
                 ws.send(pingMessage);
             }, 1000 * 30);
         }

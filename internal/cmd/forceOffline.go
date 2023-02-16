@@ -45,6 +45,9 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		//写入数据，并在一定倒计时后关闭连接
 		_ = conn.WriteMessage(websocket.TextMessage, payload.Data)
 		timer.Timer.AfterFunc(time.Second*3, func() {
+			defer func() {
+				_ = recover()
+			}()
 			_ = conn.Close()
 		})
 	}

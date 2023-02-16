@@ -72,6 +72,7 @@ func (r *ConnProcessor) LoopHeartbeat() {
 		case <-quit.Ctx.Done():
 			return
 		case <-t.C:
+			//这个心跳一定要发，否则服务端会把连接干掉
 			r.Send(heartbeat.PingMessage)
 		}
 	}

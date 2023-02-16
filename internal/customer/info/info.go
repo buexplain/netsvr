@@ -1,50 +1,23 @@
 package info
 
 import (
-	"github.com/antlabs/timer"
 	"netsvr/internal/protocol"
 	"sync"
 )
 
 type Info struct {
-	uniqId         string
-	session        string
-	topics         []string
-	lastActiveTime int64
-	HeartbeatNode  timer.TimeNoder
-	mux            sync.RWMutex
+	uniqId  string
+	session string
+	topics  []string
+	mux     sync.RWMutex
 }
 
 func NewInfo(uniqId string) *Info {
 	return &Info{
-		uniqId:         uniqId,
-		topics:         nil,
-		lastActiveTime: 0,
-		mux:            sync.RWMutex{},
+		uniqId: uniqId,
+		topics: nil,
+		mux:    sync.RWMutex{},
 	}
-}
-
-// SetLastActiveTime 更新连接的最后活跃时间
-func (r *Info) SetLastActiveTime(lastActiveTime int64) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	r.lastActiveTime = lastActiveTime
-}
-
-func (r *Info) GetLastActiveTime() int64 {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	return r.lastActiveTime
-}
-
-func (r *Info) HeartbeatStop() {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	if r.HeartbeatNode == nil {
-		return
-	}
-	r.HeartbeatNode.Stop()
-	r.HeartbeatNode = nil
 }
 
 func (r *Info) PullUniqId() string {
@@ -104,11 +77,6 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 func (r *Info) Clear() (topics []string, uniqId string, session string) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	//停止心跳函数
-	if r.HeartbeatNode != nil {
-		r.HeartbeatNode.Stop()
-		r.HeartbeatNode = nil
-	}
 	//删除所有订阅
 	topics = r.topics
 	r.topics = nil

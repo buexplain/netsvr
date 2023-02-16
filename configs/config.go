@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type config struct {
@@ -17,15 +18,15 @@ type config struct {
 	CustomerListenAddress string
 	//客户服务器的url路由
 	CustomerHandlePattern string
-	//网关检查客户连接的心跳的时间间隔（单位：秒）
-	CustomerHeartbeatIntervalSecond int64
+	//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
+	CustomerReadDeadline time.Duration
 	//最大连接数
 	CustomerMaxOnlineNum int
 
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 	WorkerListenAddress string
-	//worker检查business连接的心跳的时间间隔（单位：秒）
-	WorkerHeartbeatIntervalSecond int64
+	//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
+	WorkerReadDeadline time.Duration
 	//worker读取business的包的大小限制（单位：字节）
 	WorkerReceivePackLimit uint32
 	//worker发送给business的包的大小限制（单位：字节）
@@ -39,7 +40,7 @@ type config struct {
 	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
 	MetricsItem []int
 	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
-	MetricsMaxRecordIntervalSecond int
+	MetricsMaxRecordInterval time.Duration
 }
 
 // RootPath 程序根目录
@@ -74,9 +75,9 @@ func init() {
 		os.Exit(1)
 	}
 	//检查各种参数
-	if Config.WorkerHeartbeatIntervalSecond <= 0 {
-		//默认55秒
-		Config.WorkerHeartbeatIntervalSecond = 55
+	if Config.WorkerReadDeadline <= 0 {
+		//默认120秒
+		Config.WorkerReadDeadline = time.Second * 120
 	}
 	if Config.CustomerMaxOnlineNum <= 0 {
 		//默认最多负载十万个连接
@@ -90,9 +91,9 @@ func init() {
 		//默认2MB
 		Config.WorkerSendPackLimit = 2 * 1024 * 1024
 	}
-	if Config.CustomerHeartbeatIntervalSecond <= 0 {
-		//默认55秒
-		Config.CustomerHeartbeatIntervalSecond = 55
+	if Config.CustomerReadDeadline <= 0 {
+		//默认120秒
+		Config.CustomerReadDeadline = time.Second * 120
 	}
 	if Config.CatapultConsumer <= 0 {
 		//默认1000个协程
@@ -102,8 +103,8 @@ func init() {
 		//缓冲区默认大小是2000
 		Config.CatapultChanCap = 2000
 	}
-	if Config.MetricsMaxRecordIntervalSecond <= 0 {
+	if Config.MetricsMaxRecordInterval <= 0 {
 		//默认10秒
-		Config.MetricsMaxRecordIntervalSecond = 10
+		Config.MetricsMaxRecordInterval = time.Second * 10
 	}
 }

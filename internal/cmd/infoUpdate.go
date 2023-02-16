@@ -52,6 +52,9 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 				//写入数据，并在一定倒计时后关闭连接
 				_ = conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted)
 				timer.Timer.AfterFunc(time.Second*3, func() {
+					defer func() {
+						_ = recover()
+					}()
 					_ = conflictConn.Close()
 				})
 			}

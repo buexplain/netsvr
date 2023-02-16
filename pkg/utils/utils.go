@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"netsvr/configs"
-	"netsvr/pkg/timecache"
 	"sync/atomic"
+	"time"
 	"unsafe"
 )
 
@@ -58,7 +58,7 @@ var uuidSuffix = uint32(rand.Int31())
 func UniqId() string {
 	buf := make([]byte, 18)
 	buf[9] = configs.Config.ServerId
-	binary.BigEndian.PutUint32(buf[10:], uint32(timecache.Unix()))
+	binary.BigEndian.PutUint32(buf[10:], uint32(time.Now().Unix()))
 	binary.BigEndian.PutUint32(buf[14:], atomic.AddUint32(&uuidSuffix, 1))
 	var j int8
 	for _, v := range buf[9:] {

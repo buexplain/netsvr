@@ -15,12 +15,9 @@ import (
 	"netsvr/internal/heartbeat"
 	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
-	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
-	"netsvr/pkg/timecache"
 	"netsvr/pkg/utils"
-	"time"
 )
 
 var server *nbhttp.Server
@@ -64,7 +61,9 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	default:
 	}
 	upgrade := websocket.NewUpgrader()
+	upgrade.KeepaliveTime = configs.Config.CustomerReadDeadline
 	upgrade.CheckOrigin = func(r *http.Request) bool {
+		//TODO 设计一个检查origin的配置
 		return true
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
@@ -76,22 +75,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		conn.SetSession(session)
 		manager.Manager.Set(uniqId, conn)
 		logging.Debug("Customer websocket open, info: %#v", session)
-		//开启心跳
-		session.HeartbeatNode = timer.Timer.ScheduleFunc(time.Duration(configs.Config.CustomerHeartbeatIntervalSecond)*time.Second, func() {
-			if timecache.Unix()-session.GetLastActiveTime() < configs.Config.CustomerHeartbeatIntervalSecond {
-
-				//还在活跃期内，不做处理
-				return
-			}
-			//超过活跃期，服务端主动发送心跳
-			if err := conn.WriteMessage(websocket.TextMessage, heartbeat.PingMessage); err == nil {
-				//写入数据成功，更新连接的最后活跃时间
-				session.SetLastActiveTime(timecache.Unix())
-				return
-			}
-			//写入数据失败，直接关闭连接，触发onClose回调
-			_ = conn.Close()
-		})
 		//获取处理连接打开的worker
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
@@ -158,10 +141,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			}
 			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 			return
-		} else if bytes.Equal(data, heartbeat.PongMessage) {
-			//客户端响应了服务端的心跳
-			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
-			return
 		} else if messageType == websocket.PingMessage {
 			//响应客户端心跳
 			err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
@@ -175,8 +154,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		//更新连接的最后活跃时间
-		session.SetLastActiveTime(timecache.Unix())
 		//读取前三个字节，转成business的服务编号
 		workerId := utils.BytesToInt(data, 3)
 		worker := workerManager.Manager.Get(workerId)
@@ -197,16 +174,10 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//统计转发到business的次数与字节数
 		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
 		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
-
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {
 		logging.Error("Customer websocket upgrade failed: %v", err)
-		return
-	}
-	wsConn := conn.(*websocket.Conn)
-	if err := wsConn.SetReadDeadline(time.Time{}); err != nil {
-		logging.Error("Customer websocket SetReadDeadline failed: %v", err)
 		return
 	}
 	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
