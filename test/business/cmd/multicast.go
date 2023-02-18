@@ -1,4 +1,4 @@
-package client
+package cmd
 
 import (
 	"encoding/json"
@@ -9,15 +9,30 @@ import (
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/protocol"
 	"netsvr/test/business/userDb"
-	workerUtils "netsvr/test/business/utils"
+	businessUtils "netsvr/test/business/utils"
 	"strconv"
 )
 
-// MulticastForUserId 组播给某几个用户
-func MulticastForUserId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
-	payload := new(protocol.MulticastForUserId)
-	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse protocol.MulticastForUserId request error: %v", err)
+type multicast struct{}
+
+var Multicast = multicast{}
+
+func (r multicast) Init(processor *connProcessor.ConnProcessor) {
+	processor.RegisterBusinessCmd(protocol.RouterMulticastForUserId, r.ForUserId)
+	processor.RegisterBusinessCmd(protocol.RouterMulticastForUniqId, r.ForUniqId)
+}
+
+// MulticastForUserIdParam 客户端发送的组播信息
+type MulticastForUserIdParam struct {
+	Message string
+	UserIds []int `json:"userIds"`
+}
+
+// ForUserId 组播给某几个用户
+func (multicast) ForUserId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := new(MulticastForUserIdParam)
+	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
+		logging.Error("Parse MulticastForUserIdParam error: %v", err)
 		return
 	}
 	var fromUser string
@@ -41,10 +56,10 @@ func MulticastForUserId(tf *internalProtocol.Transfer, param string, processor *
 	if len(userIds) == 0 {
 		//目标用户不存在，返回信息给到发送者
 		userIds = append(userIds, tf.UniqId)
-		ret.Data = workerUtils.NewResponse(protocol.RouterMulticastForUserId, map[string]interface{}{"code": 1, "message": "未找到目标用户"})
+		ret.Data = businessUtils.NewResponse(protocol.RouterMulticastForUserId, map[string]interface{}{"code": 1, "message": "未找到目标用户"})
 	} else {
 		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-		ret.Data = workerUtils.NewResponse(protocol.RouterMulticastForUserId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
+		ret.Data = businessUtils.NewResponse(protocol.RouterMulticastForUserId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	}
 	ret.UniqIds = userIds
 	router := &internalProtocol.Router{}
@@ -54,11 +69,17 @@ func MulticastForUserId(tf *internalProtocol.Transfer, param string, processor *
 	processor.Send(pt)
 }
 
-// MulticastForUniqId 组播给某几个uniqId
-func MulticastForUniqId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
-	payload := new(protocol.MulticastForUniqId)
-	if err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse protocol.MulticastForUniqId request error: %v", err)
+// MulticastForUniqIdParam 客户端发送的组播信息
+type MulticastForUniqIdParam struct {
+	Message string
+	UnIqIds []string `json:"unIqIds"`
+}
+
+// ForUniqId 组播给某几个uniqId
+func (multicast) ForUniqId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := new(MulticastForUniqIdParam)
+	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
+		logging.Error("Parse MulticastForUniqIdParam error: %v", err)
 		return
 	}
 	var fromUser string
@@ -72,7 +93,7 @@ func MulticastForUniqId(tf *internalProtocol.Transfer, param string, processor *
 	ret := &internalProtocol.Multicast{}
 	ret.UniqIds = payload.UnIqIds
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	ret.Data = workerUtils.NewResponse(protocol.RouterMulticastForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
+	ret.Data = businessUtils.NewResponse(protocol.RouterMulticastForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	//发到网关
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_Multicast

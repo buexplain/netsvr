@@ -8,8 +8,8 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// TopicUniqIdsRe 获取网关中的主题包含的uniqId
-func TopicUniqIdsRe(param []byte, processor *workerManager.ConnProcessor) {
+// TopicUniqIds 获取网关中的主题包含的uniqId
+func TopicUniqIds(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.TopicUniqIdsReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal protocol.TopicUniqIdsReq error: %v", err)
@@ -19,11 +19,11 @@ func TopicUniqIdsRe(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &protocol.TopicUniqIdsResp{}
-	ret.ReCtx = payload.ReCtx
+	ret.CtxData = payload.CtxData
 	ret.Topic = payload.Topic
 	ret.UniqIds = topic.Topic.GetUniqIds(payload.Topic)
 	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd_TopicUniqIdsRe
+	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

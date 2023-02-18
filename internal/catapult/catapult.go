@@ -4,7 +4,7 @@ import (
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"netsvr/configs"
-	"netsvr/internal/customer/manager"
+	customerManager "netsvr/internal/customer/manager"
 	"netsvr/pkg/quit"
 	"runtime/debug"
 	"time"
@@ -47,7 +47,7 @@ func (r *catapult) Put(payload PayloadInterface) {
 }
 
 func (r *catapult) write(payload PayloadInterface) {
-	conn := manager.Manager.Get(payload.GetUniqId())
+	conn := customerManager.Manager.Get(payload.GetUniqId())
 	if conn != nil {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.GetData()); err != nil {
 			logging.Debug("Catapult write message error: %v", err)
@@ -89,12 +89,12 @@ func (r *catapult) consumer(number int) {
 	defer func() {
 		quit.Wg.Done()
 		if err := recover(); err != nil {
-			logging.Error("Customer catapult consumer coroutine is closed, error: %v\n%s", err, debug.Stack())
+			logging.Error("Catapult consumer coroutine is closed, error: %v\n%s", err, debug.Stack())
 			time.Sleep(5 * time.Second)
 			quit.Wg.Add(1)
 			go r.consumer(number)
 		} else {
-			logging.Debug("Customer catapult consumer coroutine is closed")
+			logging.Debug("Catapult consumer coroutine is closed")
 		}
 	}()
 	for {

@@ -11,15 +11,15 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// NetSvrStatusRe 返回网关的状态
-func NetSvrStatusRe(param []byte, processor *workerManager.ConnProcessor) {
+// NetSvrStatus 返回网关的状态
+func NetSvrStatus(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.NetSvrStatusReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal protocol.NetSvrStatusReq error: %v", err)
 		return
 	}
 	ret := &protocol.NetSvrStatusResp{}
-	ret.ReCtx = payload.ReCtx
+	ret.CtxData = payload.CtxData
 	for _, c := range customerManager.Manager {
 		ret.CustomerConnCount += int32(c.Len())
 	}
@@ -34,7 +34,7 @@ func NetSvrStatusRe(param []byte, processor *workerManager.ConnProcessor) {
 		}
 	}
 	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd_NetSvrStatusRe
+	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

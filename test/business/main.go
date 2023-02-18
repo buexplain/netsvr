@@ -7,10 +7,8 @@ import (
 	"net"
 	"net/http"
 	"netsvr/configs"
-	internalProtocol "netsvr/internal/protocol"
 	"netsvr/pkg/quit"
-	"netsvr/test/business/cmd/client"
-	"netsvr/test/business/cmd/svr"
+	"netsvr/test/business/cmd"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/protocol"
 	"os"
@@ -32,8 +30,8 @@ func clientServer() {
 		//注入连接地址
 		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.CustomerListenAddress, configs.Config.CustomerHandlePattern)
 		//把所有的命令注入到客户端
-		for cmd, name := range protocol.CmdName {
-			data[name] = int(cmd)
+		for c, name := range protocol.CmdName {
+			data[name] = int(c)
 		}
 		err = t.Execute(writer, data)
 		if err != nil {
@@ -60,39 +58,17 @@ func main() {
 		os.Exit(1)
 	}
 	logging.Debug("注册到worker %d ok", processor.GetWorkerId())
-	//注册网关发送过来的命令的处理函数
-	processor.RegisterSvrCmd(internalProtocol.Cmd_ConnOpen, svr.ConnOpen)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_ConnClose, svr.ConnClose)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_NetSvrStatusRe, svr.NetSvrStatus)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_InfoRe, svr.InfoRe)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicsUniqIdCountRe, svr.TopicsUniqIdCount)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicUniqIdsRe, svr.TopicUniqIds)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TotalUniqIdsRe, svr.TotalUniqIds)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_CheckOnlineRe, svr.CheckOnline)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicCountRe, svr.TopicCountRe)
-	processor.RegisterSvrCmd(internalProtocol.Cmd_TopicListRe, svr.TopicListRe)
-	//注册用户发送过来的命令的处理函数
-	processor.RegisterClientCmd(protocol.RouterBroadcast, client.Broadcast)
-	processor.RegisterClientCmd(protocol.RouterLogin, client.Login)
-	processor.RegisterClientCmd(protocol.RouterLogout, client.Logout)
-	processor.RegisterClientCmd(protocol.RouterMulticastForUserId, client.MulticastForUserId)
-	processor.RegisterClientCmd(protocol.RouterMulticastForUniqId, client.MulticastForUniqId)
-	processor.RegisterClientCmd(protocol.RouterNetSvrStatus, client.NetSvrStatus)
-	processor.RegisterClientCmd(protocol.RouterTopicPublish, client.TopicPublish)
-	processor.RegisterClientCmd(protocol.RouterSingleCastForUserId, client.SingleCastForUserId)
-	processor.RegisterClientCmd(protocol.RouterSingleCastForUniqId, client.SingleCastForUniqId)
-	processor.RegisterClientCmd(protocol.RouterTopicSubscribe, client.TopicSubscribe)
-	processor.RegisterClientCmd(protocol.RouterTopicUnsubscribe, client.TopicUnsubscribe)
-	processor.RegisterClientCmd(protocol.RouterTopicDelete, client.TopicDelete)
-	processor.RegisterClientCmd(protocol.RouterTopicsUniqIdCount, client.TopicsUniqIdCount)
-	processor.RegisterClientCmd(protocol.RouterTopicUniqIds, client.TopicUniqIds)
-	processor.RegisterClientCmd(protocol.RouterTotalUniqIds, client.TotalUniqIds)
-	processor.RegisterClientCmd(protocol.RouterTopicMyList, client.TopicMyList)
-	processor.RegisterClientCmd(protocol.RouterTopicCount, client.TopicCount)
-	processor.RegisterClientCmd(protocol.RouterTopicList, client.TopicList)
-	processor.RegisterClientCmd(protocol.RouterForceOfflineForUserId, client.ForceOfflineForUserId)
-	processor.RegisterClientCmd(protocol.RouterForceOfflineForUniqId, client.ForceOfflineForUniqId)
-	processor.RegisterClientCmd(protocol.RouterCheckOnlineForUniqId, client.CheckOnlineForUniqId)
+	//注册各种回调函数
+	cmd.CheckOnline.Init(processor)
+	cmd.Broadcast.Init(processor)
+	cmd.Multicast.Init(processor)
+	cmd.SingleCast.Init(processor)
+	cmd.ConnSwitch.Init(processor)
+	cmd.Sign.Init(processor)
+	cmd.ForceOffline.Init(processor)
+	cmd.NetSvrStatus.Init(processor)
+	cmd.Topic.Init(processor)
+	cmd.TotalUniqIds.Init(processor)
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()

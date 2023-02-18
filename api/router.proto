@@ -6,37 +6,39 @@ option go_package = "internal/protocol;protocol";
 
 //worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
 enum Cmd {
+  //毫无意义的占位符，目的是避免枚举从零开始，把指令搞大一点的目的是避免和business的指令段冲突
+  Placeholder = 0;
   //--------------------------------worker单向转发给business的指令 开始--------------------------------
-  Transfer = 0;//透传客户数据
-  ConnClose = 1;//连接关闭
-  ConnOpen = 2; //连接打开
+  Transfer = 90001001;//透传客户数据
+  ConnClose = 90001002;//连接关闭
+  ConnOpen = 90001003; //连接打开
   //--------------------------------worker单向转发给business的指令 结束--------------------------------
 
-  //--------------------------------business单向请求worker的指令 开始--------------------------------
-  Register = 101; //注册business到worker，注册后，business会收到worker转发的客户信息
-  Unregister = 102; //取消注册，取消后不会再收到客户信息
-  InfoUpdate = 103;//更新连接的info信息
-  InfoDelete = 104;//删除连接的info信息
-  Broadcast = 105; //广播
-  Multicast = 106; //组播
-  SingleCast = 107;//单播
-  TopicSubscribe = 108;//订阅
-  TopicUnsubscribe = 109;//取消订阅
-  TopicDelete = 110;//删除主题
-  TopicPublish = 111;//发布
-  ForceOffline = 112;//强制关闭某个连接
+  //--------------------------------business单向请求worker的指令，worker不会响应business 开始--------------------------------
+  Register = 90002001; //注册business到worker，注册后，business会收到worker转发的客户信息
+  Unregister = 90002002; //取消注册，取消后不会再收到客户信息
+  InfoUpdate = 90002003;//更新连接的info信息
+  InfoDelete = 90002004;//删除连接的info信息
+  Broadcast = 90002005; //广播
+  Multicast = 90002006; //组播
+  SingleCast = 90002007;//单播
+  TopicSubscribe = 90002008;//订阅
+  TopicUnsubscribe = 90002009;//取消订阅
+  TopicDelete = 90002010;//删除主题
+  TopicPublish = 90002011;//发布
+  ForceOffline = 90002012;//强制关闭某个连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
-  //--------------------------------business请求worker，worker再响应business的指令 开始--------------------------------
-  TotalUniqIdsRe = 201; //获取网关中全部的uniqId
-  TopicUniqIdsRe = 202; //获取网关中某个主题包含的uniqId
-  TopicsUniqIdCountRe = 203; //获取网关中的某个主题的uniqId数量
-  TopicCountRe = 204; //获取网关中的主题数量
-  TopicListRe = 205; //获取网关中的主题
-  InfoRe = 206; //获取连接的信息
-  NetSvrStatusRe = 207; //获取网关的状态
-  CheckOnlineRe = 208; //判断uniqId是否在网关中
-  //--------------------------------business请求worker，worker再响应business的指令 结束--------------------------------
+  //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 开始--------------------------------
+  TotalUniqIds = 90003001; //获取网关中全部的uniqId
+  TopicUniqIds = 90003002; //获取网关中某个主题包含的uniqId
+  TopicsUniqIdCount = 90003003; //获取网关中的某个主题的uniqId数量
+  TopicCount = 90003004; //获取网关中的主题数量
+  TopicList = 90003005; //获取网关中的主题
+  Info = 90003006; //获取连接的信息
+  NetSvrStatus = 90003007; //获取网关的状态
+  CheckOnline = 90003008; //判断uniqId是否在网关中
+  //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 结束--------------------------------
 }
 
 //路由

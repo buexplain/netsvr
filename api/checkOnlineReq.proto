@@ -2,14 +2,14 @@ syntax = "proto3";
 
 package netsvr.checkOnlineReq;
 
-import "reCtx.proto";
-
 option go_package = "internal/protocol;protocol";
 
 //worker响应business，检查网关中是否包含某几个uniqId
 message CheckOnlineReq {
-  //req（request）、resp（response）时候的上下文，worker会原样回传给business
-  netsvr.reCtx.ReCtx reCtx = 1;
+  //worker会将该值赋给router.Cmd
+  int32  routerCmd = 1;
+  //worker会原样回传给business
+  bytes ctxData = 2;
   //目标uniqId
-  repeated string uniqIds = 2;
+  repeated string uniqIds = 3;
 }

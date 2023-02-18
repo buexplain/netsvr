@@ -17,7 +17,7 @@ import (
 )
 
 type WorkerCmdCallback func(data []byte, processor *ConnProcessor)
-type ClientCmdCallback func(tf *internalProtocol.Transfer, param string, processor *ConnProcessor)
+type BusinessCmdCallback func(tf *internalProtocol.Transfer, param string, processor *ConnProcessor)
 
 type ConnProcessor struct {
 	//business与worker的连接
@@ -34,22 +34,22 @@ type ConnProcessor struct {
 	//当前连接的服务编号
 	workerId int
 	//worker发来的各种命令的回调函数
-	workerCmdCallback map[internalProtocol.Cmd]WorkerCmdCallback
+	workerCmdCallback map[int32]WorkerCmdCallback
 	//客户发来的各种命令的回调函数
-	clientCmdCallback map[protocol.Cmd]ClientCmdCallback
+	businessCmdCallback map[protocol.Cmd]BusinessCmdCallback
 }
 
 func NewConnProcessor(conn net.Conn, workerId int) *ConnProcessor {
 	tmp := &ConnProcessor{
-		conn:              conn,
-		sendCh:            make(chan []byte, 0),
-		sendBuf:           bytes.Buffer{},
-		sendDataLen:       0,
-		receiveCh:         make(chan *internalProtocol.Router, 100),
-		closeCh:           make(chan struct{}),
-		workerId:          workerId,
-		workerCmdCallback: map[internalProtocol.Cmd]WorkerCmdCallback{},
-		clientCmdCallback: map[protocol.Cmd]ClientCmdCallback{},
+		conn:                conn,
+		sendCh:              make(chan []byte, 0),
+		sendBuf:             bytes.Buffer{},
+		sendDataLen:         0,
+		receiveCh:           make(chan *internalProtocol.Router, 100),
+		closeCh:             make(chan struct{}),
+		workerId:            workerId,
+		workerCmdCallback:   map[int32]WorkerCmdCallback{},
+		businessCmdCallback: map[protocol.Cmd]BusinessCmdCallback{},
 	}
 	return tmp
 }
@@ -312,7 +312,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		}
 		logging.Debug("Business receive client command: %s", clientRoute.Cmd)
 		//客户发来的命令
-		if callback, ok := r.clientCmdCallback[clientRoute.Cmd]; ok {
+		if callback, ok := r.businessCmdCallback[clientRoute.Cmd]; ok {
 			callback(tf, clientRoute.Data, r)
 			return
 		}
@@ -321,7 +321,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		return
 	}
 	//回调worker发来的命令
-	if callback, ok := r.workerCmdCallback[router.Cmd]; ok {
+	if callback, ok := r.workerCmdCallback[int32(router.Cmd)]; ok {
 		callback(router.Data, r)
 		return
 	}
@@ -329,12 +329,18 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 	logging.Error("Unknown internalProtocol.Router.Cmd: %s", router.Cmd)
 }
 
-func (r *ConnProcessor) RegisterSvrCmd(cmd internalProtocol.Cmd, callback WorkerCmdCallback) {
-	r.workerCmdCallback[cmd] = callback
+func (r *ConnProcessor) RegisterWorkerCmd(cmd interface{}, callback WorkerCmdCallback) {
+	if c, ok := cmd.(internalProtocol.Cmd); ok {
+		r.workerCmdCallback[int32(c)] = callback
+		return
+	}
+	if c, ok := cmd.(protocol.Cmd); ok {
+		r.workerCmdCallback[int32(c)] = callback
+	}
 }
 
-func (r *ConnProcessor) RegisterClientCmd(cmd protocol.Cmd, callback ClientCmdCallback) {
-	r.clientCmdCallback[cmd] = callback
+func (r *ConnProcessor) RegisterBusinessCmd(cmd protocol.Cmd, callback BusinessCmdCallback) {
+	r.businessCmdCallback[cmd] = callback
 }
 
 // GetWorkerId 返回服务编号

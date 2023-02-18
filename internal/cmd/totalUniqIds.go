@@ -8,8 +8,8 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// TotalUniqIdsRe 获取网关中全部的uniqId
-func TotalUniqIdsRe(param []byte, processor *workerManager.ConnProcessor) {
+// TotalUniqIds 获取网关中全部的uniqId
+func TotalUniqIds(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.TotalUniqIdsReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal protocol.TotalUniqIdsReq error: %v", err)
@@ -20,10 +20,10 @@ func TotalUniqIdsRe(param []byte, processor *workerManager.ConnProcessor) {
 		c.GetUniqIds(&uniqIds)
 	}
 	ret := &protocol.TotalUniqIdsResp{}
-	ret.ReCtx = payload.ReCtx
+	ret.CtxData = payload.CtxData
 	ret.UniqIds = uniqIds
 	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd_TotalUniqIdsRe
+	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

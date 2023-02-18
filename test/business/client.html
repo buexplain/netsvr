@@ -106,11 +106,11 @@
                 </select>
             </label>
             <input type="hidden" name="password" data-processor="processorToString" value="123456">
-            <button onclick="send(this,routerCmd.login)">登录</button>
+            <button onclick="send(this,routerCmd.signIn)">登录</button>
         </div>
 
         <div class="case">
-            <button onclick="send(null,routerCmd.logout)">退出登录</button>
+            <button onclick="send(null,routerCmd.signOut)">退出登录</button>
             <button onclick="send(null,routerCmd.netSvrStatus)">获取网关状态</button>
             <button onclick="send(null,routerCmd.totalUniqIds)">获取网关所有uniqId</button>
             <button onclick="send(null,routerCmd.topicMyList)">获取我已订阅的主题列表</button>
@@ -274,8 +274,8 @@
         topicMyList: parseInt("{!.RouterTopicMyList!}"), //获取已订阅的主题列表
         topicCount: parseInt("{!.RouterTopicCount!}"), //获取网关中的主题
         topicList: parseInt("{!.RouterTopicList!}"), //获取网关中的主题数量
-        login: parseInt("{!.RouterLogin!}"), //登录
-        logout: parseInt("{!.RouterLogout!}"), //退出登录
+        signIn: parseInt("{!.RouterSignIn!}"), //登录
+        signOut: parseInt("{!.RouterSignOut!}"), //退出登录
         checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
         forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
         forceOfflineForUniqId: parseInt("{!.RouterForceOfflineForUniqId!}"), //强制关闭
@@ -335,8 +335,6 @@
      * @param btn
      * @param cmd
      */
-    xxx = '';
-
     function send(btn, cmd) {
         let param = {};
         if (btn) {
@@ -423,7 +421,7 @@
                 }
 
                 //服务端响应了登录结果
-                if (resp.cmd === routerCmd.login) {
+                if (resp.cmd === routerCmd.signIn) {
                     print(resp.data.message);
                     if (resp.data.code === 0) {
                         if (resp.data.data === null) {
@@ -436,7 +434,7 @@
                 }
 
                 //服务端响应了退出登录结果
-                if (resp.cmd === routerCmd.logout) {
+                if (resp.cmd === routerCmd.signOut) {
                     if (resp.data.code === 0) {
                         document.getElementById("topInfo").innerText = resp.data.message;
                     } else {

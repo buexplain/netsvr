@@ -2,14 +2,12 @@ syntax = "proto3";
 
 package netsvr.checkOnlineResp;
 
-import "reCtx.proto";
-
 option go_package = "internal/protocol;protocol";
 
 //worker响应business，返回网关中已经存在的uniqId
 message CheckOnlineResp {
-  //req（request）、resp（response）时候的上下文，worker会原样回传给business
-  netsvr.reCtx.ReCtx reCtx = 1;
+  //worker原样回传给business
+  bytes ctxData = 1;
   //已经存在的uniqId
   repeated string uniqIds = 2;
 }

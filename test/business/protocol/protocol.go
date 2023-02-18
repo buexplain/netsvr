@@ -20,8 +20,8 @@ const (
 	RouterTopicMyList
 	RouterTopicCount
 	RouterTopicList
-	RouterLogin
-	RouterLogout
+	RouterSignIn
+	RouterSignOut
 	RouterCheckOnlineForUniqId
 	RouterForceOfflineForUserId
 	RouterForceOfflineForUniqId
@@ -46,8 +46,8 @@ var CmdName = map[Cmd]string{
 	RouterTopicMyList:           "RouterTopicMyList",           //获取已订阅的主题列表
 	RouterTopicCount:            "RouterTopicCount",            //获取网关中的主题
 	RouterTopicList:             "RouterTopicList",             //获取网关中的主题数量
-	RouterLogin:                 "RouterLogin",                 //登录
-	RouterLogout:                "RouterLogout",                //退出登录
+	RouterSignIn:                "RouterSignIn",                //登录
+	RouterSignOut:               "RouterSignOut",               //退出登录
 	RouterCheckOnlineForUniqId:  "RouterCheckOnlineForUniqId",  //检查某几个连接是否在线
 	RouterForceOfflineForUserId: "RouterForceOfflineForUserId", //强制关闭某个连接
 	RouterForceOfflineForUniqId: "RouterForceOfflineForUniqId", //强制关闭某个连接
@@ -76,86 +76,4 @@ func ParseClientRouter(data []byte) *ClientRouter {
 		return nil
 	}
 	return ret
-}
-
-// Login 客户端发送的登录信息
-type Login struct {
-	Username string
-	Password string
-}
-
-// ForceOfflineForUserId 强制踢下线某个用户
-type ForceOfflineForUserId struct {
-	UserId int `json:"userId"`
-}
-
-// ForceOfflineForUniqId 强制踢下线某个用户
-type ForceOfflineForUniqId struct {
-	UniqId string `json:"uniqId"`
-}
-
-// CheckOnlineForUniqId 检查某几个连接是否在线
-type CheckOnlineForUniqId struct {
-	UniqIds []string `json:"uniqIds"`
-}
-
-// SingleCastForUserId 客户端发送的单播信息
-type SingleCastForUserId struct {
-	Message string
-	UserId  int `json:"userId"`
-}
-
-// SingleCastForUniqId 客户端发送的单播信息
-type SingleCastForUniqId struct {
-	Message string
-	UniqId  string `json:"uniqId"`
-}
-
-// MulticastForUserId 客户端发送的组播信息
-type MulticastForUserId struct {
-	Message string
-	UserIds []int `json:"userIds"`
-}
-
-// MulticastForUniqId 客户端发送的组播信息
-type MulticastForUniqId struct {
-	Message string
-	UnIqIds []string `json:"unIqIds"`
-}
-
-// Broadcast 客户端发送的广播信息
-type Broadcast struct {
-	Message string
-}
-
-// TopicSubscribe 客户端发送的订阅信息
-type TopicSubscribe struct {
-	Topics []string
-}
-
-// TopicUnsubscribe 客户端发送的取消订阅信息
-type TopicUnsubscribe struct {
-	Topics []string
-}
-
-// TopicDelete 客户端发送要删除的主题
-type TopicDelete struct {
-	Topics []string
-}
-
-// TopicUniqIds 获取网关中的某个主题包含的uniqId
-type TopicUniqIds struct {
-	Topic string
-}
-
-// TopicsUniqIdCount 获取网关中的某几个主题的连接数
-type TopicsUniqIdCount struct {
-	CountAll bool
-	Topics   []string
-}
-
-// TopicPublish 客户端发送的发布信息
-type TopicPublish struct {
-	Message string
-	Topic   string
 }

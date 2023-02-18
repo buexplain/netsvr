@@ -2,14 +2,12 @@ syntax = "proto3";
 
 package netsvr.topicsUniqIdCountResp;
 
-import "reCtx.proto";
-
 option go_package = "internal/protocol;protocol";
 
 //worker响应business，返回网关中的主题包含的连接数
 message TopicsUniqIdCountResp {
-  //req（request）、resp（response）时候的上下文，worker会原样回传给business
-  netsvr.reCtx.ReCtx reCtx = 1;
+  //worker原样回传给business
+  bytes ctxData = 1;
   //key是topic，value是该主题的连接数
   //如果topic没找到，则items中不会有该topic
   map<string, int32> items = 2;

@@ -8,8 +8,8 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// TopicsUniqIdCountRe 获取网关中的某几个主题的连接数
-func TopicsUniqIdCountRe(param []byte, processor *workerManager.ConnProcessor) {
+// TopicsUniqIdCount 获取网关中的某几个主题的连接数
+func TopicsUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.TopicsUniqIdCountReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal protocol.TopicsUniqIdCountReq error: %v", err)
@@ -19,7 +19,7 @@ func TopicsUniqIdCountRe(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &protocol.TopicsUniqIdCountResp{}
-	ret.ReCtx = payload.ReCtx
+	ret.CtxData = payload.CtxData
 	ret.Items = map[string]int32{}
 	if payload.CountAll == true {
 		topic.Topic.CountAll(ret.Items)
@@ -27,7 +27,7 @@ func TopicsUniqIdCountRe(param []byte, processor *workerManager.ConnProcessor) {
 		topic.Topic.Count(payload.Topics, ret.Items)
 	}
 	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd_TopicsUniqIdCountRe
+	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

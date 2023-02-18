@@ -2,14 +2,12 @@ syntax = "proto3";
 
 package netsvr.netSvrStatusResp;
 
-import "reCtx.proto";
-
 option go_package = "internal/protocol;protocol";
 
 //worker响应网关的状态到business
 message NetSvrStatusResp {
-  //req（request）、resp（response）时候的上下文，worker会原样回传给business
-  netsvr.reCtx.ReCtx reCtx = 1;
+  //worker原样回传给business
+  bytes ctxData = 1;
   //网关中的当前客户连接数
   int32 customerConnCount = 2;
   //当前等待转发到客户的数据量

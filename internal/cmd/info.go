@@ -9,8 +9,8 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// InfoRe 获取连接的信息
-func InfoRe(param []byte, processor *workerManager.ConnProcessor) {
+// Info 获取连接的信息
+func Info(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.InfoReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		logging.Error("Proto unmarshal protocol.InfoReq error: %v", err)
@@ -28,10 +28,10 @@ func InfoRe(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &protocol.InfoResp{}
-	ret.ReCtx = payload.ReCtx
+	ret.CtxData = payload.CtxData
 	session.GetToProtocolInfoResp(ret)
 	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd_InfoRe
+	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

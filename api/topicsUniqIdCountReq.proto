@@ -2,16 +2,16 @@ syntax = "proto3";
 
 package netsvr.topicsUniqIdCountReq;
 
-import "reCtx.proto";
-
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，获取网关中的主题包含的连接数
 message TopicsUniqIdCountReq {
-  //req（request）、resp（response）时候的上下文，worker会原样回传给business
-  netsvr.reCtx.ReCtx reCtx = 1;
+  //worker会将该值赋给router.Cmd
+  int32  routerCmd = 1;
+  //worker会原样回传给business
+  bytes ctxData = 2;
   //目标主题
-  repeated string topics = 2;
+  repeated string topics = 3;
   //是否返回全部主题的连接数，如果设置为true，则网关会忽略topics字段的值
-  bool countAll = 3;
+  bool countAll = 4;
 }
