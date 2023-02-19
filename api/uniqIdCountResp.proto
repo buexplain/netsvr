@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package netsvr.uniqIdCountResp;
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应business，返回网关中uniqId的数量
+message UniqIdCountResp {
+  //worker原样回传给business
+  bytes ctxData = 1;
+  int32 count = 2;
+}

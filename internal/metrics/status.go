@@ -6,7 +6,7 @@ import (
 )
 
 type Status struct {
-	Name        string
+	Item        int
 	Meter       gMetrics.Meter
 	MeanRateMax gMetrics.Gauge
 	Rate1Max    gMetrics.Gauge

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package netsvr.metricsResp;
+
+option go_package = "internal/protocol;protocol";
+
+//worker响应business，返回网关统计的服务状态
+message MetricsResp {
+  //worker会原样回传给business
+  bytes ctxData = 1;
+  map<int32, MetricsStatusResp> items = 2;
+}
+
+message MetricsStatusResp {
+  //总数
+  int64 count = 1;
+  //每秒速率
+  float meanRate = 2;
+  //每秒速率的最大值
+  float meanRateMax = 3;
+  //每1分钟速率
+  float rate1 = 4;
+  //每1分钟速率的最大值
+  float  rate1Max = 5;
+  //每5分钟速率
+  float rate5 = 6;
+  //每5分钟速率的最大值
+  float  rate5Max = 7;
+  //每15分钟速率
+  float rate15 = 8;
+  //每15分钟速率的最大值
+  float  rate15Max = 9;
+}

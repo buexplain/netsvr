@@ -18,6 +18,7 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"netsvr/pkg/utils"
+	"strings"
 )
 
 var server *nbhttp.Server
@@ -63,8 +64,16 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	upgrade := websocket.NewUpgrader()
 	upgrade.KeepaliveTime = configs.Config.CustomerReadDeadline
 	upgrade.CheckOrigin = func(r *http.Request) bool {
-		//TODO 设计一个检查origin的配置
-		return true
+		if len(configs.Config.CustomerAllowOrigin) == 0 {
+			return true
+		}
+		origin := r.Header.Get("Origin")
+		for _, v := range configs.Config.CustomerAllowOrigin {
+			if strings.Contains(origin, v) {
+				return true
+			}
+		}
+		return false
 	}
 	upgrade.OnOpen(func(conn *websocket.Conn) {
 		//统计打开连接次数

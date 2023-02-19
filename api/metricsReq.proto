@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.netSvrStatusReq;
+package netsvr.metricsReq;
 
 option go_package = "internal/protocol;protocol";
 
-//business向worker请求网关的状态
-message NetSvrStatusReq {
+//business向worker请求网关统计的服务状态
+message MetricsReq {
   //worker会将该值赋给router.Cmd
   int32  routerCmd = 1;
   //worker会原样回传给business

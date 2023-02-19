@@ -111,9 +111,16 @@
 
         <div class="case">
             <button onclick="send(null,routerCmd.signOut)">退出登录</button>
-            <button onclick="send(null,routerCmd.netSvrStatus)">获取网关状态</button>
-            <button onclick="send(null,routerCmd.totalUniqIds)">获取网关所有uniqId</button>
             <button onclick="send(null,routerCmd.topicMyList)">获取我已订阅的主题列表</button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.metrics)">获取网关统计的服务状态</button>
+            <button onclick="send(null,routerCmd.uniqIdList)">获取网关所有uniqId</button>
+            <button onclick="send(null,routerCmd.uniqIdCount)">获取网关中的uniqId数量</button>
+        </div>
+
+        <div class="case">
             <button onclick="send(null,routerCmd.topicList)">获取网关中的主题</button>
             <button onclick="send(null,routerCmd.topicCount)">获取网关中的主题数量</button>
         </div>
@@ -233,7 +240,7 @@
                 <input type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
             </label>
-            <button onclick="send(this,routerCmd.topicsUniqIdCount)">获取主题连接数</button>
+            <button onclick="send(this,routerCmd.topicUniqIdCount)">获取主题连接数</button>
         </div>
 
         <div class="case">
@@ -241,7 +248,7 @@
                 <input type="text" name="topic" data-processor="processorToString"
                        placeholder="请输入主题" value="戏曲频道">
             </label>
-            <button onclick="send(this,routerCmd.topicUniqIds)">获取主题的uniqId</button>
+            <button onclick="send(this,routerCmd.topicUniqIdList)">获取主题的uniqId</button>
         </div>
 
         <div class="case">
@@ -269,8 +276,9 @@
     const routerCmd = {
         connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
         connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
-        netSvrStatus: parseInt("{!.RouterNetSvrStatus!}"),//获取网关的信息
-        totalUniqIds: parseInt("{!.RouterTotalUniqIds!}"), //获取网关所有的uniqId
+        metrics: parseInt("{!.RouterMetrics!}"),//获取网关统计的服务状态
+        uniqIdList: parseInt("{!.RouterUniqIdList!}"), //获取网关中全部的uniqId
+        uniqIdCount: parseInt("{!.RouterUniqIdCount!}"), //获取网关中uniqId的数量
         topicMyList: parseInt("{!.RouterTopicMyList!}"), //获取已订阅的主题列表
         topicCount: parseInt("{!.RouterTopicCount!}"), //获取网关中的主题
         topicList: parseInt("{!.RouterTopicList!}"), //获取网关中的主题数量
@@ -287,8 +295,8 @@
         topicSubscribe: parseInt("{!.RouterTopicSubscribe!}"), //订阅
         topicUnsubscribe: parseInt("{!.RouterTopicUnsubscribe!}"), //取消订阅
         topicDelete: parseInt("{!.RouterTopicDelete!}"), //删除主题
-        topicsUniqIdCount: parseInt("{!.RouterTopicsUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
-        topicUniqIds: parseInt("{!.RouterTopicUniqIds!}"), //获取网关中的某个主题包含的uniqId
+        topicUniqIdCount: parseInt("{!.RouterTopicUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
+        topicUniqIdList: parseInt("{!.RouterTopicUniqIdList!}"), //获取网关中的某个主题包含的uniqId
         topicPublish: parseInt("{!.RouterTopicPublish!}"), //发布
     };
 
@@ -301,7 +309,7 @@
     //心跳间隔函数的index
     let heartbeatInterval = 0;
 
-    //输入从容器
+    //输出屏幕
     let output = document.getElementById("output");
 
     //输出函数
@@ -313,8 +321,8 @@
     };
 
     //心跳字符串
-    let pingMessage = "~H27890027B~";
-    let pongMessage = "~H278a0027B~";
+    let pingMessage = "{!.pingMessage!}";
+    let pongMessage = "{!.pongMessage!}";
 
     /**
      * 关闭连接
@@ -443,8 +451,8 @@
                     return;
                 }
 
-                //服务端响应网关状态信息
-                if (resp.cmd === routerCmd.netSvrStatus) {
+                //服务端响应了在线的连接uniqid
+                if (resp.cmd === routerCmd.checkOnlineForUniqId) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
@@ -452,13 +460,34 @@
                     print(JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
-                //服务端响应了所有在线的uniqId
-                if (resp.cmd === routerCmd.totalUniqIds) {
+
+                //服务端响应网关统计的服务状态
+                if (resp.cmd === routerCmd.metrics) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
                     }
-                    print(resp.data.message + '：\n' + resp.data.data.totalUniqIds.join('\n'));
+                    print(JSON.stringify(resp.data.data, null, "  "));
+                    return;
+                }
+
+                //服务端响应了所有在线的uniqId
+                if (resp.cmd === routerCmd.uniqIdList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(resp.data.message + '：\n' + resp.data.data.uniqIds.join('\n'));
+                    return;
+                }
+
+                //服务端响应了网关中uniqId的数量
+                if (resp.cmd === routerCmd.uniqIdCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print('网关现有uniqId数是：' + resp.data.data.count);
                     return;
                 }
 
@@ -526,7 +555,7 @@
                     return;
                 }
                 //服务端响应了某几个主题的uniqId数量
-                if (resp.cmd === routerCmd.topicsUniqIdCount) {
+                if (resp.cmd === routerCmd.topicUniqIdCount) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;
@@ -544,7 +573,7 @@
                     return;
                 }
                 //服务端响应了个主题的uniqId
-                if (resp.cmd === routerCmd.topicUniqIds) {
+                if (resp.cmd === routerCmd.topicUniqIdList) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);
                         return;

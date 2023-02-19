@@ -13,17 +13,10 @@ const (
 	ItemCustomerHeartbeat             //统计客户连接的心跳情况
 	ItemCustomerTransferNumber        //统计客户数据转发到worker的次数情况
 	ItemCustomerTransferByte          //统计客户数据转发到worker的字节数情况
+	itemLen                           //结束符
 )
 
-var itemName = map[int]string{
-	ItemCustomerConnOpen:       "customerConnOpen",
-	ItemCustomerConnClose:      "customerConnClose",
-	ItemCustomerHeartbeat:      "customerHeartbeat",
-	ItemCustomerTransferNumber: "customerTransferNumber",
-	ItemCustomerTransferByte:   "customerTransferByte",
-}
-
-var Registry = make([]*Status, len(itemName))
+var Registry = make([]*Status, itemLen)
 
 func init() {
 	//初始化所有要统计的服务状态
@@ -40,7 +33,7 @@ func init() {
 		return false
 	}
 	for item := 0; item < len(Registry); item++ {
-		s := Status{Name: itemName[item]}
+		s := Status{Item: item}
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
 			ok = true

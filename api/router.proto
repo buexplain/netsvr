@@ -30,14 +30,15 @@ enum Cmd {
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 开始--------------------------------
-  TotalUniqIds = 90003001; //获取网关中全部的uniqId
-  TopicUniqIds = 90003002; //获取网关中某个主题包含的uniqId
-  TopicsUniqIdCount = 90003003; //获取网关中的某个主题的uniqId数量
+  CheckOnline = 90003001; //判断uniqId是否在网关中
+  UniqIdList = 90003002; //获取网关中全部的uniqId
+  UniqIdCount = 90003003; //获取网关中uniqId的数量
   TopicCount = 90003004; //获取网关中的主题数量
   TopicList = 90003005; //获取网关中的主题
-  Info = 90003006; //获取连接的信息
-  NetSvrStatus = 90003007; //获取网关的状态
-  CheckOnline = 90003008; //判断uniqId是否在网关中
+  TopicUniqIdList = 90003006; //获取网关中某个主题包含的uniqId
+  TopicUniqIdCount = 90003007; //获取网关中的主题包含的连接数
+  Info = 90003008; //获取连接的信息
+  Metrics = 90003009; //获取网关统计的服务状态
   //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 结束--------------------------------
 }
 

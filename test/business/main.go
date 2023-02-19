@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"netsvr/configs"
+	"netsvr/internal/heartbeat"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/cmd"
 	"netsvr/test/business/connProcessor"
@@ -33,6 +34,8 @@ func clientServer() {
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)
 		}
+		data["pingMessage"] = string(heartbeat.PingMessage)
+		data["pongMessage"] = string(heartbeat.PongMessage)
 		err = t.Execute(writer, data)
 		if err != nil {
 			logging.Error("模板输出失败：%s", err)
@@ -66,9 +69,9 @@ func main() {
 	cmd.ConnSwitch.Init(processor)
 	cmd.Sign.Init(processor)
 	cmd.ForceOffline.Init(processor)
-	cmd.NetSvrStatus.Init(processor)
 	cmd.Topic.Init(processor)
-	cmd.TotalUniqIds.Init(processor)
+	cmd.UniqId.Init(processor)
+	cmd.Metrics.Init(processor)
 	//心跳
 	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()

@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.topicsUniqIdCountReq;
+package netsvr.topicUniqIdCountReq;
 
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，获取网关中的主题包含的连接数
-message TopicsUniqIdCountReq {
+message TopicUniqIdCountReq {
   //worker会将该值赋给router.Cmd
   int32  routerCmd = 1;
   //worker会原样回传给business

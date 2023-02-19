@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.topicsUniqIdCountResp;
+package netsvr.topicUniqIdCountResp;
 
 option go_package = "internal/protocol;protocol";
 
 //worker响应business，返回网关中的主题包含的连接数
-message TopicsUniqIdCountResp {
+message TopicUniqIdCountResp {
   //worker原样回传给business
   bytes ctxData = 1;
   //key是topic，value是该主题的连接数

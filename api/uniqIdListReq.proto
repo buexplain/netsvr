@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package netsvr.totalUniqIdsReq;
+package netsvr.uniqIdListReq;
 
 option go_package = "internal/protocol;protocol";
 
 //business向worker请求，获取网关中全部的uniqId
-message TotalUniqIdsReq {
+message UniqIdListReq {
   //worker会将该值赋给router.Cmd
   int32  routerCmd = 1;
   //worker会原样回传给business

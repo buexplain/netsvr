@@ -18,6 +18,8 @@ type config struct {
 	CustomerListenAddress string
 	//客户服务器的url路由
 	CustomerHandlePattern string
+	//允许连接的origin，空表示不限制，否则会进行包含匹配
+	CustomerAllowOrigin []string
 	//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
 	CustomerReadDeadline time.Duration
 	//最大连接数

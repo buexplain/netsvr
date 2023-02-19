@@ -59,7 +59,7 @@ func (checkOnline) ResponseForUniqId(param []byte, processor *connProcessor.Conn
 	router.Cmd = internalProtocol.Cmd_SingleCast
 	ret := &internalProtocol.SingleCast{}
 	ret.UniqId = uniqId
-	ret.Data = businessUtils.NewResponse(protocol.RouterNetSvrStatus, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": payload.UniqIds})
+	ret.Data = businessUtils.NewResponse(protocol.RouterCheckOnlineForUniqId, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": payload.UniqIds})
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

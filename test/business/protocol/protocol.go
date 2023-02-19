@@ -15,8 +15,9 @@ func (r Cmd) String() string {
 const (
 	RouterRespConnOpen Cmd = iota + 1
 	RouterRespConnClose
-	RouterNetSvrStatus
-	RouterTotalUniqIds
+	RouterMetrics
+	RouterUniqIdList
+	RouterUniqIdCount
 	RouterTopicMyList
 	RouterTopicCount
 	RouterTopicList
@@ -33,16 +34,17 @@ const (
 	RouterTopicSubscribe
 	RouterTopicUnsubscribe
 	RouterTopicDelete
-	RouterTopicsUniqIdCount
-	RouterTopicUniqIds
+	RouterTopicUniqIdCount
+	RouterTopicUniqIdList
 	RouterTopicPublish
 )
 
 var CmdName = map[Cmd]string{
 	RouterRespConnOpen:          "RouterRespConnOpen",          //响应连接成功信息
 	RouterRespConnClose:         "RouterRespConnClose",         //响应连接成功信息
-	RouterNetSvrStatus:          "RouterNetSvrStatus",          //获取网关的信息
-	RouterTotalUniqIds:          "RouterTotalUniqIds",          //获取网关所有在线的session id
+	RouterMetrics:               "RouterMetrics",               //获取网关统计的服务状态
+	RouterUniqIdList:            "RouterUniqIdList",            //获取网关中全部的uniqId
+	RouterUniqIdCount:           "RouterUniqIdCount",           //获取网关中uniqId的数量
 	RouterTopicMyList:           "RouterTopicMyList",           //获取已订阅的主题列表
 	RouterTopicCount:            "RouterTopicCount",            //获取网关中的主题
 	RouterTopicList:             "RouterTopicList",             //获取网关中的主题数量
@@ -52,15 +54,15 @@ var CmdName = map[Cmd]string{
 	RouterForceOfflineForUserId: "RouterForceOfflineForUserId", //强制关闭某个连接
 	RouterForceOfflineForUniqId: "RouterForceOfflineForUniqId", //强制关闭某个连接
 	RouterSingleCastForUserId:   "RouterSingleCastForUserId",   //单播给某个用户
-	RouterSingleCastForUniqId:   "RouterSingleCastForUniqId",   //单播给某个session id
+	RouterSingleCastForUniqId:   "RouterSingleCastForUniqId",   //单播给某个uniqId
 	RouterMulticastForUserId:    "RouterMulticastForUserId",    //组播给多个用户
 	RouterMulticastForUniqId:    "RouterMulticastForUniqId",    //组播给多个uniqId
 	RouterBroadcast:             "RouterBroadcast",             //广播给所有用户
 	RouterTopicSubscribe:        "RouterTopicSubscribe",        //订阅
 	RouterTopicUnsubscribe:      "RouterTopicUnsubscribe",      //取消订阅
 	RouterTopicDelete:           "RouterTopicDelete",           //删除主题
-	RouterTopicsUniqIdCount:     "RouterTopicsUniqIdCount",     //获取网关中的某几个主题的连接数
-	RouterTopicUniqIds:          "RouterTopicUniqIds",          //获取网关中的某个主题包含的uniqId
+	RouterTopicUniqIdCount:      "RouterTopicUniqIdCount",      //获取网关中的某几个主题的连接数
+	RouterTopicUniqIdList:       "RouterTopicUniqIdList",       //获取网关中的某个主题包含的uniqId
 	RouterTopicPublish:          "RouterTopicPublish",          //发布信息
 }
 

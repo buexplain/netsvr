@@ -8,17 +8,17 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// TopicsUniqIdCount 获取网关中的某几个主题的连接数
-func TopicsUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
-	payload := protocol.TopicsUniqIdCountReq{}
+// TopicUniqIdCount 获取网关中的主题包含的连接数
+func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
+	payload := protocol.TopicUniqIdCountReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal protocol.TopicsUniqIdCountReq error: %v", err)
+		logging.Error("Proto unmarshal protocol.TopicUniqIdCountReq error: %v", err)
 		return
 	}
 	if len(payload.Topics) == 0 && payload.CountAll == false {
 		return
 	}
-	ret := &protocol.TopicsUniqIdCountResp{}
+	ret := &protocol.TopicUniqIdCountResp{}
 	ret.CtxData = payload.CtxData
 	ret.Items = map[string]int32{}
 	if payload.CountAll == true {

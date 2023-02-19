@@ -1,15 +1,15 @@
 syntax = "proto3";
 
-package netsvr.topicUniqIdsResp;
+package netsvr.topicUniqIdListResp;
 
 option go_package = "internal/protocol;protocol";
 
-//worker响应business，返回网关中的主题包含的uniqId
-message TopicUniqIdsResp {
+//worker响应business，返回网关中某个主题包含的uniqId
+message TopicUniqIdListResp {
   //worker原样回传给business
   bytes ctxData = 1;
   //当前主题
   string topic = 2;
-  //包含的uniqId
+  //当前主题包含的uniqId
   repeated string uniqIds = 3;
 }
