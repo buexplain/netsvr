@@ -14,6 +14,7 @@ require (
 require (
 	github.com/antlabs/stl v0.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/lesismal/llib v1.1.10 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
