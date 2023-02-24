@@ -2,8 +2,8 @@ package userDb
 
 import (
 	"encoding/json"
-	"github.com/lesismal/nbio/logging"
-	workerUtils "netsvr/test/business/utils"
+	workerUtils "netsvr/test/utils"
+	"strconv"
 	"time"
 )
 
@@ -17,8 +17,9 @@ type User struct {
 
 // ClientInfo 返回给客户的信息
 type ClientInfo struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+	Id     int    `json:"id"`
+	Name   string `json:"name"`
+	UniqId string `json:"uniqId"`
 }
 
 // NetSvrInfo 存储到网关的用户信息
@@ -40,7 +41,6 @@ func ParseNetSvrInfo(netSvrInfo string) *NetSvrInfo {
 	tmp := &NetSvrInfo{}
 	err := json.Unmarshal(workerUtils.StrToReadOnlyBytes(netSvrInfo), tmp)
 	if err != nil {
-		logging.Debug("Parse userDb.ParseNetSvrInfo error: %v", err)
 		return nil
 	}
 	return tmp
@@ -59,8 +59,9 @@ func (r User) ToNetSvrInfo() string {
 // ToClientInfo 返回登录成功后给到客户端的信息
 func (r User) ToClientInfo() ClientInfo {
 	return ClientInfo{
-		Id:   r.Id,
-		Name: r.Name,
+		Id:     r.Id,
+		Name:   r.Name,
+		UniqId: strconv.Itoa(r.Id),
 	}
 }
 

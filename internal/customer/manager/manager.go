@@ -8,6 +8,7 @@ import (
 )
 
 type collect struct {
+	//uniqId --> *websocket.Conn
 	conn map[string]*websocket.Conn
 	mux  sync.RWMutex
 }

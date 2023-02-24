@@ -31,9 +31,9 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 	if payload.PreventConnCloseCmdTransfer {
 		//从连接管理器中删除
 		customerManager.Manager.Del(payload.UniqId)
-		//删除订阅关系、删除uniqId、关闭心跳
+		//删除订阅关系、删除uniqId
 		if session, ok := conn.Session().(*info.Info); ok {
-			topics, _, _ := session.Clear()
+			topics, _, _ := session.Clear(true)
 			topic.Topic.Del(topics, payload.UniqId)
 		}
 	}

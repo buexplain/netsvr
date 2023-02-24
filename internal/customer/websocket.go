@@ -93,7 +93,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 		//连接打开消息回传给business
 		co := &protocol.ConnOpen{}
-		co.UniqId = session.GetUniqId()
+		co.UniqId = uniqId
 		router := &protocol.Router{}
 		router.Cmd = protocol.Cmd_ConnOpen
 		router.Data, _ = proto.Marshal(co)
@@ -110,16 +110,20 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		topics, uniqId, userSession := session.Clear()
+		session.MuxLock()
+		session.Close()
+		topics, uniqId, userSession := session.Clear(false)
 		if uniqId == "" {
+			session.MuxUnLock()
 			//当前连接已经被清空了uniqId，无需进行接下来的逻辑
 			return
 		}
-		logging.Debug("Customer websocket close, info: %#v", session)
 		//从连接管理器中删除
 		manager.Manager.Del(uniqId)
 		//删除订阅关系
 		topic.Topic.Del(topics, uniqId)
+		session.MuxUnLock()
+		logging.Debug("Customer websocket close, info: %#v", session)
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)

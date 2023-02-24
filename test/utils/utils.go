@@ -2,7 +2,8 @@ package utils
 
 import (
 	"encoding/json"
-	"netsvr/test/business/protocol"
+	"math/rand"
+	"netsvr/test/protocol"
 	"unsafe"
 )
 
@@ -27,4 +28,19 @@ func BytesToReadOnlyString(bt []byte) string {
 		return ""
 	}
 	return unsafe.String(&bt[0], len(bt))
+}
+
+var charPool = [36]byte{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}
+
+// GetRandStr n=4有1413720种排列 n=3有42840种排列，n=2有1260种排列
+func GetRandStr(n int) string {
+	s := make([]byte, 0, n)
+	for {
+		n--
+		if n < 0 {
+			break
+		}
+		s = append(s, charPool[rand.Intn(35)])
+	}
+	return string(s)
 }

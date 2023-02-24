@@ -11,12 +11,12 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/business/cmd"
 	"netsvr/test/business/connProcessor"
-	"netsvr/test/business/protocol"
+	"netsvr/test/protocol"
 	"os"
 )
 
 func init() {
-	logging.SetLevel(logging.LevelDebug)
+	logging.SetLevel(configs.Config.GetLogLevel())
 }
 
 // 输出html客户端

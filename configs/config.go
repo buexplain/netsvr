@@ -11,6 +11,8 @@ import (
 )
 
 type config struct {
+	//日志级别 debug、info、warn、error
+	LogLevel string
 	//服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
 	//如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
 	ServerId uint8
@@ -43,6 +45,24 @@ type config struct {
 	MetricsItem []int
 	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
 	MetricsMaxRecordInterval time.Duration
+}
+
+func (r *config) GetLogLevel() int {
+	switch r.LogLevel {
+	case "all":
+		return logging.LevelAll
+	case "debug":
+		return logging.LevelDebug
+	case "info":
+		return logging.LevelInfo
+	case "warn":
+		return logging.LevelWarn
+	case "error":
+		return logging.LevelError
+	case "none":
+		return logging.LevelNone
+	}
+	return logging.LevelError
 }
 
 // RootPath 程序根目录

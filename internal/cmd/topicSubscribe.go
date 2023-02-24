@@ -29,7 +29,7 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	topics := session.SubscribeTopics(payload.Topics)
+	topics := session.SubscribeTopics(payload.Topics, true)
 	topic.Topic.Set(topics, payload.UniqId)
 	if len(payload.Data) > 0 {
 		catapult.Catapult.Put(payload)

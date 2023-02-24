@@ -11,7 +11,7 @@ import (
 	"netsvr/internal/heartbeat"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/pkg/quit"
-	"netsvr/test/business/protocol"
+	"netsvr/test/protocol"
 	"runtime/debug"
 	"time"
 )

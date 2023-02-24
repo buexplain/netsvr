@@ -23,6 +23,8 @@ const (
 	RouterTopicList
 	RouterSignIn
 	RouterSignOut
+	RouterSignInForForge
+	RouterSignOutForForge
 	RouterCheckOnlineForUniqId
 	RouterForceOfflineForUserId
 	RouterForceOfflineForUniqId
@@ -50,6 +52,8 @@ var CmdName = map[Cmd]string{
 	RouterTopicList:             "RouterTopicList",             //获取网关中的主题数量
 	RouterSignIn:                "RouterSignIn",                //登录
 	RouterSignOut:               "RouterSignOut",               //退出登录
+	RouterSignInForForge:        "RouterSignInForForge",        //伪造登录
+	RouterSignOutForForge:       "RouterSignOutForForge",       //伪造退出登录
 	RouterCheckOnlineForUniqId:  "RouterCheckOnlineForUniqId",  //检查某几个连接是否在线
 	RouterForceOfflineForUserId: "RouterForceOfflineForUserId", //强制关闭某个连接
 	RouterForceOfflineForUniqId: "RouterForceOfflineForUniqId", //强制关闭某个连接
@@ -74,7 +78,7 @@ type ClientRouter struct {
 func ParseClientRouter(data []byte) *ClientRouter {
 	ret := new(ClientRouter)
 	if err := json.Unmarshal(data, ret); err != nil {
-		logging.Debug("Parse client router error: %v", err)
+		logging.Debug("Parse ClientRouter error: %v", err)
 		return nil
 	}
 	return ret

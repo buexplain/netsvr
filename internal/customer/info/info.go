@@ -9,34 +9,60 @@ type Info struct {
 	uniqId  string
 	session string
 	topics  []string
-	mux     sync.RWMutex
+	mux     *sync.RWMutex
+	closed  chan struct{}
 }
 
 func NewInfo(uniqId string) *Info {
 	return &Info{
 		uniqId: uniqId,
 		topics: nil,
-		mux:    sync.RWMutex{},
+		mux:    &sync.RWMutex{},
+		closed: make(chan struct{}),
 	}
 }
 
-func (r *Info) PullUniqId() string {
+func (r *Info) Close() {
+	select {
+	case <-r.closed:
+		return
+	default:
+		close(r.closed)
+	}
+}
+
+func (r *Info) IsClosed() bool {
+	select {
+	case <-r.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *Info) MuxLock() {
 	r.mux.Lock()
-	defer r.mux.Unlock()
-	uniqId := r.uniqId
-	r.uniqId = ""
-	return uniqId
+}
+
+func (r *Info) MuxUnLock() {
+	r.mux.Unlock()
 }
 
 func (r *Info) GetUniqId() string {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
 	return r.uniqId
 }
 
+func (r *Info) SetUniqIdAndPUllTopics(uniqId string) (topics []string) {
+	r.uniqId = uniqId
+	if len(r.topics) == 0 {
+		return nil
+	}
+	ret := r.topics
+	r.topics = nil
+	return ret
+}
+
 func (r *Info) SetUniqIdAndGetTopics(uniqId string) (topics []string) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
 	r.uniqId = uniqId
 	if len(r.topics) == 0 {
 		return nil
@@ -49,8 +75,6 @@ func (r *Info) SetUniqIdAndGetTopics(uniqId string) (topics []string) {
 }
 
 func (r *Info) SetSession(session string) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
 	r.session = session
 }
 
@@ -74,9 +98,11 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 	}
 }
 
-func (r *Info) Clear() (topics []string, uniqId string, session string) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+func (r *Info) Clear(lock bool) (topics []string, uniqId string, session string) {
+	if lock {
+		r.mux.Lock()
+		defer r.mux.Unlock()
+	}
 	//删除所有订阅
 	topics = r.topics
 	r.topics = nil
@@ -90,8 +116,6 @@ func (r *Info) Clear() (topics []string, uniqId string, session string) {
 }
 
 func (r *Info) PullTopics() []string {
-	r.mux.Lock()
-	defer r.mux.Unlock()
 	if len(r.topics) == 0 {
 		return nil
 	}
@@ -101,12 +125,14 @@ func (r *Info) PullTopics() []string {
 }
 
 // SubscribeTopics 订阅，并返回成功订阅的主题
-func (r *Info) SubscribeTopics(topics []string) []string {
+func (r *Info) SubscribeTopics(topics []string, lock bool) []string {
 	if len(topics) == 0 {
 		return nil
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	if lock {
+		r.mux.Lock()
+		defer r.mux.Unlock()
+	}
 	//如果是空，则全部赋值
 	if r.topics == nil {
 		r.topics = make([]string, 0, len(topics))

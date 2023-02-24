@@ -6,8 +6,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
-	"netsvr/test/business/protocol"
-	businessUtils "netsvr/test/business/utils"
+	"netsvr/test/protocol"
+	businessUtils "netsvr/test/utils"
 )
 
 type checkOnline struct{}

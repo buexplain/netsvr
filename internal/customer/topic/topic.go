@@ -5,6 +5,7 @@ import (
 )
 
 type collect struct {
+	//topic --> []uniqId
 	topics map[string]map[string]struct{}
 	mux    sync.RWMutex
 }

@@ -107,10 +107,12 @@
             </label>
             <input type="hidden" name="password" data-processor="processorToString" value="123456">
             <button onclick="send(this,routerCmd.signIn)">登录</button>
+            <button onclick="send(this,routerCmd.signInForForge)">伪造登录</button>
         </div>
 
         <div class="case">
             <button onclick="send(null,routerCmd.signOut)">退出登录</button>
+            <button onclick="send(null,routerCmd.signOutForForge)">伪造退出登录</button>
             <button onclick="send(null,routerCmd.topicMyList)">获取我已订阅的主题列表</button>
         </div>
 
@@ -284,6 +286,8 @@
         topicList: parseInt("{!.RouterTopicList!}"), //获取网关中的主题数量
         signIn: parseInt("{!.RouterSignIn!}"), //登录
         signOut: parseInt("{!.RouterSignOut!}"), //退出登录
+        signInForForge: parseInt("{!.RouterSignInForForge!}"), //登录
+        signOutForForge: parseInt("{!.RouterSignOutForForge!}"), //退出登录
         checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
         forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
         forceOfflineForUniqId: parseInt("{!.RouterForceOfflineForUniqId!}"), //强制关闭
@@ -398,11 +402,6 @@
             }
         }
         ws.onmessage = function (evt) {
-            //服务端发送心跳检查，则响应一个心跳给服务端
-            if (evt.data === pingMessage) {
-                ws.send(pongMessage);
-                return;
-            }
             //服务端响应了客户端的心跳
             if (evt.data === pongMessage) {
                 return;
@@ -417,7 +416,7 @@
                 //连接打开，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
                     clearScreen();
-                    document.getElementById("topInfo").innerText = resp.data.message;
+                    document.getElementById("topInfo").innerText = resp.data.message+'，UniqId：'+resp.data.data;
                     return;
                 }
 
@@ -429,20 +428,20 @@
                 }
 
                 //服务端响应了登录结果
-                if (resp.cmd === routerCmd.signIn) {
+                if (resp.cmd === routerCmd.signIn || resp.cmd === routerCmd.signInForForge) {
                     print(resp.data.message);
                     if (resp.data.code === 0) {
                         if (resp.data.data === null) {
                             print(resp.data.message);
                         } else {
-                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，uniqId是：' + resp.data.data.id;
+                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，uniqId是：' + resp.data.data.uniqId;
                         }
                     }
                     return;
                 }
 
                 //服务端响应了退出登录结果
-                if (resp.cmd === routerCmd.signOut) {
+                if (resp.cmd === routerCmd.signOut || resp.cmd === routerCmd.signOutForForge) {
                     if (resp.data.code === 0) {
                         document.getElementById("topInfo").innerText = resp.data.message;
                     } else {

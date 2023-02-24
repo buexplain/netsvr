@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/lesismal/nbio/logging"
+	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"
@@ -9,7 +10,7 @@ import (
 )
 
 func main() {
-	logging.SetLevel(logging.LevelDebug)
+	logging.SetLevel(configs.Config.GetLogLevel())
 	go worker.Start()
 	go customer.Start()
 	select {

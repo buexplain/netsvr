@@ -32,6 +32,16 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
+	if session.IsClosed() {
+		return
+	}
+	session.MuxLock()
+	if session.IsClosed() {
+		session.MuxUnLock()
+		return
+	}
+	//在高并发下，这个payload.UniqId不一定是manager.Manager.Get时候的，所以一定要重新再从session里面拿出来，保持一致，否则接下来的逻辑会导致连接泄漏
+	payload.UniqId = session.GetUniqId()
 	//设置uniqId
 	if payload.NewUniqId != "" && payload.NewUniqId != payload.UniqId {
 		//如果新的uniqId已经存在，则要移除掉所有关系，因为接下来，这个新的uniqId会被作用在新的连接上
@@ -39,9 +49,9 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		if conflictConn != nil {
 			//从连接管理器中删除
 			manager.Manager.Del(payload.NewUniqId)
-			//删除订阅关系、删除uniqId、关闭心跳
+			//删除订阅关系、删除uniqId
 			if conflictSession, ok := conflictConn.Session().(*info.Info); ok {
-				topics, uniqId, _ := conflictSession.Clear()
+				topics, uniqId, _ := conflictSession.Clear(true)
 				topic.Topic.Del(topics, uniqId)
 			}
 			//判断是否转发数据
@@ -63,10 +73,23 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		manager.Manager.Del(payload.UniqId)
 		manager.Manager.Set(payload.NewUniqId, conn)
 		//处理主题管理器中的关系
-		topics := session.SetUniqIdAndGetTopics(payload.NewUniqId)
-		//删除旧关系，构建新关系
-		topic.Topic.Del(topics, payload.UniqId)
-		topic.Topic.Set(topics, payload.NewUniqId)
+		if len(payload.NewTopics) > 0 {
+			//如果需要设置新的主题，则在这里一并搞定，设置新的uniqId
+			topics := session.SetUniqIdAndPUllTopics(payload.NewUniqId)
+			//移除旧主题的关系
+			topic.Topic.Del(topics, payload.UniqId)
+			//订阅新主题
+			session.SubscribeTopics(payload.NewTopics, false)
+			//设置新主题的关系
+			topic.Topic.Set(payload.NewTopics, payload.NewUniqId)
+			//清空掉，避免接下来的逻辑重新设置主题
+			payload.NewTopics = nil
+		} else {
+			topics := session.SetUniqIdAndGetTopics(payload.NewUniqId)
+			//删除旧关系，构建新关系
+			topic.Topic.Del(topics, payload.UniqId)
+			topic.Topic.Set(topics, payload.NewUniqId)
+		}
 		//重置目标uniqId，因为接下来的设置主题，发送消息的逻辑可能会用到
 		payload.UniqId = payload.NewUniqId
 	}
@@ -78,9 +101,10 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.NewTopics) > 0 {
 		topics := session.PullTopics()
 		topic.Topic.Del(topics, payload.UniqId)
-		session.SubscribeTopics(payload.NewTopics)
+		session.SubscribeTopics(payload.NewTopics, false)
 		topic.Topic.Set(payload.NewTopics, payload.UniqId)
 	}
+	session.MuxUnLock()
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
 		catapult.Catapult.Put(payload)

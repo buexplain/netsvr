@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
-	"netsvr/test/business/protocol"
 	"netsvr/test/business/userDb"
-	"netsvr/test/business/utils"
+	"netsvr/test/protocol"
+	"netsvr/test/utils"
 )
 
 type connSwitch struct{}
@@ -30,7 +29,11 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 	//构造单播数据
 	ret := &internalProtocol.SingleCast{}
 	ret.UniqId = payload.UniqId
-	ret.Data = utils.NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{"code": 0, "message": fmt.Sprintf("连接网关成功，uniqId: %s", payload.UniqId)})
+	ret.Data = utils.NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{
+		"code":    0,
+		"message": "连接网关成功",
+		"data":    payload.UniqId,
+	})
 	//发送到网关
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_SingleCast
@@ -43,7 +46,7 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 func (connSwitch) ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 	payload := internalProtocol.ConnClose{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.ConnClose error:%v", err)
+		logging.Error("Proto unmarshal internalProtocol.ConnClose error: %v", err)
 		return
 	}
 	//解析网关中存储的用户信息
