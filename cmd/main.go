@@ -2,15 +2,25 @@ package main
 
 import (
 	"github.com/lesismal/nbio/logging"
+	"net/http"
+	_ "net/http/pprof"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/worker"
+	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"os"
 )
 
 func main() {
 	logging.SetLevel(configs.Config.GetLogLevel())
+	go func() {
+		defer func() {
+			_ = recover()
+		}()
+		logging.Info("Pprof http start http://127.0.0.1:6062/debug/pprof")
+		_ = http.ListenAndServe("127.0.0.1:6062", nil)
+	}()
 	go worker.Start()
 	go customer.Start()
 	select {
@@ -19,6 +29,7 @@ func main() {
 		logging.Info("开始关闭网关进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
 		//先发出关闭信号，通知所有协程
 		quit.Cancel()
+		workerManager.Manager.Close()
 		//等待协程退出
 		quit.Wg.Wait()
 		//关闭worker服务器

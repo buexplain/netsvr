@@ -59,8 +59,8 @@ func (r *collect) Set(topics []string, uniqId string) {
 	}
 }
 
-// Pull 删除某几个主题
-func (r *collect) Pull(topics []string) map[string]map[string]struct{} {
+// PullAndReturnUniqIds 删除某几个主题，并返回主题包含的uniqId
+func (r *collect) PullAndReturnUniqIds(topics []string) map[string]map[string]struct{} {
 	if len(topics) == 0 {
 		return nil
 	}
@@ -105,18 +105,32 @@ func (r *collect) Get() (topics []string) {
 }
 
 // Del 删除主题与uniqId的对应关系
-func (r *collect) Del(topics []string, uniqId string) {
+func (r *collect) Del(topics []string, currentUniqId string, previousUniqId string) {
 	if len(topics) == 0 {
 		return
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
+	if currentUniqId == previousUniqId || previousUniqId == "" {
+		for _, topic := range topics {
+			c, ok := r.topics[topic]
+			if !ok {
+				continue
+			}
+			delete(c, currentUniqId)
+			if len(c) == 0 {
+				delete(r.topics, topic)
+			}
+		}
+		return
+	}
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
 		if !ok {
 			continue
 		}
-		delete(c, uniqId)
+		delete(c, currentUniqId)
+		delete(c, previousUniqId)
 		if len(c) == 0 {
 			delete(r.topics, topic)
 		}

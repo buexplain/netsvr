@@ -9,7 +9,7 @@ type Info struct {
 	uniqId  string
 	session string
 	topics  []string
-	mux     *sync.RWMutex
+	mux     sync.RWMutex
 	closed  chan struct{}
 }
 
@@ -17,7 +17,7 @@ func NewInfo(uniqId string) *Info {
 	return &Info{
 		uniqId: uniqId,
 		topics: nil,
-		mux:    &sync.RWMutex{},
+		mux:    sync.RWMutex{},
 		closed: make(chan struct{}),
 	}
 }
@@ -124,10 +124,11 @@ func (r *Info) PullTopics() []string {
 	return ret
 }
 
-// SubscribeTopics 订阅，并返回成功订阅的主题
-func (r *Info) SubscribeTopics(topics []string, lock bool) []string {
+// SubscribeTopics 订阅，并返回成功订阅的主题，以及当前的uniqId
+func (r *Info) SubscribeTopics(topics []string, lock bool) (realSubscribeTopics []string, currentUniqId string) {
 	if len(topics) == 0 {
-		return nil
+		//这里返回空的uniqId，因为无妨
+		return nil, ""
 	}
 	if lock {
 		r.mux.Lock()
@@ -139,10 +140,10 @@ func (r *Info) SubscribeTopics(topics []string, lock bool) []string {
 		for _, topic := range topics {
 			r.topics = append(r.topics, topic)
 		}
-		return topics
+		return topics, r.uniqId
 	}
 	//不为空，判断是否存在，不存在的，则赋值
-	ret := make([]string, 0)
+	realSubscribeTopics = make([]string, 0)
 	for _, topic := range topics {
 		ok := false
 		for _, has := range r.topics {
@@ -153,35 +154,37 @@ func (r *Info) SubscribeTopics(topics []string, lock bool) []string {
 		}
 		if !ok {
 			r.topics = append(r.topics, topic)
-			ret = append(ret, topic)
+			realSubscribeTopics = append(realSubscribeTopics, topic)
 		}
 	}
-	return ret
+	currentUniqId = r.uniqId
+	return
 }
 
-// UnsubscribeTopics 取消订阅，并返回成功取消订阅的主题
-func (r *Info) UnsubscribeTopics(topics []string) []string {
+// UnsubscribeTopics 取消订阅，并返回成功取消订阅的主题，以及当前的uniqId
+func (r *Info) UnsubscribeTopics(topics []string) (realUnsubscribeTopics []string, currentUniqId string) {
 	if len(topics) == 0 {
-		return nil
+		return nil, ""
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	//为空，则无需任何操作
 	if r.topics == nil {
-		return nil
+		return nil, ""
 	}
 	//判断已经存在的才删除
-	ret := make([]string, 0)
+	realUnsubscribeTopics = make([]string, 0)
 	for _, topic := range topics {
 		for k, has := range r.topics {
 			if topic == has {
 				r.topics = append(r.topics[0:k], r.topics[k+1:]...)
-				ret = append(ret, topic)
+				realUnsubscribeTopics = append(realUnsubscribeTopics, topic)
 				break
 			}
 		}
 	}
-	return ret
+	currentUniqId = r.uniqId
+	return
 }
 
 // UnsubscribeTopic 取消订阅

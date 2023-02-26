@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/catapult"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
@@ -29,9 +29,14 @@ func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	topics := session.UnsubscribeTopics(payload.Topics)
-	topic.Topic.Del(topics, payload.UniqId)
+	var topics []string
+	var currentUniqId string
+	topics, currentUniqId = session.UnsubscribeTopics(payload.Topics)
+	//这里根据session里面的uniqId去删除订阅关系，因为有可能当UnsubscribeTopics得到锁的时候，session里面的uniqId与当前的payload.UniqId不一致了
+	topic.Topic.Del(topics, currentUniqId, payload.UniqId)
 	if len(payload.Data) > 0 {
-		catapult.Catapult.Put(payload)
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+			_ = conn.Close()
+		}
 	}
 }

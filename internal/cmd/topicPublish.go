@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/catapult"
+	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
@@ -23,8 +24,13 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 	if len(uniqIds) == 0 {
 		return
 	}
-	for _, uuid := range uniqIds {
-		catapult.Catapult.Put(catapult.NewPayload(uuid, payload.Data))
+	for _, uniqId := range uniqIds {
+		conn := manager.Manager.Get(uniqId)
+		if conn == nil {
+			continue
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+			_ = conn.Close()
+		}
 	}
-	uniqIds = uniqIds[:0]
 }

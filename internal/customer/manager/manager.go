@@ -19,6 +19,14 @@ func (r *collect) Len() int {
 	return len(r.conn)
 }
 
+func (r *collect) GetConnections(connections *[]*websocket.Conn) {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	for _, conn := range r.conn {
+		*connections = append(*connections, conn)
+	}
+}
+
 func (r *collect) GetUniqIds(uniqIds *[]string) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
@@ -77,6 +85,14 @@ func (r manager) Set(uniqId string, conn *websocket.Conn) {
 
 func (r manager) Del(uniqId string) {
 	r[r.index(uniqId)].Del(uniqId)
+}
+
+func (r manager) Len() int {
+	length := 0
+	for _, c := range r {
+		length += c.Len()
+	}
+	return length
 }
 
 var Manager manager

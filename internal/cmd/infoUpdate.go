@@ -4,7 +4,6 @@ import (
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/catapult"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
@@ -40,6 +39,8 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		session.MuxUnLock()
 		return
 	}
+	//记录下老的uniqId
+	previousUniqId := payload.UniqId
 	//在高并发下，这个payload.UniqId不一定是manager.Manager.Get时候的，所以一定要重新再从session里面拿出来，保持一致，否则接下来的逻辑会导致连接泄漏
 	payload.UniqId = session.GetUniqId()
 	//设置uniqId
@@ -51,8 +52,8 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 			manager.Manager.Del(payload.NewUniqId)
 			//删除订阅关系、删除uniqId
 			if conflictSession, ok := conflictConn.Session().(*info.Info); ok {
-				topics, uniqId, _ := conflictSession.Clear(true)
-				topic.Topic.Del(topics, uniqId)
+				topics, currentUniqId, _ := conflictSession.Clear(true)
+				topic.Topic.Del(topics, currentUniqId, payload.NewUniqId)
 			}
 			//判断是否转发数据
 			if len(payload.DataAsNewUniqIdExisted) == 0 {
@@ -77,7 +78,7 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 			//如果需要设置新的主题，则在这里一并搞定，设置新的uniqId
 			topics := session.SetUniqIdAndPUllTopics(payload.NewUniqId)
 			//移除旧主题的关系
-			topic.Topic.Del(topics, payload.UniqId)
+			topic.Topic.Del(topics, payload.UniqId, previousUniqId)
 			//订阅新主题
 			session.SubscribeTopics(payload.NewTopics, false)
 			//设置新主题的关系
@@ -87,11 +88,9 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		} else {
 			topics := session.SetUniqIdAndGetTopics(payload.NewUniqId)
 			//删除旧关系，构建新关系
-			topic.Topic.Del(topics, payload.UniqId)
+			topic.Topic.Del(topics, payload.UniqId, previousUniqId)
 			topic.Topic.Set(topics, payload.NewUniqId)
 		}
-		//重置目标uniqId，因为接下来的设置主题，发送消息的逻辑可能会用到
-		payload.UniqId = payload.NewUniqId
 	}
 	//设置session
 	if payload.NewSession != "" {
@@ -99,14 +98,20 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//设置主题
 	if len(payload.NewTopics) > 0 {
+		//清空主题
 		topics := session.PullTopics()
-		topic.Topic.Del(topics, payload.UniqId)
+		//删除关系
+		topic.Topic.Del(topics, payload.UniqId, previousUniqId)
+		//订阅主题
 		session.SubscribeTopics(payload.NewTopics, false)
+		//构建关系
 		topic.Topic.Set(payload.NewTopics, payload.UniqId)
 	}
 	session.MuxUnLock()
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		catapult.Catapult.Put(payload)
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+			_ = conn.Close()
+		}
 	}
 }

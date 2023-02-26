@@ -15,7 +15,7 @@ func UniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 		logging.Error("Proto unmarshal protocol.UniqIdListReq error: %v", err)
 		return
 	}
-	uniqIds := make([]string, 0, customerManager.Manager[0].Len()*len(customerManager.Manager))
+	uniqIds := make([]string, 0, customerManager.Manager.Len())
 	for _, c := range customerManager.Manager {
 		c.GetUniqIds(&uniqIds)
 	}

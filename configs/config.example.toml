@@ -1,5 +1,5 @@
 # 日志级别 debug、info、warn、error
-LogLevel = "error"
+LogLevel = "info"
 # 服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
 # 如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
 ServerId = 0
@@ -21,10 +21,6 @@ WorkerReadDeadline = "120s"
 WorkerReceivePackLimit = 2097152
 # worker发送给business的包的大小限制（单位：字节）
 WorkerSendPackLimit = 2097152
-# 网关用于发送数据给客户的协程数量
-CatapultConsumer = 1000
-# 等待发送给客户数据的缓冲区的大小
-CatapultChanCap = 2000
 # 统计服务的各种状态，空，则不统计任何状态
 # 0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的次数情况，4：统计客户数据转发到worker的字节数情况
 MetricsItem = [0, 1, 2, 3, 4]

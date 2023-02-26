@@ -35,7 +35,7 @@ type Register struct {
 	// 表示该business是否处理客户端连接打开的信息
 	ProcessConnOpen bool `protobuf:"varint,3,opt,name=ProcessConnOpen,proto3" json:"ProcessConnOpen,omitempty"`
 	// 表示接下来，需要worker开启多少协程来处理本business的请求
-	// 如果本business，非常频繁的与worker交互，可以考虑开大一点，但是也不能无限大，开太多也许不能解决问题，建议10条左右即可
+	// 如果本business，非常频繁的与worker交互，可以考虑开大一点，但是也不能无限大，开太多也许不能解决问题，因为发送消息到客户连接是会被阻塞的，建议100~200条左右即可
 	// 请注意worker默认已经开启了一条协程来处理本business的请求，所以该值只有在大于1的时候才会开启更多协程
 	ProcessCmdGoroutineNum uint32 `protobuf:"varint,4,opt,name=ProcessCmdGoroutineNum,proto3" json:"ProcessCmdGoroutineNum,omitempty"`
 }

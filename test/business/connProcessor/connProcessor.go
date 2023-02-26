@@ -68,7 +68,6 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	for {
 		select {
 		case <-r.closeCh:
-			return
 		case <-quit.Ctx.Done():
 			return
 		case <-t.C:
@@ -81,9 +80,9 @@ func (r *ConnProcessor) LoopHeartbeat() {
 func (r *ConnProcessor) Close() {
 	select {
 	case <-r.closeCh:
+		return
 	default:
 		close(r.closeCh)
-		time.Sleep(100 * time.Millisecond)
 		_ = r.conn.Close()
 	}
 }
@@ -358,8 +357,8 @@ func (r *ConnProcessor) RegisterWorker() error {
 	router.Cmd = internalProtocol.Cmd_Register
 	reg := &internalProtocol.Register{}
 	reg.Id = int32(r.workerId)
-	//让worker为我开启10条协程
-	reg.ProcessCmdGoroutineNum = 10
+	//让worker为我开启200条协程来处理我的请求
+	reg.ProcessCmdGoroutineNum = 200
 	reg.ProcessConnClose = true
 	reg.ProcessConnOpen = true
 	router.Data, _ = proto.Marshal(reg)

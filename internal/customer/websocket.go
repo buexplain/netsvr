@@ -111,17 +111,22 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		session.MuxLock()
+		//关闭info
 		session.Close()
+		//断开info与conn的关系
+		conn.SetSession(nil)
+		//清空info，并返回相关数据
 		topics, uniqId, userSession := session.Clear(false)
 		if uniqId == "" {
 			session.MuxUnLock()
-			//当前连接已经被清空了uniqId，无需进行接下来的逻辑
+			//当前连接已经被清空了uniqId（可能被强制踢下线或者是被uniqId被顶掉了），无需进行接下来的逻辑
 			return
 		}
 		//从连接管理器中删除
 		manager.Manager.Del(uniqId)
 		//删除订阅关系
-		topic.Topic.Del(topics, uniqId)
+		topic.Topic.Del(topics, uniqId, "")
+		//释放锁
 		session.MuxUnLock()
 		logging.Debug("Customer websocket close, info: %#v", session)
 		//连接关闭消息回传给business

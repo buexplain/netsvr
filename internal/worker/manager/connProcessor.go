@@ -20,6 +20,8 @@ type CmdCallback func(data []byte, processor *ConnProcessor)
 type ConnProcessor struct {
 	//business与worker的连接
 	conn net.Conn
+	//连接关闭信号
+	connClosed chan struct{}
 	//要发送给连接的数据
 	sendCh chan []byte
 	//发送缓冲区
@@ -27,8 +29,6 @@ type ConnProcessor struct {
 	sendDataLen uint32
 	//从连接中读取的数据
 	receiveCh chan *protocol.Router
-	//连接关闭信号
-	closeCh chan struct{}
 	//当前连接的服务编号
 	workerId int
 	//各种命令的回调函数
@@ -38,11 +38,11 @@ type ConnProcessor struct {
 func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:        conn,
-		sendCh:      make(chan []byte, 100),
+		connClosed:  make(chan struct{}),
+		sendCh:      make(chan []byte, 0),
 		sendBuf:     bytes.Buffer{},
 		sendDataLen: 0,
-		receiveCh:   make(chan *protocol.Router, 100),
-		closeCh:     make(chan struct{}),
+		receiveCh:   make(chan *protocol.Router, 0),
 		workerId:    0,
 		cmdCallback: map[protocol.Cmd]CmdCallback{},
 	}
@@ -51,18 +51,21 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 
 func (r *ConnProcessor) Close() {
 	select {
-	case <-r.closeCh:
+	case <-r.connClosed:
+		return
 	default:
-		close(r.closeCh)
-		time.Sleep(100 * time.Millisecond)
+		//发出关闭连接信号
+		close(r.connClosed)
+		//关闭管道
+		close(r.sendCh)
+		close(r.receiveCh)
+		//关闭连接
 		_ = r.conn.Close()
 	}
 }
 
 func (r *ConnProcessor) LoopSend() {
 	defer func() {
-		//写协程退出，直接关闭连接
-		r.Close()
 		//打印日志信息
 		if err := recover(); err != nil {
 			logging.Error("Worker send coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
@@ -74,36 +77,14 @@ func (r *ConnProcessor) LoopSend() {
 	}()
 	for {
 		select {
-		case <-r.closeCh:
-			//business与worker的连接已经关闭，直接退出当前协程
-			return
-		case <-quit.Ctx.Done():
-			//worker即将停止，处理通道中剩余数据，尽量保证客户消息转发到business
-			r.loopSendDone()
-			return
-		case data := <-r.sendCh:
+		case data, ok := <-r.sendCh:
+			if ok == false {
+				//管道被关闭
+				return
+			}
 			r.send(data)
-		}
-	}
-}
-
-func (r *ConnProcessor) loopSendDone() {
-	//处理通道中的剩余数据
-	for {
-		for i := len(r.sendCh); i > 0; i-- {
-			v := <-r.sendCh
-			r.send(v)
-		}
-		if len(r.sendCh) == 0 {
-			break
-		}
-	}
-	//再次处理通道中的剩余数据，直到超时退出
-	for {
-		select {
-		case v := <-r.sendCh:
-			r.send(v)
-		case <-time.After(1 * time.Second):
+		case <-r.connClosed:
+			//连接被关闭
 			return
 		}
 	}
@@ -129,25 +110,25 @@ func (r *ConnProcessor) send(data []byte) {
 		if err == nil {
 			//写入成功，重置缓冲区
 			r.sendBuf.Reset()
+			return
 		} else {
 			r.Close()
 			logging.Error("Worker send to business error: %v", err)
+			return
 		}
-		return
 	}
+	logging.Error("Worker send to business buffer error: %v", err)
 	//写缓冲区失败，重置缓冲区
 	r.sendBuf.Reset()
+	return
 }
 
 func (r *ConnProcessor) Send(data []byte) {
 	select {
-	case <-r.closeCh:
-		return
-	case <-quit.Ctx.Done():
+	case <-r.connClosed:
 		return
 	default:
 		r.sendCh <- data
-		return
 	}
 }
 
@@ -235,7 +216,12 @@ func (r *ConnProcessor) LoopReceive() {
 			continue
 		}
 		logging.Debug("Worker receive business command: %s", router.Cmd)
-		r.receiveCh <- router
+		select {
+		case <-r.connClosed:
+			return
+		default:
+			r.receiveCh <- router
+		}
 	}
 }
 
@@ -254,42 +240,14 @@ func (r *ConnProcessor) LoopCmd(number int) {
 	}()
 	for {
 		select {
-		case <-r.closeCh:
-			return
-		case <-quit.Ctx.Done():
-			r.loopCmdDone(number)
-			return
-		case data := <-r.receiveCh:
+		case data, ok := <-r.receiveCh:
+			if ok == false {
+				//管道被关闭
+				return
+			}
 			r.cmd(data)
-		}
-	}
-}
-
-func (r *ConnProcessor) loopCmdDone(number int) {
-	//处理通道中的剩余数据
-	empty := 0
-	for {
-		//所有协程遇到多次没拿到数据的情况，视为通道中没有数据了
-		if empty > 5 {
-			break
-		}
-		select {
-		case v := <-r.receiveCh:
-			r.cmd(v)
-		default:
-			empty++
-		}
-	}
-	//留下0号协程，进行一个超时等待处理
-	if number != 0 {
-		return
-	}
-	//再次处理通道中的剩余数据，直到超时退出
-	for {
-		select {
-		case v := <-r.receiveCh:
-			r.cmd(v)
-		case <-time.After(1 * time.Second):
+		case <-r.connClosed:
+			//连接被关闭
 			return
 		}
 	}

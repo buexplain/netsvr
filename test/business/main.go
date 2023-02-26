@@ -42,8 +42,8 @@ func clientServer() {
 			return
 		}
 	})
-	logging.Info("点击访问客户端：http://127.0.0.1:6062/")
-	_ = http.ListenAndServe("127.0.0.1:6062", nil)
+	logging.Info("点击访问客户端：http://127.0.0.1:6063/")
+	_ = http.ListenAndServe("127.0.0.1:6063", nil)
 }
 
 func main() {

@@ -17,9 +17,7 @@ func UniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 	}
 	ret := &protocol.UniqIdCountResp{}
 	ret.CtxData = payload.CtxData
-	for _, c := range customerManager.Manager {
-		ret.Count += int32(c.Len())
-	}
+	ret.Count = int32(customerManager.Manager.Len())
 	route := &protocol.Router{}
 	route.Cmd = protocol.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)

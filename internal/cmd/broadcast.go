@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/catapult"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
@@ -19,12 +19,15 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.Data) == 0 {
 		return
 	}
-	uniqIds := make([]string, 0, customerManager.Manager[0].Len())
+	//取出所有的连接
+	connections := make([]*websocket.Conn, 0, customerManager.Manager.Len())
 	for _, c := range customerManager.Manager {
-		c.GetUniqIds(&uniqIds)
-		for _, uuid := range uniqIds {
-			catapult.Catapult.Put(catapult.NewPayload(uuid, payload.Data))
+		c.GetConnections(&connections)
+	}
+	//循环所有的连接，挨个发送出去
+	for _, conn := range connections {
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+			_ = conn.Close()
 		}
-		uniqIds = uniqIds[:0]
 	}
 }

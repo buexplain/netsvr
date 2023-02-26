@@ -85,7 +85,7 @@
 </head>
 <body>
 <div style="display:flex">
-    <div style="width: 65%">
+    <div style="width: 70%;max-height: 90vh;overflow-y: auto;">
         <div class="case">
             <label for="address">
                 <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
@@ -265,7 +265,7 @@
             <button onclick="send(this,routerCmd.topicPublish)">发布</button>
         </div>
     </div>
-    <div style="width: 30%;max-height: 70vh;overflow-y: auto;">
+    <div style="width: 30%;max-height: 90vh;overflow-y: auto;">
         <div id="topInfo"></div>
         <div id="output"></div>
     </div>

@@ -33,8 +33,8 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		customerManager.Manager.Del(payload.UniqId)
 		//删除订阅关系、删除uniqId
 		if session, ok := conn.Session().(*info.Info); ok {
-			topics, _, _ := session.Clear(true)
-			topic.Topic.Del(topics, payload.UniqId)
+			topics, currentUniqId, _ := session.Clear(true)
+			topic.Topic.Del(topics, currentUniqId, payload.UniqId)
 		}
 	}
 	//判断是否转发数据

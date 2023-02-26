@@ -36,11 +36,6 @@ type config struct {
 	//worker发送给business的包的大小限制（单位：字节）
 	WorkerSendPackLimit uint32
 
-	//网关用于发送数据给客户的协程数量
-	CatapultConsumer int
-	//等待发送给客户数据的缓冲区的大小
-	CatapultChanCap int
-
 	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
 	MetricsItem []int
 	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
@@ -116,14 +111,6 @@ func init() {
 	if Config.CustomerReadDeadline <= 0 {
 		//默认120秒
 		Config.CustomerReadDeadline = time.Second * 120
-	}
-	if Config.CatapultConsumer <= 0 {
-		//默认1000个协程
-		Config.CatapultConsumer = 1000
-	}
-	if Config.CatapultChanCap <= 0 {
-		//缓冲区默认大小是2000
-		Config.CatapultChanCap = 2000
 	}
 	if Config.MetricsMaxRecordInterval <= 0 {
 		//默认10秒

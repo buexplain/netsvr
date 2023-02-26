@@ -72,6 +72,14 @@ func (r manager) Del(workerId int, conn *ConnProcessor) {
 	}
 }
 
+func (r manager) Close() {
+	for _, c := range r {
+		for _, conn := range c.conn {
+			conn.Close()
+		}
+	}
+}
+
 // Manager 管理所有的business连接
 var Manager manager
 
