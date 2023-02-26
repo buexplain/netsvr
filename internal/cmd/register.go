@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/quit"
 )
 
 // Register 注册business进程
@@ -18,12 +17,12 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 	//检查服务编号是否在允许的范围内
 	if workerManager.MinWorkerId > payload.Id || payload.Id > workerManager.MaxWorkerId {
 		logging.Error("WorkerId %d not in range: %d ~ %d", payload.Id, workerManager.MinWorkerId, workerManager.MaxWorkerId)
-		processor.Close()
+		processor.ForceClose()
 		return
 	}
 	//检查当前的business连接是否已经注册过服务编号了，不允许重复注册
 	if processor.GetWorkerId() > 0 {
-		processor.Close()
+		processor.ForceClose()
 		logging.Error("WorkerId %d duplicate register are not allowed", 1)
 		return
 	}
@@ -43,8 +42,7 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 	if payload.ProcessCmdGoroutineNum > 1 {
 		var i uint32 = 1
 		for ; i < payload.ProcessCmdGoroutineNum; i++ {
-			quit.Wg.Add(1)
-			go processor.LoopCmd(int(i))
+			go processor.LoopCmd()
 		}
 	}
 	logging.Debug("Register a business by id: %d", payload.Id)

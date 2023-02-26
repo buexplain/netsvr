@@ -66,10 +66,18 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_Metrics, cmd.Metrics)
 			c.RegisterCmd(protocol.Cmd_CheckOnline, cmd.CheckOnline)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启
-			quit.Wg.Add(3)
-			go c.LoopCmd(0)
+			go c.LoopCmd()
 			go c.LoopReceive()
 			go c.LoopSend()
+			quit.Wg.Add(1)
+			go func() {
+				defer func() {
+					_ = recover()
+					quit.Wg.Done()
+				}()
+				<-quit.Ctx.Done()
+				c.GraceClose()
+			}()
 		}
 	}
 }

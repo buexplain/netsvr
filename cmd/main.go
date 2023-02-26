@@ -7,7 +7,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/worker"
-	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
 	"os"
 )
@@ -27,9 +26,8 @@ func main() {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
 		logging.Info("开始关闭网关进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
-		//先发出关闭信号，通知所有协程
+		//通知所有协程开始退出
 		quit.Cancel()
-		workerManager.Manager.Close()
 		//等待协程退出
 		quit.Wg.Wait()
 		//关闭worker服务器

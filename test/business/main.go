@@ -47,6 +47,7 @@ func clientServer() {
 }
 
 func main() {
+	processCmdGoroutineNum := 100
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
 		logging.Error("连接服务端失败，%v", err)
@@ -56,7 +57,7 @@ func main() {
 	go clientServer()
 	processor := connProcessor.NewConnProcessor(conn, 1)
 	//注册到worker
-	if err := processor.RegisterWorker(); err != nil {
+	if err := processor.RegisterWorker(uint32(processCmdGoroutineNum)); err != nil {
 		logging.Error("注册到worker失败 %v", err)
 		os.Exit(1)
 	}
@@ -73,31 +74,38 @@ func main() {
 	cmd.UniqId.Init(processor)
 	cmd.Metrics.Init(processor)
 	//心跳
-	quit.Wg.Add(1)
 	go processor.LoopHeartbeat()
 	//循环处理worker发来的指令
-	for i := 0; i < 2; i++ {
-		quit.Wg.Add(1)
-		go processor.LoopCmd(i)
+	for i := 0; i < processCmdGoroutineNum; i++ {
+		go processor.LoopCmd()
 	}
 	//循环写
-	quit.Wg.Add(1)
 	go processor.LoopSend()
 	//循环读
-	quit.Wg.Add(1)
 	go processor.LoopReceive()
+	//处理关闭信号
+	quit.Wg.Add(1)
+	go func() {
+		defer func() {
+			_ = recover()
+			quit.Wg.Done()
+		}()
+		<-quit.Ctx.Done()
+		//取消注册
+		processor.UnregisterWorker()
+		//优雅关闭
+		processor.GraceClose()
+	}()
 	//开始关闭进程
 	select {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
 		logging.Info("开始关闭business进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
-		//取消注册
-		processor.UnregisterWorker()
-		//发出关闭信号，通知所有协程
+		//通知所有协程开始退出
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
-		processor.Close()
+		processor.ForceClose()
 		logging.Info("关闭business进程成功: pid --> %d", os.Getpid())
 		os.Exit(0)
 	}

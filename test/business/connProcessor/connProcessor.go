@@ -13,6 +13,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
 	"runtime/debug"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,12 @@ type BusinessCmdCallback func(tf *internalProtocol.Transfer, param string, proce
 type ConnProcessor struct {
 	//business与worker的连接
 	conn net.Conn
+	//消费者退出信号
+	consumerCh chan struct{}
+	//生产者退出信号
+	producerCh chan struct{}
+	//消费者协程退出等待器
+	consumerWg sync.WaitGroup
 	//要发送给连接的数据
 	sendCh chan []byte
 	//发送缓冲区
@@ -29,8 +36,6 @@ type ConnProcessor struct {
 	sendDataLen uint32
 	//从连接中读取的数据
 	receiveCh chan *internalProtocol.Router
-	//连接关闭信号
-	closeCh chan struct{}
 	//当前连接的服务编号
 	workerId int
 	//worker发来的各种命令的回调函数
@@ -42,11 +47,13 @@ type ConnProcessor struct {
 func NewConnProcessor(conn net.Conn, workerId int) *ConnProcessor {
 	tmp := &ConnProcessor{
 		conn:                conn,
-		sendCh:              make(chan []byte, 0),
+		consumerCh:          make(chan struct{}),
+		producerCh:          make(chan struct{}),
+		consumerWg:          sync.WaitGroup{},
+		sendCh:              make(chan []byte, 100),
 		sendBuf:             bytes.Buffer{},
 		sendDataLen:         0,
 		receiveCh:           make(chan *internalProtocol.Router, 100),
-		closeCh:             make(chan struct{}),
 		workerId:            workerId,
 		workerCmdCallback:   map[int32]WorkerCmdCallback{},
 		businessCmdCallback: map[protocol.Cmd]BusinessCmdCallback{},
@@ -63,12 +70,10 @@ func (r *ConnProcessor) LoopHeartbeat() {
 			logging.Debug("Business heartbeat coroutine is closed")
 		}
 		t.Stop()
-		quit.Wg.Done()
 	}()
 	for {
 		select {
-		case <-r.closeCh:
-		case <-quit.Ctx.Done():
+		case <-r.producerCh:
 			return
 		case <-t.C:
 			//这个心跳一定要发，否则服务端会把连接干掉
@@ -77,61 +82,60 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	}
 }
 
-func (r *ConnProcessor) Close() {
+// GraceClose 优雅关闭
+func (r *ConnProcessor) GraceClose() {
 	select {
-	case <-r.closeCh:
+	case <-r.producerCh:
 		return
 	default:
-		close(r.closeCh)
+		//通知所有生产者，不再生产数据
+		close(r.producerCh)
+		//通知所有消费者，消费完毕后退出
+		close(r.sendCh)
+		close(r.receiveCh)
+		//等待消费者协程退出
+		r.consumerWg.Wait()
+		//关闭连接
+		_ = r.conn.Close()
+	}
+}
+
+// ForceClose 强制关闭
+func (r *ConnProcessor) ForceClose() {
+	select {
+	case <-r.producerCh:
+		return
+	default:
+		//通知所有生产者，不再生产数据
+		close(r.producerCh)
+		//通知所有消费者，立刻退出
+		close(r.consumerCh)
+		//关闭连接
 		_ = r.conn.Close()
 	}
 }
 
 func (r *ConnProcessor) LoopSend() {
+	r.consumerWg.Add(1)
 	defer func() {
-		//写协程退出，直接关闭连接
-		r.Close()
+		r.consumerWg.Done()
 		//打印日志信息
 		if err := recover(); err != nil {
 			logging.Error("Business send coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
 		} else {
 			logging.Debug("Business send coroutine is closed, workerId: %d", r.workerId)
 		}
-		//减少协程wait计数器
-		quit.Wg.Done()
 	}()
 	for {
 		select {
-		case <-r.closeCh:
-			//business与worker的连接已经关闭，直接退出当前协程
-			return
-		case <-quit.Ctx.Done():
-			//business即将停止，处理通道中剩余数据，尽量保证处理后的客户消息转发到worker
-			r.loopSendDone()
-			return
-		case data := <-r.sendCh:
+		case data, ok := <-r.sendCh:
+			if ok == false {
+				//管道被关闭
+				return
+			}
 			r.send(data)
-		}
-	}
-}
-
-func (r *ConnProcessor) loopSendDone() {
-	//处理通道中的剩余数据
-	for {
-		for i := len(r.sendCh); i > 0; i-- {
-			v := <-r.sendCh
-			r.send(v)
-		}
-		if len(r.sendCh) == 0 {
-			break
-		}
-	}
-	//再次处理通道中的剩余数据，直到超时退出
-	for {
-		select {
-		case v := <-r.sendCh:
-			r.send(v)
-		case <-time.After(1 * time.Second):
+		case <-r.consumerCh:
+			//连接被关闭
 			return
 		}
 	}
@@ -152,31 +156,30 @@ func (r *ConnProcessor) send(data []byte) {
 	r.sendBuf.WriteByte(byte(r.sendDataLen))
 	//再写包体
 	var err error
-	if _, err = r.sendBuf.Write(data); err == nil {
-		//一次性写入到连接中
-		_, err = r.sendBuf.WriteTo(r.conn)
-		if err == nil {
-			//写入成功，重置缓冲区
-			r.sendBuf.Reset()
-		} else {
-			r.Close()
-			logging.Error("Business send to worker error: %v", err)
-		}
+	if _, err = r.sendBuf.Write(data); err != nil {
+		logging.Error("Business send to worker buffer error: %v", err)
+		//写缓冲区失败，重置缓冲区
+		r.sendBuf.Reset()
 		return
 	}
-	//写缓冲区失败，重置缓冲区
+	//一次性写入到连接中
+	_, err = r.sendBuf.WriteTo(r.conn)
+	if err != nil {
+		r.ForceClose()
+		logging.Error("Business send to worker error: %v", err)
+		return
+	}
+	//写入成功，重置缓冲区
 	r.sendBuf.Reset()
 }
 
 func (r *ConnProcessor) Send(data []byte) {
 	select {
-	case <-r.closeCh:
-		return
-	case <-quit.Ctx.Done():
+	case <-r.producerCh:
+		//收到关闭信号，不再生产
 		return
 	default:
 		r.sendCh <- data
-		return
 	}
 }
 
@@ -187,11 +190,9 @@ func (r *ConnProcessor) LoopReceive() {
 			quit.Execute("Business receive coroutine error")
 			logging.Error("Business receive coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
 		} else {
-			quit.Execute("Business receive coroutine is closed")
+			quit.Execute("Worker server shutdown")
 			logging.Debug("Business receive coroutine is closed, workerId: %d", r.workerId)
 		}
-		//减少协程wait计数器
-		quit.Wg.Done()
 	}()
 	dataLenBuf := make([]byte, 4)
 	dataBuf := make([]byte, configs.Config.WorkerSendPackLimit)
@@ -201,14 +202,14 @@ func (r *ConnProcessor) LoopReceive() {
 		//获取前4个字节，确定数据包长度
 		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
 			//读失败了，直接干掉这个连接，让business重新连接，因为缓冲区的tcp流已经脏了，程序无法拆包
-			r.Close()
+			r.ForceClose()
 			break
 		}
 		//这里采用大端序
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
 		if dataLen > configs.Config.WorkerSendPackLimit || dataLen < 1 {
 			//如果数据太长，直接close对方吧
-			r.Close()
+			r.ForceClose()
 			logging.Error("Business receive pack is too large: %d", dataLen)
 			break
 		}
@@ -216,7 +217,7 @@ func (r *ConnProcessor) LoopReceive() {
 		dataBuf = dataBuf[:0]
 		dataBuf = dataBuf[0:dataLen]
 		if _, err := io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
-			r.Close()
+			r.ForceClose()
 			logging.Error("Business receive error: %v", err)
 			break
 		}
@@ -236,61 +237,39 @@ func (r *ConnProcessor) LoopReceive() {
 			continue
 		}
 		logging.Debug("Business receive worker command: %s", router.Cmd)
-		r.receiveCh <- router
+		select {
+		case <-r.producerCh:
+			//收到关闭信号，不再生产
+			return
+		default:
+			r.receiveCh <- router
+		}
 	}
 }
 
 // LoopCmd 循环处理worker发来的各种请求命令
-func (r *ConnProcessor) LoopCmd(number int) {
+func (r *ConnProcessor) LoopCmd() {
+	r.consumerWg.Add(1)
 	defer func() {
+		r.consumerWg.Done()
 		if err := recover(); err != nil {
 			logging.Error("Business cmd coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
 			time.Sleep(5 * time.Second)
-			quit.Wg.Add(1)
-			go r.LoopCmd(number)
+			go r.LoopCmd()
 		} else {
 			logging.Debug("Business cmd coroutine is closed, workerId: %d", r.workerId)
 		}
-		quit.Wg.Done()
 	}()
 	for {
 		select {
-		case <-r.closeCh:
-			return
-		case <-quit.Ctx.Done():
-			r.loopCmdDone(number)
-			return
-		case data := <-r.receiveCh:
+		case data, ok := <-r.receiveCh:
+			if ok == false {
+				//管道被关闭
+				return
+			}
 			r.cmd(data)
-		}
-	}
-}
-
-func (r *ConnProcessor) loopCmdDone(number int) {
-	//处理通道中的剩余数据
-	empty := 0
-	for {
-		//所有协程遇到多次没拿到数据的情况，视为通道中没有数据了
-		if empty > 5 {
-			break
-		}
-		select {
-		case v := <-r.receiveCh:
-			r.cmd(v)
-		default:
-			empty++
-		}
-	}
-	//留下0号协程，进行一个超时等待处理
-	if number != 0 {
-		return
-	}
-	//再次处理通道中的剩余数据，直到超时退出
-	for {
-		select {
-		case v := <-r.receiveCh:
-			r.cmd(v)
-		case <-time.After(1 * time.Second):
+		case <-r.consumerCh:
+			//连接被关闭
 			return
 		}
 	}
@@ -352,13 +331,13 @@ func (r *ConnProcessor) SetWorkerId(id int) {
 	r.workerId = id
 }
 
-func (r *ConnProcessor) RegisterWorker() error {
+func (r *ConnProcessor) RegisterWorker(processCmdGoroutineNum uint32) error {
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_Register
 	reg := &internalProtocol.Register{}
 	reg.Id = int32(r.workerId)
-	//让worker为我开启200条协程来处理我的请求
-	reg.ProcessCmdGoroutineNum = 200
+	//让worker为我开启n条协程来处理我的请求
+	reg.ProcessCmdGoroutineNum = processCmdGoroutineNum
 	reg.ProcessConnClose = true
 	reg.ProcessConnOpen = true
 	router.Data, _ = proto.Marshal(reg)
