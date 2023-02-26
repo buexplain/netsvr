@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/lesismal/nbio/logging"
+	"github.com/tidwall/gjson"
 	"netsvr/internal/heartbeat"
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
@@ -23,7 +24,7 @@ type connOpenCmd struct {
 type Client struct {
 	conn      *websocket.Conn
 	UniqId    string
-	OnMessage func(p []byte)
+	OnMessage map[protocol.Cmd]func(payload gjson.Result)
 	OnClose   func()
 	sendCh    chan []byte
 	close     chan struct{}
@@ -61,10 +62,11 @@ func New(urlStr string) *Client {
 		return nil
 	}
 	client := &Client{
-		conn:   c,
-		UniqId: ret.Data.Data,
-		sendCh: make(chan []byte, 10),
-		close:  make(chan struct{}),
+		conn:      c,
+		UniqId:    ret.Data.Data,
+		OnMessage: map[protocol.Cmd]func(payload gjson.Result){},
+		sendCh:    make(chan []byte, 10),
+		close:     make(chan struct{}),
 	}
 	return client
 }
@@ -91,12 +93,21 @@ func (r *Client) Close() {
 	}
 }
 
-func (r *Client) Send(p []byte) {
+func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 	select {
 	case <-r.close:
 		return
 	default:
-		r.sendCh <- p
+		tmp := map[string]interface{}{"cmd": cmd, "data": data}
+		ret, err := json.Marshal(tmp)
+		if err != nil {
+			logging.Error("格式化请求对象错误 %v", err)
+			return
+		}
+		b := make([]byte, 0, len(ret)+3)
+		b = append(b, []byte("001")...)
+		b = append(b, ret...)
+		r.sendCh <- b
 	}
 }
 
@@ -112,13 +123,21 @@ func (r *Client) LoopRead() {
 				return
 			}
 			_, p, err := r.conn.ReadMessage()
-			if err == nil {
-				if !bytes.Equal(p, heartbeat.PongMessage) && r.OnMessage != nil {
-					r.OnMessage(p)
-				}
-			} else {
+			if err != nil {
 				r.Close()
 				return
+			}
+			if bytes.Equal(p, heartbeat.PongMessage) {
+				return
+			}
+			ret := gjson.GetManyBytes(p, "cmd", "data")
+			if len(ret) == 2 && ret[0].Type == gjson.Number && ret[1].Type == gjson.JSON {
+				cmd := protocol.Cmd(ret[0].Int())
+				if c, ok := r.OnMessage[cmd]; ok {
+					c(ret[1])
+				}
+			} else {
+				logging.Error("结构体不合法 %s", p)
 			}
 		}
 	}
