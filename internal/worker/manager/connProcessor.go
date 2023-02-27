@@ -99,17 +99,13 @@ func (r *ConnProcessor) LoopSend() {
 			logging.Debug("Worker send coroutine is closed, workerId: %d", r.workerId)
 		}
 	}()
-	for {
+	for data := range r.sendCh {
 		select {
-		case data, ok := <-r.sendCh:
-			if ok == false {
-				//管道被关闭
-				return
-			}
-			r.send(data)
 		case <-r.consumerCh:
 			//连接被关闭
 			return
+		default:
+			r.send(data)
 		}
 	}
 }
@@ -260,17 +256,17 @@ func (r *ConnProcessor) LoopCmd() {
 			logging.Debug("Worker cmd coroutine is closed, workerId: %d", r.workerId)
 		}
 	}()
-	for {
+	for data := range r.receiveCh {
+		//这种select、default的写法可能在default阶段刚好连接被关闭了，从而导致r.cmd(data)失败
+		//优点就是相比于select去case data, ok := <-r.receiveCh、case <-r.consumerCh的写法性能更高
+		//因为select去case data, ok := <-r.receiveCh、case <-r.consumerCh的写法会调用runtime.selectGo方法
+		//select、default的写法是经过go语言优化的，感觉是直接if判断一样的效果，没有函数开销
 		select {
-		case data, ok := <-r.receiveCh:
-			if ok == false {
-				//管道被关闭
-				return
-			}
-			r.cmd(data)
 		case <-r.consumerCh:
 			//连接被关闭
 			return
+		default:
+			r.cmd(data)
 		}
 	}
 }

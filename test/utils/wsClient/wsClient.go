@@ -9,6 +9,7 @@ import (
 	"netsvr/internal/heartbeat"
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
+	"netsvr/test/utils"
 	"time"
 )
 
@@ -98,10 +99,26 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 	case <-r.close:
 		return
 	default:
-		tmp := map[string]interface{}{"cmd": cmd, "data": data}
-		ret, err := json.Marshal(tmp)
+		var err error
+		var dataBytes []byte
+		if data != nil {
+			dataBytes, err = json.Marshal(data)
+			if err != nil {
+				logging.Error("格式化请求的数据对象错误 %v", err)
+				return
+			}
+		}
+		var dataStr string
+		if dataBytes == nil {
+			dataStr = "{}"
+		} else {
+			dataStr = utils.BytesToReadOnlyString(dataBytes)
+		}
+		tmp := map[string]interface{}{"cmd": cmd, "data": dataStr}
+		var ret []byte
+		ret, err = json.Marshal(tmp)
 		if err != nil {
-			logging.Error("格式化请求对象错误 %v", err)
+			logging.Error("格式化请求的路由对象错误 %v", err)
 			return
 		}
 		b := make([]byte, 0, len(ret)+3)
@@ -135,6 +152,8 @@ func (r *Client) LoopRead() {
 				cmd := protocol.Cmd(ret[0].Int())
 				if c, ok := r.OnMessage[cmd]; ok {
 					c(ret[1])
+				} else {
+					logging.Debug("未找到回调函数 %s", ret[1].Raw)
 				}
 			} else {
 				logging.Error("结构体不合法 %s", p)
