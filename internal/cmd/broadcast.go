@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -13,7 +13,7 @@ import (
 func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := protocol.Broadcast{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal protocol.Broadcast error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Broadcast failed")
 		return
 	}
 	if len(payload.Data) == 0 {

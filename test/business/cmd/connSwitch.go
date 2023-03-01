@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -23,7 +23,7 @@ func (r connSwitch) Init(processor *connProcessor.ConnProcessor) {
 func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.ConnOpen{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.ConnOpen error:%v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.ConnOpen failed")
 		return
 	}
 	//构造单播数据
@@ -46,7 +46,7 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 func (connSwitch) ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 	payload := internalProtocol.ConnClose{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.ConnClose error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.ConnClose failed")
 		return
 	}
 	//解析网关中存储的用户信息

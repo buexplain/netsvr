@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -75,7 +75,7 @@ func (sign) SignOutForForge(tf *internalProtocol.Transfer, _ string, processor *
 func (sign) SignIn(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	login := new(SignInParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), login); err != nil {
-		logging.Error("Parse SignInParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse SignInParam failed")
 		return
 	}
 	if login.Username == "" && login.Password == "" {

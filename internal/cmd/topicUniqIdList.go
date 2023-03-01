@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/topic"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -12,7 +12,7 @@ import (
 func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.TopicUniqIdListReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal protocol.TopicUniqIdListReq error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUniqIdListReq failed")
 		return
 	}
 	if payload.Topic == "" {

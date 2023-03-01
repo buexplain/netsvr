@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/utils"
@@ -16,7 +16,7 @@ import (
 func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &protocol.InfoDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal protocol.InfoDelete error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoDelete failed")
 		return
 	}
 	if payload.UniqId == "" {

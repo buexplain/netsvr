@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/websocket"
-	"github.com/lesismal/nbio/logging"
 	"github.com/tidwall/gjson"
 	"netsvr/internal/heartbeat"
+	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
 	"netsvr/test/utils"
@@ -34,32 +34,32 @@ type Client struct {
 func New(urlStr string) *Client {
 	c, _, err := websocket.DefaultDialer.Dial(urlStr, nil)
 	if err != nil {
-		logging.Error("连接失败" + err.Error())
+		log.Logger.Error().Msgf("连接失败" + err.Error())
 		return nil
 	}
 	//接受连接打开的信息
 	if err = c.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		_ = c.Close()
-		logging.Error(err.Error())
+		log.Logger.Error().Msgf("连接服务器失败 %v", err)
 		return nil
 	}
 	var p []byte
 	_, p, err = c.ReadMessage()
 	if err != nil {
 		_ = c.Close()
-		logging.Error(err.Error())
+		log.Logger.Error().Msgf("读取服务器消息失败 %v", err)
 		return nil
 	}
 	ret := connOpenCmd{}
 	err = json.Unmarshal(p, &ret)
 	if err != nil {
 		_ = c.Close()
-		logging.Error(err.Error())
+		log.Logger.Error().Msgf("解析服务器消息失败 %v", err)
 		return nil
 	}
 	if ret.Cmd != int32(protocol.RouterRespConnOpen) || ret.Data.Code != 0 {
 		_ = c.Close()
-		logging.Error("服务端返回了错误的结构体 connOpenCmd--> %v", ret)
+		log.Logger.Error().Msgf("服务端返回了错误的结构体 connOpenCmd--> %v", ret)
 		return nil
 	}
 	client := &Client{
@@ -104,7 +104,7 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 		if data != nil {
 			dataBytes, err = json.Marshal(data)
 			if err != nil {
-				logging.Error("格式化请求的数据对象错误 %v", err)
+				log.Logger.Error().Msgf("格式化请求的数据对象错误 %v", err)
 				return
 			}
 		}
@@ -118,7 +118,7 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 		var ret []byte
 		ret, err = json.Marshal(tmp)
 		if err != nil {
-			logging.Error("格式化请求的路由对象错误 %v", err)
+			log.Logger.Error().Msgf("格式化请求的路由对象错误 %v", err)
 			return
 		}
 		b := make([]byte, 0, len(ret)+3)
@@ -153,10 +153,10 @@ func (r *Client) LoopRead() {
 				if c, ok := r.OnMessage[cmd]; ok {
 					c(ret[1])
 				} else {
-					logging.Debug("未找到回调函数 %s", ret[1].Raw)
+					log.Logger.Debug().Msgf("未找到回调函数 %s", ret[1].Raw)
 				}
 			} else {
-				logging.Error("结构体不合法 %s", p)
+				log.Logger.Error().Msgf("结构体不合法 %s", p)
 			}
 		}
 	}

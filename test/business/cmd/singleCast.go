@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -33,7 +33,7 @@ func (singleCast) ForUserId(tf *internalProtocol.Transfer, param string, process
 	//解析客户端发来的数据
 	payload := SingleCastForUserIdParam{}
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse SingleCastForUserIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse SingleCastForUserIdParam failed")
 		return
 	}
 	var fromUser string
@@ -72,7 +72,7 @@ type SingleCastForUniqIdParam struct {
 func (singleCast) ForUniqId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := SingleCastForUniqIdParam{}
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse SingleCastForUniqIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse SingleCastForUniqIdParam failed")
 		return
 	}
 	var fromUser string

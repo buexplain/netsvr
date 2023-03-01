@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -30,7 +30,7 @@ type ForceOfflineForUserIdParam struct {
 func (forceOffline) ForUserId(_ *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(ForceOfflineForUserIdParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse ForceOfflineForUserIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse ForceOfflineForUserIdParam failed")
 		return
 	}
 	user := userDb.Collect.GetUserById(payload.UserId)
@@ -57,7 +57,7 @@ type ForceOfflineForUniqIdParam struct {
 func (forceOffline) ForUniqId(_ *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(ForceOfflineForUniqIdParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse ForceOfflineForUniqIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse ForceOfflineForUniqIdParam failed")
 		return
 	}
 	ret := &internalProtocol.ForceOffline{}

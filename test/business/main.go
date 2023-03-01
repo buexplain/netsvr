@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"html/template"
 	"net"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/heartbeat"
+	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/cmd"
 	"netsvr/test/business/connProcessor"
@@ -15,16 +15,12 @@ import (
 	"os"
 )
 
-func init() {
-	logging.SetLevel(configs.Config.GetLogLevel())
-}
-
 // 输出html客户端
 func clientServer() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		t, err := template.New("client.html").Delims("{!", "!}").ParseFiles(configs.RootPath + "test/business/client.html")
 		if err != nil {
-			logging.Error("模板解析失败：%s", err)
+			log.Logger.Error().Err(err).Msg("模板解析失败")
 			return
 		}
 		data := map[string]interface{}{}
@@ -38,11 +34,11 @@ func clientServer() {
 		data["pongMessage"] = string(heartbeat.PongMessage)
 		err = t.Execute(writer, data)
 		if err != nil {
-			logging.Error("模板输出失败：%s", err)
+			log.Logger.Error().Msgf("模板输出失败：%s", err)
 			return
 		}
 	})
-	logging.Info("点击访问客户端：http://127.0.0.1:6063/")
+	log.Logger.Info().Msg("点击访问客户端：http://127.0.0.1:6063/")
 	_ = http.ListenAndServe("127.0.0.1:6063", nil)
 }
 
@@ -50,7 +46,7 @@ func main() {
 	processCmdGoroutineNum := 100
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
-		logging.Error("连接服务端失败，%v", err)
+		log.Logger.Error().Msgf("连接服务端失败，%v", err)
 		os.Exit(1)
 	}
 	//启动html客户端的服务器
@@ -58,10 +54,10 @@ func main() {
 	processor := connProcessor.NewConnProcessor(conn, 1)
 	//注册到worker
 	if err := processor.RegisterWorker(uint32(processCmdGoroutineNum)); err != nil {
-		logging.Error("注册到worker失败 %v", err)
+		log.Logger.Error().Msgf("注册到worker失败 %v", err)
 		os.Exit(1)
 	}
-	logging.Debug("注册到worker %d ok", processor.GetWorkerId())
+	log.Logger.Debug().Msgf("注册到worker %d ok", processor.GetWorkerId())
 	//注册各种回调函数
 	cmd.CheckOnline.Init(processor)
 	cmd.Broadcast.Init(processor)
@@ -100,13 +96,13 @@ func main() {
 	select {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
-		logging.Info("开始关闭business进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
+		log.Logger.Info().Msgf("开始关闭business进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
 		//通知所有协程开始退出
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
 		processor.ForceClose()
-		logging.Info("关闭business进程成功: pid --> %d", os.Getpid())
+		log.Logger.Info().Msgf("关闭business进程成功: pid --> %d", os.Getpid())
 		os.Exit(0)
 	}
 }

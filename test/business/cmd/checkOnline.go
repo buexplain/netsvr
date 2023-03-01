@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/protocol"
@@ -28,7 +28,7 @@ type CheckOnlineForUniqIdParam struct {
 func (checkOnline) RequestForUniqId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := CheckOnlineForUniqIdParam{}
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse CheckOnlineForUniqIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse CheckOnlineForUniqIdParam failed")
 		return
 	}
 	req := &internalProtocol.CheckOnlineReq{}
@@ -46,7 +46,7 @@ func (checkOnline) RequestForUniqId(tf *internalProtocol.Transfer, param string,
 func (checkOnline) ResponseForUniqId(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.CheckOnlineResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal connClose.CheckOnlineResp error:%v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.CheckOnlineResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId

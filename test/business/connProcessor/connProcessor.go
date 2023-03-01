@@ -3,16 +3,15 @@ package connProcessor
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/heartbeat"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
-	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -65,9 +64,9 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	t := time.NewTicker(time.Duration(35) * time.Second)
 	defer func() {
 		if err := recover(); err != nil {
-			logging.Error("Business heartbeat coroutine is closed, error: %vn%s", err, debug.Stack())
+			log.Logger.Error().Stack().Interface("recover", err).Msg("Business heartbeat coroutine is closed")
 		} else {
-			logging.Debug("Business heartbeat coroutine is closed")
+			log.Logger.Debug().Msg("Business heartbeat coroutine is closed")
 		}
 		t.Stop()
 	}()
@@ -121,9 +120,9 @@ func (r *ConnProcessor) LoopSend() {
 		r.consumerWg.Done()
 		//打印日志信息
 		if err := recover(); err != nil {
-			logging.Error("Business send coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
+			log.Logger.Error().Interface("recover", err).Int("workerId", r.workerId).Stack().Msg("Business send coroutine is closed")
 		} else {
-			logging.Debug("Business send coroutine is closed, workerId: %d", r.workerId)
+			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business send coroutine is closed")
 		}
 	}()
 	for {
@@ -146,7 +145,7 @@ func (r *ConnProcessor) send(data []byte) {
 	r.sendDataLen = uint32(len(data))
 	if r.sendDataLen-4 > configs.Config.WorkerReceivePackLimit {
 		//不能超过worker的收包的大小，否则worker会断开连接
-		logging.Error("Business send pack is too large: %d", r.sendDataLen)
+		log.Logger.Error().Uint32("packLength", r.sendDataLen-4).Uint32("packLimit", configs.Config.WorkerReceivePackLimit).Msg("Business send pack is too large")
 		return
 	}
 	//先写包头，注意这是大端序
@@ -157,7 +156,7 @@ func (r *ConnProcessor) send(data []byte) {
 	//再写包体
 	var err error
 	if _, err = r.sendBuf.Write(data); err != nil {
-		logging.Error("Business send to worker buffer error: %v", err)
+		log.Logger.Error().Err(err).Msg("Business send to worker buffer failed")
 		//写缓冲区失败，重置缓冲区
 		r.sendBuf.Reset()
 		return
@@ -166,7 +165,7 @@ func (r *ConnProcessor) send(data []byte) {
 	_, err = r.sendBuf.WriteTo(r.conn)
 	if err != nil {
 		r.ForceClose()
-		logging.Error("Business send to worker error: %v", err)
+		log.Logger.Error().Err(err).Msg("Business send to worker failed")
 		return
 	}
 	//写入成功，重置缓冲区
@@ -188,10 +187,10 @@ func (r *ConnProcessor) LoopReceive() {
 		//打印日志信息
 		if err := recover(); err != nil {
 			quit.Execute("Business receive coroutine error")
-			logging.Error("Business receive coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
+			log.Logger.Error().Int("workerId", r.workerId).Interface("recover", err).Msg("Business receive coroutine is closed")
 		} else {
 			quit.Execute("Worker server shutdown")
-			logging.Debug("Business receive coroutine is closed, workerId: %d", r.workerId)
+			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business receive coroutine is closed")
 		}
 	}()
 	dataLenBuf := make([]byte, 4)
@@ -210,7 +209,7 @@ func (r *ConnProcessor) LoopReceive() {
 		if dataLen > configs.Config.WorkerSendPackLimit || dataLen < 1 {
 			//如果数据太长，直接close对方吧
 			r.ForceClose()
-			logging.Error("Business receive pack is too large: %d", dataLen)
+			log.Logger.Error().Uint32("packLength", dataLen).Uint32("packLimit", configs.Config.WorkerSendPackLimit).Msg("Business receive pack is too large")
 			break
 		}
 		//获取数据包
@@ -218,7 +217,7 @@ func (r *ConnProcessor) LoopReceive() {
 		dataBuf = dataBuf[0:dataLen]
 		if _, err := io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
 			r.ForceClose()
-			logging.Error("Business receive error: %v", err)
+			log.Logger.Error().Err(err).Msg("Business receive failed")
 			break
 		}
 		//worker发来心跳
@@ -233,10 +232,10 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		router := &internalProtocol.Router{}
 		if err := proto.Unmarshal(dataBuf[0:dataLen], router); err != nil {
-			logging.Error("Proto unmarshal internalProtocol.Router error: %v", err)
+			log.Logger.Error().Err(err).Msg("Proto unmarshal internalProtocol.Router failed")
 			continue
 		}
-		logging.Debug("Business receive worker command: %s", router.Cmd)
+		log.Logger.Debug().Interface("cmd", router.Cmd).Msg("Business receive worker command")
 		select {
 		case <-r.producerCh:
 			//收到关闭信号，不再生产
@@ -253,11 +252,11 @@ func (r *ConnProcessor) LoopCmd() {
 	defer func() {
 		r.consumerWg.Done()
 		if err := recover(); err != nil {
-			logging.Error("Business cmd coroutine is closed, workerId: %d, error: %v\n%s", r.workerId, err, debug.Stack())
+			log.Logger.Error().Stack().Interface("recover", err).Int("workerId", r.workerId).Msg("Business cmd coroutine is closed")
 			time.Sleep(5 * time.Second)
 			go r.LoopCmd()
 		} else {
-			logging.Debug("Business cmd coroutine is closed, workerId: %d", r.workerId)
+			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business cmd coroutine is closed")
 		}
 	}()
 	for {
@@ -280,7 +279,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		//解析出worker转发过来的对象
 		tf := &internalProtocol.Transfer{}
 		if err := proto.Unmarshal(router.Data, tf); err != nil {
-			logging.Error("Proto unmarshal internalProtocol.Transfer error: %v", err)
+			log.Logger.Error().Err(err).Msg("Proto unmarshal internalProtocol.Transfer failed")
 			return
 		}
 		//解析出业务路由对象
@@ -288,14 +287,14 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		if clientRoute == nil {
 			return
 		}
-		logging.Debug("Business receive client command: %s", clientRoute.Cmd)
+		log.Logger.Debug().Interface("cmd", clientRoute.Cmd).Msg("Business receive client command")
 		//客户发来的命令
 		if callback, ok := r.businessCmdCallback[clientRoute.Cmd]; ok {
 			callback(tf, clientRoute.Data, r)
 			return
 		}
 		//客户请求了错误的命令
-		logging.Debug("Unknown protocol.clientRoute.Cmd: %s", clientRoute.Cmd)
+		log.Logger.Debug().Interface("cmd", clientRoute.Cmd).Msg("Unknown protocol.clientRoute.Cmd")
 		return
 	}
 	//回调worker发来的命令
@@ -304,7 +303,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		return
 	}
 	//worker传递了未知的命令
-	logging.Error("Unknown internalProtocol.Router.Cmd: %s", router.Cmd)
+	log.Logger.Error().Interface("cmd", router.Cmd).Msg("Unknown internalProtocol.Router.Cmd")
 }
 
 func (r *ConnProcessor) RegisterWorkerCmd(cmd interface{}, callback WorkerCmdCallback) {

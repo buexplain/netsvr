@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
+	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
 
@@ -10,6 +10,6 @@ func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
 	if workerManager.MinWorkerId <= workerId && workerId <= workerManager.MaxWorkerId {
 		workerManager.Manager.Del(workerId, processor)
-		logging.Debug("Unregister a business by id: %d", workerId)
+		log.Logger.Error().Int("workerId", workerId).Msg("Unregister a business")
 	}
 }

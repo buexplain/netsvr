@@ -2,9 +2,9 @@ package sign
 
 import (
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"github.com/tidwall/gjson"
 	"netsvr/configs"
+	"netsvr/internal/log"
 	"netsvr/pkg/utils"
 	"netsvr/test/protocol"
 	"netsvr/test/utils/wsClient"
@@ -55,10 +55,10 @@ func (r *pool) AddWebsocket() {
 		return
 	}
 	ws.OnMessage[protocol.RouterSignInForForge] = func(payload gjson.Result) {
-		logging.Debug(payload.Raw)
+		log.Logger.Debug().Msg(payload.Raw)
 	}
 	ws.OnMessage[protocol.RouterSignOutForForge] = func(payload gjson.Result) {
-		logging.Debug(payload.Raw)
+		log.Logger.Debug().Msg(payload.Raw)
 	}
 	go ws.LoopSend()
 	go ws.LoopRead()

@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/protocol"
@@ -34,7 +34,7 @@ func (metrics) Request(tf *internalProtocol.Transfer, _ string, processor *connP
 func (metrics) Response(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.MetricsResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.MetricsResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.MetricsResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId

@@ -3,7 +3,6 @@ package customer
 import (
 	"bytes"
 	"context"
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
@@ -13,6 +12,7 @@ import (
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/heartbeat"
+	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
@@ -37,19 +37,19 @@ func Start() {
 	server = nbhttp.NewServer(config)
 	err := server.Start()
 	if err != nil {
-		logging.Error("Customer websocket start failed: %v", err)
+		log.Logger.Error().Err(err).Msg("Customer websocket start failed")
 		return
 	}
-	logging.Info("Customer websocket start")
+	log.Logger.Info().Msg("Customer websocket start")
 }
 
 func Shutdown() {
 	err := server.Shutdown(context.Background())
 	if err != nil {
-		logging.Error("Customer websocket shutdown failed: %v", err)
+		log.Logger.Error().Err(err).Msg("Customer websocket shutdown failed")
 		return
 	}
-	logging.Info("Customer websocket shutdown")
+	log.Logger.Info().Msg("Customer websocket shutdown")
 }
 
 func onWebsocket(w http.ResponseWriter, r *http.Request) {
@@ -83,12 +83,12 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		session := info.NewInfo(uniqId)
 		conn.SetSession(session)
 		manager.Manager.Set(uniqId, conn)
-		logging.Debug("Customer websocket open, info: %#v", session)
+		log.Logger.Debug().Str("uniqId", uniqId).Msg("Customer websocket open")
 		//获取处理连接打开的worker
 		workerId := workerManager.GetProcessConnOpenWorkerId()
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found process conn open business by id: %d", workerId)
+			log.Logger.Debug().Int("workerId", workerId).Msg("Not found process conn open business")
 			return
 		}
 		//连接打开消息回传给business
@@ -128,12 +128,12 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		topic.Topic.Del(topics, uniqId, "")
 		//释放锁
 		session.MuxUnLock()
-		logging.Debug("Customer websocket close, info: %#v", session)
+		log.Logger.Debug().Strs("topics", topics).Str("uniqId", uniqId).Str("session", userSession).Msg("Customer websocket close")
 		//连接关闭消息回传给business
 		workerId := workerManager.GetProcessConnCloseWorkerId()
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found process conn close business by id: %d", workerId)
+			log.Logger.Debug().Int("workerId", workerId).Msg("Not found process conn close business")
 			return
 		}
 		//转发数据到business
@@ -176,7 +176,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		workerId := utils.BytesToInt(data, 3)
 		worker := workerManager.Manager.Get(workerId)
 		if worker == nil {
-			logging.Debug("Not found business by id: %d", workerId)
+			log.Logger.Debug().Int("workerId", workerId).Msg("Not found business")
 			return
 		}
 		//编码数据成business需要的格式
@@ -195,8 +195,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	})
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {
-		logging.Error("Customer websocket upgrade failed: %v", err)
+		log.Logger.Error().Err(err).Msg("Customer websocket upgrade failed")
 		return
 	}
-	logging.Debug("Customer websocket upgrade ok, remoteAddr: %s", conn.RemoteAddr())
+	log.Logger.Debug().Interface("remoteAddr", conn.RemoteAddr()).Msg("Customer websocket upgrade ok")
 }

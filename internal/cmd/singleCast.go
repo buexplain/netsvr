@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/manager"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -13,7 +13,7 @@ import (
 func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &protocol.SingleCast{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal protocol.SingleCast error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.SingleCast failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Data) == 0 {

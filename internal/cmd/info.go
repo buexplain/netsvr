@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -13,7 +13,7 @@ import (
 func Info(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.InfoReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal protocol.InfoReq error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoReq failed")
 		return
 	}
 	if payload.UniqId == "" {

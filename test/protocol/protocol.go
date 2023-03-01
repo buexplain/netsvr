@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
-	"github.com/lesismal/nbio/logging"
+	"netsvr/internal/log"
 )
 
 type Cmd int32
@@ -78,7 +78,7 @@ type ClientRouter struct {
 func ParseClientRouter(data []byte) *ClientRouter {
 	ret := new(ClientRouter)
 	if err := json.Unmarshal(data, ret); err != nil {
-		logging.Debug("Parse ClientRouter error: %v", err)
+		log.Logger.Debug().Err(err).Msg("Parse ClientRouter failed")
 		return nil
 	}
 	return ret

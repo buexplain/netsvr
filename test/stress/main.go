@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/multicast"
 	"netsvr/test/stress/sign"
@@ -10,7 +9,6 @@ import (
 )
 
 func main() {
-	logging.SetLevel(logging.LevelInfo)
 	//开一批连接上去
 	for i := 0; i < 3000; i++ {
 		sign.Pool.AddWebsocket()

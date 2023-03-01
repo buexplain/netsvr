@@ -1,10 +1,10 @@
 package worker
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	"netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
@@ -17,7 +17,7 @@ type Server struct {
 
 func (r *Server) Start() {
 	defer func() {
-		logging.Debug("Worker tcp stop accept")
+		log.Logger.Debug().Msg("Worker tcp stop accept")
 	}()
 	var delay int64 = 0
 	for {
@@ -92,15 +92,15 @@ func Start() {
 	server = &Server{
 		listener: listen,
 	}
-	logging.Info("Worker tcp start")
+	log.Logger.Info().Msg("Worker tcp start")
 	server.Start()
 }
 
 func Shutdown() {
 	err := server.listener.Close()
 	if err != nil {
-		logging.Error("Worker tcp shutdown failed: %v", err)
+		log.Logger.Error().Err(err).Msg("Worker tcp shutdown failed")
 		return
 	}
-	logging.Info("Worker tcp shutdown")
+	log.Logger.Info().Msg("Worker tcp shutdown")
 }

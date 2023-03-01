@@ -4,6 +4,7 @@ import (
 	"flag"
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
+	"github.com/rs/zerolog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,22 +43,18 @@ type config struct {
 	MetricsMaxRecordInterval time.Duration
 }
 
-func (r *config) GetLogLevel() int {
+func (r *config) GetLogLevel() zerolog.Level {
 	switch r.LogLevel {
-	case "all":
-		return logging.LevelAll
 	case "debug":
-		return logging.LevelDebug
+		return zerolog.DebugLevel
 	case "info":
-		return logging.LevelInfo
+		return zerolog.InfoLevel
 	case "warn":
-		return logging.LevelWarn
+		return zerolog.WarnLevel
 	case "error":
-		return logging.LevelError
-	case "none":
-		return logging.LevelNone
+		return zerolog.ErrorLevel
 	}
-	return logging.LevelError
+	return zerolog.ErrorLevel
 }
 
 // RootPath 程序根目录

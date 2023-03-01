@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -15,7 +15,7 @@ import (
 func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &protocol.TopicSubscribe{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal protocol.SubscribeTopics error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicSubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {

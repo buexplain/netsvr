@@ -16,11 +16,15 @@ require (
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/lesismal/llib v1.1.10 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	golang.org/x/crypto v0.0.0-20210513122933-cd7d49e622d5 // indirect
-	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
+	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )

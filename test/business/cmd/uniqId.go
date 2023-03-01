@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/protocol"
@@ -37,7 +37,7 @@ func (uniqId) RequestList(tf *internalProtocol.Transfer, _ string, processor *co
 func (uniqId) ResponseList(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.UniqIdListResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.UniqIdListResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.UniqIdListResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId
@@ -75,7 +75,7 @@ func (uniqId) RequestCount(tf *internalProtocol.Transfer, _ string, processor *c
 func (uniqId) ResponseCount(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.UniqIdCountResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.UniqIdCountResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.UniqIdCountResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId

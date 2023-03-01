@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -32,7 +32,7 @@ type MulticastForUserIdParam struct {
 func (multicast) ForUserId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(MulticastForUserIdParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse MulticastForUserIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse MulticastForUserIdParam failed")
 		return
 	}
 	var fromUser string
@@ -79,7 +79,7 @@ type MulticastForUniqIdParam struct {
 func (multicast) ForUniqId(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(MulticastForUniqIdParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse MulticastForUniqIdParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse MulticastForUniqIdParam failed")
 		return
 	}
 	var fromUser string

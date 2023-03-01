@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -11,19 +11,19 @@ import (
 func Register(param []byte, processor *workerManager.ConnProcessor) {
 	payload := protocol.Register{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal protocol.Register error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Register failed")
 		return
 	}
 	//检查服务编号是否在允许的范围内
 	if workerManager.MinWorkerId > payload.Id || payload.Id > workerManager.MaxWorkerId {
-		logging.Error("WorkerId %d not in range: %d ~ %d", payload.Id, workerManager.MinWorkerId, workerManager.MaxWorkerId)
+		log.Logger.Error().Int32("WorkerId", payload.Id).Int("minWorkerId", workerManager.MinWorkerId).Int("maxWorkerId", workerManager.MaxWorkerId).Msg("worker id overflow")
 		processor.ForceClose()
 		return
 	}
 	//检查当前的business连接是否已经注册过服务编号了，不允许重复注册
 	if processor.GetWorkerId() > 0 {
 		processor.ForceClose()
-		logging.Error("WorkerId %d duplicate register are not allowed", 1)
+		log.Logger.Error().Msg("Register are not allowed")
 		return
 	}
 	//设置business连接的服务编号
@@ -45,5 +45,5 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	logging.Debug("Register a business by id: %d", payload.Id)
+	log.Logger.Debug().Int32("workerId", payload.Id).Msg("Register a business")
 }

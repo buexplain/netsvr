@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/topic"
+	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -12,7 +12,7 @@ import (
 func TopicCount(param []byte, processor *workerManager.ConnProcessor) {
 	payload := &protocol.TopicCountReq{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal protocol.TopicCountReq error: %v", err)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicCountReq failed")
 		return
 	}
 	ret := &protocol.TopicCountResp{}

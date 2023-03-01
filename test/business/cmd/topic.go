@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -54,7 +54,7 @@ func (r topic) RequestTopicCount(tf *internalProtocol.Transfer, _ string, proces
 func (r topic) ResponseTopicCount(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := &internalProtocol.TopicCountResp{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.TopicCountResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.TopicCountResp failed")
 		return
 	}
 	router := &internalProtocol.Router{}
@@ -84,7 +84,7 @@ func (topic) RequestTopicList(tf *internalProtocol.Transfer, _ string, processor
 func (topic) ResponseTopicList(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := &internalProtocol.TopicListResp{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.TopicListResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.TopicListResp failed")
 		return
 	}
 	router := &internalProtocol.Router{}
@@ -108,7 +108,7 @@ type TopicUniqIdCountParam struct {
 func (topic) RequestTopicUniqIdCount(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := TopicUniqIdCountParam{}
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		logging.Error("Parse TopicUniqIdCountParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicUniqIdCountParam failed")
 		return
 	}
 	req := internalProtocol.TopicUniqIdCountReq{}
@@ -127,7 +127,7 @@ func (topic) RequestTopicUniqIdCount(tf *internalProtocol.Transfer, param string
 func (topic) ResponseTopicUniqIdCount(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.TopicUniqIdCountResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.TopicUniqIdCountResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.TopicUniqIdCountResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId
@@ -156,7 +156,7 @@ func (topic) RequestTopicUniqIdList(tf *internalProtocol.Transfer, param string,
 	//解析客户端发来的数据
 	payload := new(TopicUniqIdListParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse TopicUniqIdListParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicUniqIdListParam failed")
 		return
 	}
 	req := internalProtocol.TopicUniqIdListReq{}
@@ -174,7 +174,7 @@ func (topic) RequestTopicUniqIdList(tf *internalProtocol.Transfer, param string,
 func (topic) ResponseTopicUniqIdList(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := internalProtocol.TopicUniqIdListResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.TopicUniqIdListResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.TopicUniqIdListResp failed")
 		return
 	}
 	//解析请求上下文中存储的uniqId
@@ -211,7 +211,7 @@ func (topic) RequestTopicMyList(tf *internalProtocol.Transfer, _ string, process
 func (topic) ResponseTopicMyList(param []byte, processor *connProcessor.ConnProcessor) {
 	payload := &internalProtocol.InfoResp{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		logging.Error("Proto unmarshal internalProtocol.InfoResp error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse internalProtocol.InfoResp failed")
 		return
 	}
 	router := &internalProtocol.Router{}
@@ -235,7 +235,7 @@ func (topic) RequestTopicSubscribe(tf *internalProtocol.Transfer, param string, 
 	//解析客户端发来的数据
 	payload := new(TopicSubscribeParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse TopicSubscribeParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicSubscribeParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {
@@ -263,7 +263,7 @@ func (topic) RequestTopicUnsubscribe(tf *internalProtocol.Transfer, param string
 	//解析客户端发来的数据
 	payload := new(TopicUnsubscribeParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse TopicUnsubscribeParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicUnsubscribeParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {
@@ -291,7 +291,7 @@ func (topic) RequestTopicPublish(tf *internalProtocol.Transfer, param string, pr
 	//解析客户端发来的数据
 	target := new(TopicPublishParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), target); err != nil {
-		logging.Error("Parse TopicPublishParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicPublishParam failed")
 		return
 	}
 	var fromUser string
@@ -322,7 +322,7 @@ func (topic) RequestTopicDelete(_ *internalProtocol.Transfer, param string, proc
 	//解析客户端发来的数据
 	payload := new(TopicDeleteParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		logging.Error("Parse TopicDeleteParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse TopicDeleteParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {

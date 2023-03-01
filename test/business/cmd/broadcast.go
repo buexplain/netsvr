@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/lesismal/nbio/logging"
 	"google.golang.org/protobuf/proto"
+	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
 	"netsvr/test/business/connProcessor"
 	"netsvr/test/business/userDb"
@@ -29,7 +29,7 @@ type BroadcastParam struct {
 func (broadcast) Request(tf *internalProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	target := new(BroadcastParam)
 	if err := json.Unmarshal(businessUtils.StrToReadOnlyBytes(param), target); err != nil {
-		logging.Error("Parse BroadcastParam error: %v", err)
+		log.Logger.Error().Err(err).Msg("Parse BroadcastParam failed")
 		return
 	}
 	var fromUser string
