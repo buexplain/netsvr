@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"encoding/json"
 	"flag"
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
@@ -17,30 +18,54 @@ type config struct {
 	//服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
 	//如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
 	ServerId uint8
-	//客户服务器监听的地址，ip:port，这个地址一般是外网地址
-	CustomerListenAddress string
-	//客户服务器的url路由
-	CustomerHandlePattern string
-	//允许连接的origin，空表示不限制，否则会进行包含匹配
-	CustomerAllowOrigin []string
-	//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
-	CustomerReadDeadline time.Duration
-	//最大连接数
-	CustomerMaxOnlineNum int
 
-	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
-	WorkerListenAddress string
-	//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
-	WorkerReadDeadline time.Duration
-	//worker读取business的包的大小限制（单位：字节）
-	WorkerReceivePackLimit uint32
-	//worker发送给business的包的大小限制（单位：字节）
-	WorkerSendPackLimit uint32
+	//business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
+	Limit []Limit
 
-	//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
-	MetricsItem []int
-	//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
-	MetricsMaxRecordInterval time.Duration
+	Customer struct {
+		//客户服务器监听的地址，ip:port，这个地址一般是外网地址
+		ListenAddress string
+		//客户服务器的url路由
+		HandlePattern string
+		//允许连接的origin，空表示不限制，否则会进行包含匹配
+		AllowOrigin []string
+		//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
+		ReadDeadline time.Duration
+		//最大连接数，超过的会被拒绝
+		MaxOnlineNum int
+		//限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
+		LimitMessageNum int
+	}
+	Worker struct {
+		//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
+		ListenAddress string
+		//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
+		ReadDeadline time.Duration
+		//worker读取business的包的大小限制（单位：字节）
+		ReceivePackLimit uint32
+		//worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
+		SendDeadline time.Duration
+		//worker发送给business的包的大小限制（单位：字节）
+		SendPackLimit uint32
+	}
+
+	Metrics struct {
+		//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
+		Item []int
+		//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
+		MaxRecordInterval time.Duration
+	}
+}
+
+type Limit struct {
+	Min int
+	Max int
+	Num int
+}
+
+func (r Limit) String() string {
+	b, _ := json.Marshal(r)
+	return string(b)
 }
 
 func (r *config) GetLogLevel() zerolog.Level {
@@ -89,28 +114,32 @@ func init() {
 		os.Exit(1)
 	}
 	//检查各种参数
-	if Config.WorkerReadDeadline <= 0 {
+	if Config.Customer.MaxOnlineNum <= 0 {
+		//默认最多负载十万个连接，超过的会被拒绝
+		Config.Customer.MaxOnlineNum = 10 * 10000
+	}
+	if Config.Customer.ReadDeadline <= 0 {
 		//默认120秒
-		Config.WorkerReadDeadline = time.Second * 120
+		Config.Customer.ReadDeadline = time.Second * 120
 	}
-	if Config.CustomerMaxOnlineNum <= 0 {
-		//默认最多负载十万个连接
-		Config.CustomerMaxOnlineNum = 10 * 10000
-	}
-	if Config.WorkerReceivePackLimit <= 0 {
-		//默认2MB
-		Config.WorkerReceivePackLimit = 2 * 1024 * 1024
-	}
-	if Config.WorkerSendPackLimit <= 0 {
-		//默认2MB
-		Config.WorkerSendPackLimit = 2 * 1024 * 1024
-	}
-	if Config.CustomerReadDeadline <= 0 {
+	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒
-		Config.CustomerReadDeadline = time.Second * 120
+		Config.Worker.ReadDeadline = time.Second * 120
 	}
-	if Config.MetricsMaxRecordInterval <= 0 {
+	if Config.Worker.SendDeadline <= 0 {
+		//默认3秒
+		Config.Worker.SendDeadline = time.Second * 10
+	}
+	if Config.Worker.ReceivePackLimit <= 0 {
+		//默认2MB
+		Config.Worker.ReceivePackLimit = 2 * 1024 * 1024
+	}
+	if Config.Worker.SendPackLimit <= 0 {
+		//默认2MB
+		Config.Worker.SendPackLimit = 2 * 1024 * 1024
+	}
+	if Config.Metrics.MaxRecordInterval <= 0 {
 		//默认10秒
-		Config.MetricsMaxRecordInterval = time.Second * 10
+		Config.Metrics.MaxRecordInterval = time.Second * 10
 	}
 }

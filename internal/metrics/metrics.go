@@ -22,10 +22,10 @@ func init() {
 	//初始化所有要统计的服务状态
 	ok := false
 	inMetricsItem := func(i int) bool {
-		if configs.Config.MetricsItem == nil {
+		if configs.Config.Metrics.Item == nil {
 			return false
 		}
-		for _, v := range configs.Config.MetricsItem {
+		for _, v := range configs.Config.Metrics.Item {
 			if v == i {
 				return true
 			}
@@ -59,7 +59,7 @@ func init() {
 	}
 	//每隔n秒记录一次最大值，这个最大值并不精确
 	go func() {
-		ticker := time.NewTicker(configs.Config.MetricsMaxRecordInterval)
+		ticker := time.NewTicker(configs.Config.Metrics.MaxRecordInterval)
 		defer func() {
 			ticker.Stop()
 		}()

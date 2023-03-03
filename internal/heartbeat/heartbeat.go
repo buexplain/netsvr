@@ -1,4 +1,4 @@
 package heartbeat
 
-var PingMessage = []byte("~H27890027B~")
-var PongMessage = []byte("~H278a0027B~")
+var PingMessage = []byte("~3yPvmnz~")
+var PongMessage = []byte("~u38NvZ~")

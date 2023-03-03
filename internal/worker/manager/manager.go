@@ -51,24 +51,24 @@ func (r *collect) Del(conn *ConnProcessor) {
 const MaxWorkerId = 999
 const MinWorkerId = 1
 
-type manager map[int]*collect
+type manager [MaxWorkerId + 1]*collect
 
 func (r manager) Get(workerId int) *ConnProcessor {
-	if c, ok := r[workerId]; ok {
-		return c.Get()
+	if workerId < MinWorkerId || workerId > MaxWorkerId {
+		return nil
 	}
-	return nil
+	return r[workerId].Get()
 }
 
 func (r manager) Set(workerId int, conn *ConnProcessor) {
-	if c, ok := r[workerId]; ok {
-		c.Set(conn)
+	if workerId >= MinWorkerId && workerId <= MaxWorkerId {
+		r[workerId].Set(conn)
 	}
 }
 
 func (r manager) Del(workerId int, conn *ConnProcessor) {
-	if c, ok := r[workerId]; ok {
-		c.Del(conn)
+	if workerId >= MinWorkerId && workerId <= MaxWorkerId {
+		r[workerId].Del(conn)
 	}
 }
 

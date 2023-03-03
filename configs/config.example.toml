@@ -1,28 +1,49 @@
 # 日志级别 debug、info、warn、error
-LogLevel = "info"
+LogLevel = "debug"
 # 服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
 # 如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
 ServerId = 0
-# 客户服务器监听的地址，ip:port，这个地址一般是外网地址
-CustomerListenAddress = "127.0.0.1:6060"
-# 客户服务器的url路由
-CustomerHandlePattern = "/netsvr"
+
+# business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
+Limit = [
+    # 表示注册worker id为1的business每秒最多能接收到1000个网关转发数据
+    { min = 1, max = 1, num = 1000 },
+    # 表示注册worker id为2、3、4、5的business每秒累计最多能接收到1000个网关转发数据
+    { min = 2, max = 5, num = 1000 },
+]
+
+# 客户服务器配置
+[Customer]
+# 监听的地址，ip:port，这个地址一般是外网地址
+ListenAddress = "127.0.0.1:6060"
+# url路由
+HandlePattern = "/netsvr"
 # 允许连接的origin，空表示不限制，否则会进行包含匹配
-CustomerAllowOrigin = []
+AllowOrigin = []
 # 网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
-CustomerReadDeadline = "120s"
-# 最大连接数
-CustomerMaxOnlineNum = 100000
-# worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
-WorkerListenAddress = "127.0.0.1:6061"
+ReadDeadline = "120s"
+# 最大连接数，超过的会被拒绝
+MaxOnlineNum = 100000
+# 限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
+LimitMessageNum = 1000
+
+#worker服务器
+[Worker]
+# 监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
+ListenAddress = "127.0.0.1:6061"
 # worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
-WorkerReadDeadline = "120s"
+ReadDeadline = "120s"
 # worker读取business的包的大小限制（单位：字节）
-WorkerReceivePackLimit = 2097152
+ReceivePackLimit = 2097152
+# worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
+SendDeadline = "10s"
 # worker发送给business的包的大小限制（单位：字节）
-WorkerSendPackLimit = 2097152
+SendPackLimit = 2097152
+
+# 统计服务
+[Metrics]
 # 统计服务的各种状态，空，则不统计任何状态
 # 0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的次数情况，4：统计客户数据转发到worker的字节数情况
-MetricsItem = [0, 1, 2, 3, 4]
+Item = [0, 1, 2, 3, 4]
 # 统计服务的各种状态里记录最大值的间隔时间
-MetricsMaxRecordInterval = "10s"
+MaxRecordInterval = "10s"

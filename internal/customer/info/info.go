@@ -74,6 +74,12 @@ func (r *Info) SetUniqIdAndGetTopics(uniqId string) (topics []string) {
 	return topics
 }
 
+func (r *Info) GetSession() string {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	return r.session
+}
+
 func (r *Info) SetSession(session string) {
 	r.session = session
 }

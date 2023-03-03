@@ -16,7 +16,7 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 	}
 	//检查服务编号是否在允许的范围内
 	if workerManager.MinWorkerId > payload.Id || payload.Id > workerManager.MaxWorkerId {
-		log.Logger.Error().Int32("WorkerId", payload.Id).Int("minWorkerId", workerManager.MinWorkerId).Int("maxWorkerId", workerManager.MaxWorkerId).Msg("worker id overflow")
+		log.Logger.Error().Int32("workerId", payload.Id).Int("minWorkerId", workerManager.MinWorkerId).Int("maxWorkerId", workerManager.MaxWorkerId).Msg("Worker id overflow")
 		processor.ForceClose()
 		return
 	}

@@ -25,7 +25,7 @@ func clientServer() {
 		}
 		data := map[string]interface{}{}
 		//注入连接地址
-		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.CustomerListenAddress, configs.Config.CustomerHandlePattern)
+		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.Customer.ListenAddress, configs.Config.Customer.HandlePattern)
 		//把所有的命令注入到客户端
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)
@@ -44,7 +44,7 @@ func clientServer() {
 
 func main() {
 	processCmdGoroutineNum := 100
-	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
+	conn, err := net.Dial("tcp", configs.Config.Worker.ListenAddress)
 	if err != nil {
 		log.Logger.Error().Msgf("连接服务端失败，%v", err)
 		os.Exit(1)
@@ -96,13 +96,13 @@ func main() {
 	select {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
-		log.Logger.Info().Msgf("开始关闭business进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
+		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("开始关闭business进程")
 		//通知所有协程开始退出
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
 		processor.ForceClose()
-		log.Logger.Info().Msgf("关闭business进程成功: pid --> %d", os.Getpid())
+		log.Logger.Info().Int("pid", os.Getpid()).Msg("关闭business进程成功")
 		os.Exit(0)
 	}
 }
