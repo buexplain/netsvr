@@ -1,6 +1,7 @@
 package main
 
 import (
+	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/multicast"
 	"netsvr/test/stress/sign"
@@ -10,7 +11,7 @@ import (
 
 func main() {
 	//开一批连接上去
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 500; i++ {
 		sign.Pool.AddWebsocket()
 	}
 	go func() {
@@ -26,7 +27,7 @@ func main() {
 		}
 	}()
 	//开一批连接上去
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 500; i++ {
 		singleCast.Pool.AddWebsocket()
 	}
 	go func() {
@@ -41,7 +42,7 @@ func main() {
 		}
 	}()
 	//开一批连接上去
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 500; i++ {
 		multicast.Pool.AddWebsocket()
 	}
 	go func() {
@@ -55,9 +56,18 @@ func main() {
 			}()
 		}
 	}()
+	go func() {
+		tc := time.NewTicker(time.Second * 20)
+		defer tc.Stop()
+		for {
+			<-tc.C
+			log.Logger.Info().Msgf("current online %d", sign.Pool.Len()+singleCast.Pool.Len()+multicast.Pool.Len())
+		}
+	}()
 	select {
 	case <-quit.ClosedCh:
 		sign.Pool.Close()
 		singleCast.Pool.Close()
+		multicast.Pool.Close()
 	}
 }

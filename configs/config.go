@@ -25,15 +25,18 @@ type config struct {
 	CustomerAllowOrigin []string
 	//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
 	CustomerReadDeadline time.Duration
-	//最大连接数
+	//最大连接数，超过的会被拒绝
 	CustomerMaxOnlineNum int
-
+	//限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
+	CustomerLimitMessageNum int
 	//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 	WorkerListenAddress string
 	//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 	WorkerReadDeadline time.Duration
 	//worker读取business的包的大小限制（单位：字节）
 	WorkerReceivePackLimit uint32
+	//worker发送给business连接的超时时间，该时间段内，没发送成功，消息会被丢弃
+	WorkerSendDeadline time.Duration
 	//worker发送给business的包的大小限制（单位：字节）
 	WorkerSendPackLimit uint32
 
@@ -89,13 +92,21 @@ func init() {
 		os.Exit(1)
 	}
 	//检查各种参数
+	if Config.CustomerMaxOnlineNum <= 0 {
+		//默认最多负载十万个连接，超过的会被拒绝
+		Config.CustomerMaxOnlineNum = 10 * 10000
+	}
+	if Config.CustomerReadDeadline <= 0 {
+		//默认120秒
+		Config.CustomerReadDeadline = time.Second * 120
+	}
 	if Config.WorkerReadDeadline <= 0 {
 		//默认120秒
 		Config.WorkerReadDeadline = time.Second * 120
 	}
-	if Config.CustomerMaxOnlineNum <= 0 {
-		//默认最多负载十万个连接
-		Config.CustomerMaxOnlineNum = 10 * 10000
+	if Config.WorkerSendDeadline <= 0 {
+		//默认3秒
+		Config.WorkerSendDeadline = time.Second * 3
 	}
 	if Config.WorkerReceivePackLimit <= 0 {
 		//默认2MB
@@ -104,10 +115,6 @@ func init() {
 	if Config.WorkerSendPackLimit <= 0 {
 		//默认2MB
 		Config.WorkerSendPackLimit = 2 * 1024 * 1024
-	}
-	if Config.CustomerReadDeadline <= 0 {
-		//默认120秒
-		Config.CustomerReadDeadline = time.Second * 120
 	}
 	if Config.MetricsMaxRecordInterval <= 0 {
 		//默认10秒

@@ -5,7 +5,6 @@ import (
 	"github.com/tidwall/gjson"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"netsvr/pkg/utils"
 	"netsvr/test/protocol"
 	"netsvr/test/utils/wsClient"
 	"sync"
@@ -42,10 +41,18 @@ func (r *pool) Len() int {
 }
 
 func (r *pool) Close() {
-	r.m.Lock()
-	defer r.m.Unlock()
-	for _, ws := range r.p {
+	var ws *wsClient.Client
+	for {
+		r.m.RLock()
+		for _, ws = range r.p {
+			break
+		}
+		r.m.RUnlock()
+		if ws == nil {
+			break
+		}
 		ws.Close()
+		ws = nil
 	}
 }
 
@@ -58,12 +65,15 @@ func (r *pool) AddWebsocket() {
 		log.Logger.Debug().Msg(payload.Raw)
 	}
 	ws.OnClose = func() {
+		r.m.Lock()
+		defer r.m.Unlock()
+		delete(r.p, ws.LocalUniqId)
 	}
 	go ws.LoopSend()
 	go ws.LoopRead()
 	r.m.Lock()
 	defer r.m.Unlock()
-	r.p["sign"+utils.UniqId()] = ws
+	r.p[ws.LocalUniqId] = ws
 }
 
 // Send 组播一条数据

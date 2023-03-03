@@ -64,7 +64,7 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	t := time.NewTicker(time.Duration(35) * time.Second)
 	defer func() {
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Interface("recover", err).Msg("Business heartbeat coroutine is closed")
+			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Msg("Business heartbeat coroutine is closed")
 		} else {
 			log.Logger.Debug().Msg("Business heartbeat coroutine is closed")
 		}
@@ -89,6 +89,15 @@ func (r *ConnProcessor) GraceClose() {
 	default:
 		//通知所有生产者，不再生产数据
 		close(r.producerCh)
+		//此刻两个管道也许已经满了，写入的协程正在阻塞中
+		//贸然close掉两个管道会引起send on closed channel错误
+		//所以，先检查管道是否空着，等待彻底空着，再关闭管道
+		for {
+			time.Sleep(time.Millisecond * 200)
+			if len(r.sendCh) == 0 && len(r.receiveCh) == 0 {
+				break
+			}
+		}
 		//通知所有消费者，消费完毕后退出
 		close(r.sendCh)
 		close(r.receiveCh)
@@ -120,7 +129,7 @@ func (r *ConnProcessor) LoopSend() {
 		r.consumerWg.Done()
 		//打印日志信息
 		if err := recover(); err != nil {
-			log.Logger.Error().Interface("recover", err).Int("workerId", r.workerId).Stack().Msg("Business send coroutine is closed")
+			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int("workerId", r.workerId).Msg("Business send coroutine is closed")
 		} else {
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business send coroutine is closed")
 		}
@@ -161,11 +170,23 @@ func (r *ConnProcessor) send(data []byte) {
 		r.sendBuf.Reset()
 		return
 	}
+	//设置写超时
+	if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.WorkerSendDeadline)); err != nil {
+		r.ForceClose()
+		log.Logger.Warn().Err(err).Msg("Business SetWriteDeadline to worker conn failed")
+		return
+	}
 	//一次性写入到连接中
 	_, err = r.sendBuf.WriteTo(r.conn)
 	if err != nil {
+		if opErr, ok := err.(*net.OpError); ok {
+			if opErr.Timeout() {
+				log.Logger.Warn().Err(err).Bytes("businessToWorkerData", data).Msg("Business send to worker timeout")
+				return
+			}
+		}
 		r.ForceClose()
-		log.Logger.Error().Err(err).Msg("Business send to worker failed")
+		log.Logger.Error().Err(err).Type("errorType", err).Bytes("businessToWorkerData", data).Msg("Business send to worker failed")
 		return
 	}
 	//写入成功，重置缓冲区
@@ -187,7 +208,7 @@ func (r *ConnProcessor) LoopReceive() {
 		//打印日志信息
 		if err := recover(); err != nil {
 			quit.Execute("Business receive coroutine error")
-			log.Logger.Error().Int("workerId", r.workerId).Interface("recover", err).Msg("Business receive coroutine is closed")
+			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int("workerId", r.workerId).Msg("Business receive coroutine is closed")
 		} else {
 			quit.Execute("Worker server shutdown")
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business receive coroutine is closed")
@@ -238,8 +259,18 @@ func (r *ConnProcessor) LoopReceive() {
 		log.Logger.Debug().Interface("cmd", router.Cmd).Msg("Business receive worker command")
 		select {
 		case <-r.producerCh:
-			//收到关闭信号，不再生产
-			return
+			//收到关闭信号，不再生产，进入丢弃数据逻辑
+			//如果是强制关闭，则这里会触发错误，直接退出
+			//如果是优雅关闭，则这里会不断读取连接中的数据，直到r.sendCh、r.receiveCh被消费干净，进而关闭r.conn，导致这里触发错误退出
+			for {
+				if err := r.conn.SetReadDeadline(time.Now().Add(configs.Config.WorkerReadDeadline)); err != nil {
+					return
+				}
+				dataBuf = dataBuf[:0]
+				if _, err := io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
+					return
+				}
+			}
 		default:
 			r.receiveCh <- router
 		}
@@ -252,7 +283,7 @@ func (r *ConnProcessor) LoopCmd() {
 	defer func() {
 		r.consumerWg.Done()
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Interface("recover", err).Int("workerId", r.workerId).Msg("Business cmd coroutine is closed")
+			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int("workerId", r.workerId).Msg("Business cmd coroutine is closed")
 			time.Sleep(5 * time.Second)
 			go r.LoopCmd()
 		} else {

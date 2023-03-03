@@ -96,13 +96,13 @@ func main() {
 	select {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
-		log.Logger.Info().Msgf("开始关闭business进程: pid --> %d 原因 --> %s", os.Getpid(), quit.GetReason())
+		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("开始关闭business进程")
 		//通知所有协程开始退出
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
 		processor.ForceClose()
-		log.Logger.Info().Msgf("关闭business进程成功: pid --> %d", os.Getpid())
+		log.Logger.Info().Int("pid", os.Getpid()).Msg("关闭business进程成功")
 		os.Exit(0)
 	}
 }

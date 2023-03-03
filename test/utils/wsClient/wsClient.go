@@ -23,12 +23,13 @@ type connOpenCmd struct {
 }
 
 type Client struct {
-	conn      *websocket.Conn
-	UniqId    string
-	OnMessage map[protocol.Cmd]func(payload gjson.Result)
-	OnClose   func()
-	sendCh    chan []byte
-	close     chan struct{}
+	conn        *websocket.Conn
+	UniqId      string
+	LocalUniqId string
+	OnMessage   map[protocol.Cmd]func(payload gjson.Result)
+	OnClose     func()
+	sendCh      chan []byte
+	close       chan struct{}
 }
 
 func New(urlStr string) *Client {
@@ -63,11 +64,12 @@ func New(urlStr string) *Client {
 		return nil
 	}
 	client := &Client{
-		conn:      c,
-		UniqId:    ret.Data.Data,
-		OnMessage: map[protocol.Cmd]func(payload gjson.Result){},
-		sendCh:    make(chan []byte, 10),
-		close:     make(chan struct{}),
+		conn:        c,
+		UniqId:      ret.Data.Data,
+		LocalUniqId: ret.Data.Data,
+		OnMessage:   map[protocol.Cmd]func(payload gjson.Result){},
+		sendCh:      make(chan []byte, 10),
+		close:       make(chan struct{}),
 	}
 	return client
 }

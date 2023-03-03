@@ -11,14 +11,18 @@ CustomerHandlePattern = "/netsvr"
 CustomerAllowOrigin = []
 # 网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
 CustomerReadDeadline = "120s"
-# 最大连接数
+# 最大连接数，超过的会被拒绝
 CustomerMaxOnlineNum = 100000
+# 限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
+CustomerLimitMessageNum = 1000
 # worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 WorkerListenAddress = "127.0.0.1:6061"
 # worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 WorkerReadDeadline = "120s"
 # worker读取business的包的大小限制（单位：字节）
 WorkerReceivePackLimit = 2097152
+# worker发送给business连接的超时时间，该时间段内，没发送成功，消息会被丢弃
+WorkerSendDeadline = "3s"
 # worker发送给business的包的大小限制（单位：字节）
 WorkerSendPackLimit = 2097152
 # 统计服务的各种状态，空，则不统计任何状态
