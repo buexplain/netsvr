@@ -33,8 +33,6 @@ type config struct {
 		ReadDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
-		//限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
-		LimitMessageNum int
 	}
 	Worker struct {
 		//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
@@ -127,7 +125,7 @@ func init() {
 		Config.Worker.ReadDeadline = time.Second * 120
 	}
 	if Config.Worker.SendDeadline <= 0 {
-		//默认3秒
+		//默认10秒
 		Config.Worker.SendDeadline = time.Second * 10
 	}
 	if Config.Worker.ReceivePackLimit <= 0 {

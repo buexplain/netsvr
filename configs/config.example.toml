@@ -24,8 +24,6 @@ AllowOrigin = []
 ReadDeadline = "120s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
-# 限制每秒转发到business的消息数量，该数量不包含连接的：打开、关闭、心跳
-LimitMessageNum = 1000
 
 #worker服务器
 [Worker]
