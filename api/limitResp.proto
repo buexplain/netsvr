@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package netsvr.limitResp;
+
+option go_package = "internal/protocol;protocol";
+
+//business向worker请求，返回网关中的限流配置的真实情况
+message LimitResp {
+  //worker会原样回传给business
+  bytes ctxData = 1;
+  //每个worker的配置情况
+  repeated LimitCountItem items = 2;
+}
+
+message LimitCountItem {
+  //workerId集合
+  repeated int32 workerIds = 1;
+  //限流大小
+  int32 num = 2;
+}

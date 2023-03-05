@@ -116,6 +116,8 @@ func (r *ConnProcessor) ForceClose() {
 	default:
 		//通知所有生产者，不再生产数据
 		close(r.producerCh)
+		close(r.sendCh)
+		close(r.receiveCh)
 		//通知所有消费者，立刻退出
 		close(r.consumerCh)
 		//关闭连接
@@ -194,6 +196,11 @@ func (r *ConnProcessor) send(data []byte) {
 }
 
 func (r *ConnProcessor) Send(data []byte) {
+	defer func() {
+		//因为有可能已经阻塞在r.sendCh <- data的时候，收到<-r.producerCh信号
+		//然后因为close(r.sendCh)，最终导致send on closed channel
+		_ = recover()
+	}()
 	select {
 	case <-r.producerCh:
 		//收到关闭信号，不再生产

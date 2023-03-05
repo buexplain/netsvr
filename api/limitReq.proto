@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package netsvr.limitReq;
+
+option go_package = "internal/protocol;protocol";
+
+//更新限流配置、获取网关中的限流配置的真实情况
+//这个配置不是永久生效的，网关进程重启后就以config.toml为准
+//如果配置的num是0，则更新不会生效
+//如果限流对象本身是个nilLimit，是个空壳子，则更新不会生效
+//如果nilLimit的情况下，需要限流，则必须重新配置config.toml，并重启网关
+message LimitReq {
+  //worker会将该值赋给router.Cmd
+  int32  routerCmd = 1;
+  //worker会原样回传给business
+  bytes ctxData = 2;
+  //要更新的限流配置，如果只想获取网关中的限流配置的真实情况，可以不传递
+  repeated LimitUpdateItem items = 3;
+}
+
+message LimitUpdateItem {
+  //workerId集合
+  repeated int32 workerIds = 1;
+  //限流大小
+  int32 num = 2;
+}

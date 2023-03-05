@@ -129,6 +129,20 @@
 
         <div class="case">
             <label>
+                <input type="text" name="workerIds" data-processor="processorToIntArr"
+                       placeholder="请输入目标workerId，多个用逗号分割"
+                       value="">
+            </label>
+            <label>
+                <input type="number" name="num" data-processor="processorToInt"
+                       placeholder="请输入每秒允许的请求数量"
+                       value="" autocomplete="off">
+            </label>
+            <button onclick="send(this,routerCmd.limit)">更新限流配置</button>
+        </div>
+
+        <div class="case">
+            <label>
                 <input type="text" name="uniqIds" data-processor="processorToStringArr"
                        placeholder="请输入目标uniqId，多个用逗号分割"
                        value="">
@@ -279,6 +293,7 @@
         connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
         connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
         metrics: parseInt("{!.RouterMetrics!}"),//获取网关统计的服务状态
+        limit: parseInt("{!.RouterLimit!}"),//更新限流配置、获取网关中的限流配置的真实情况
         uniqIdList: parseInt("{!.RouterUniqIdList!}"), //获取网关中全部的uniqId
         uniqIdCount: parseInt("{!.RouterUniqIdCount!}"), //获取网关中uniqId的数量
         topicMyList: parseInt("{!.RouterTopicMyList!}"), //获取已订阅的主题列表
@@ -350,7 +365,7 @@
     function send(btn, cmd) {
         let param = {};
         if (btn) {
-            ['input[type="text"]', 'input[type="hidden"]', 'select'].forEach(function (selectors) {
+            ['input[type="text"]', 'input[type="number"]', 'input[type="hidden"]', 'select'].forEach(function (selectors) {
                 btn.parentNode.querySelectorAll(selectors).forEach(function (input) {
                     let processor = input.getAttribute('data-processor');
                     param[input.name] = processor ? window[processor](input.value) : input.value;
@@ -416,7 +431,7 @@
                 //连接打开，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
                     clearScreen();
-                    document.getElementById("topInfo").innerText = resp.data.message+'，UniqId：'+resp.data.data;
+                    document.getElementById("topInfo").innerText = resp.data.message + '，UniqId：' + resp.data.data;
                     return;
                 }
 
@@ -467,6 +482,26 @@
                         return;
                     }
                     print(JSON.stringify(resp.data.data, null, "  "));
+                    return;
+                }
+
+                //服务端响应取网关中的限流配置的真实情况
+                if (resp.cmd === routerCmd.limit) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (!resp.data.data) {
+                        print("网关没有配置过任何的限流")
+                        return;
+                    }
+                    for (let i in resp.data.data) {
+                        /**
+                         * @type {{workerIds: number[],num:number}}
+                         */
+                        let item = resp.data.data[i];
+                        print("workerId --> " + item.workerIds.join('、') + '允许每秒处理' + item.num + '个用户请求')
+                    }
                     return;
                 }
 

@@ -1,3 +1,5 @@
+// Package customer 客户连接维持模块
+// 负责承载客户的websocket连接、维护客户的订阅、保持客户连接的session数据
 package customer
 
 import (
@@ -50,7 +52,7 @@ func Shutdown() {
 		log.Logger.Error().Err(err).Msg("Customer websocket shutdown failed")
 		return
 	}
-	log.Logger.Info().Msg("Customer websocket shutdown")
+	log.Logger.Info().Msg("Customer websocket grace shutdown")
 }
 
 func onWebsocket(w http.ResponseWriter, r *http.Request) {

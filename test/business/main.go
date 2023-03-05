@@ -69,6 +69,7 @@ func main() {
 	cmd.Topic.Init(processor)
 	cmd.UniqId.Init(processor)
 	cmd.Metrics.Init(processor)
+	cmd.Limit.Init(processor)
 	//心跳
 	go processor.LoopHeartbeat()
 	//循环处理worker发来的指令

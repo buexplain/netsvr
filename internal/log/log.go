@@ -1,3 +1,4 @@
+// Package log 日志模块
 package log
 
 import (

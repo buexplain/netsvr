@@ -1,3 +1,5 @@
+// Package worker 客户数据转发模块
+// 负责将客户数据转发给business
 package worker
 
 import (
@@ -65,6 +67,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_Info, cmd.Info)
 			c.RegisterCmd(protocol.Cmd_Metrics, cmd.Metrics)
 			c.RegisterCmd(protocol.Cmd_CheckOnline, cmd.CheckOnline)
+			c.RegisterCmd(protocol.Cmd_Limit, cmd.Limit)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启
 			go c.LoopCmd()
 			go c.LoopReceive()
@@ -102,5 +105,5 @@ func Shutdown() {
 		log.Logger.Error().Err(err).Msg("Worker tcp shutdown failed")
 		return
 	}
-	log.Logger.Info().Msg("Worker tcp shutdown")
+	log.Logger.Info().Msg("Worker tcp grace shutdown")
 }

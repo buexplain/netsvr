@@ -16,6 +16,7 @@ const (
 	RouterRespConnOpen Cmd = iota + 1
 	RouterRespConnClose
 	RouterMetrics
+	RouterLimit
 	RouterUniqIdList
 	RouterUniqIdCount
 	RouterTopicMyList
@@ -45,6 +46,7 @@ var CmdName = map[Cmd]string{
 	RouterRespConnOpen:          "RouterRespConnOpen",          //响应连接成功信息
 	RouterRespConnClose:         "RouterRespConnClose",         //响应连接成功信息
 	RouterMetrics:               "RouterMetrics",               //获取网关统计的服务状态
+	RouterLimit:                 "RouterLimit",                 //更新限流配置、获取网关中的限流配置的真实情况
 	RouterUniqIdList:            "RouterUniqIdList",            //获取网关中全部的uniqId
 	RouterUniqIdCount:           "RouterUniqIdCount",           //获取网关中uniqId的数量
 	RouterTopicMyList:           "RouterTopicMyList",           //获取已订阅的主题列表

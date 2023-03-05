@@ -1,3 +1,4 @@
+// Package metrics 服务状态统计模块
 package metrics
 
 import (

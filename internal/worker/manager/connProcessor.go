@@ -3,6 +3,7 @@ package manager
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -89,6 +90,8 @@ func (r *ConnProcessor) ForceClose() {
 	default:
 		//通知所有生产者，不再生产数据
 		close(r.producerCh)
+		close(r.sendCh)
+		close(r.receiveCh)
 		//通知所有消费者，立刻退出
 		close(r.consumerCh)
 		//关闭连接
@@ -160,6 +163,11 @@ func (r *ConnProcessor) send(data []byte) {
 }
 
 func (r *ConnProcessor) Send(data []byte) {
+	defer func() {
+		//因为有可能已经阻塞在r.sendCh <- data的时候，收到<-r.producerCh信号
+		//然后因为close(r.sendCh)，最终导致send on closed channel
+		_ = recover()
+	}()
 	select {
 	case <-r.producerCh:
 		//收到关闭信号，不再生产
@@ -176,7 +184,13 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//打印日志信息
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
+			errStr := fmt.Sprint(err)
+			//TODO 等golang发布了针对panic的错误类型的时候，这里需要优化一下
+			if errStr == "send on closed channel" {
+				log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
+			} else {
+				log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
+			}
 		} else {
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
 		}

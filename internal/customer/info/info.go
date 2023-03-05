@@ -1,3 +1,4 @@
+// Package info 保持客户连接的session数据模块
 package info
 
 import (

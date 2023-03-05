@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/multicast"
@@ -61,6 +62,7 @@ func main() {
 		defer tc.Stop()
 		for {
 			<-tc.C
+			fmt.Printf("current online %d\n", sign.Pool.Len()+singleCast.Pool.Len()+multicast.Pool.Len())
 			log.Logger.Info().Msgf("current online %d", sign.Pool.Len()+singleCast.Pool.Len()+multicast.Pool.Len())
 		}
 	}()

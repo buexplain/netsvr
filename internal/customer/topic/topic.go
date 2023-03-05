@@ -1,3 +1,4 @@
+// Package topic 维护客户的订阅模块
 package topic
 
 import (

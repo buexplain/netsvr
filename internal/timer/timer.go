@@ -1,3 +1,5 @@
+// Package timer 定时器模块
+// 提供定时间隔或者是延时处理服务
 package timer
 
 import (

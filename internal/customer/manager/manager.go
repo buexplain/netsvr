@@ -1,3 +1,4 @@
+// Package manager 维护客户连接的模块
 package manager
 
 import (

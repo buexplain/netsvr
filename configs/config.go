@@ -18,7 +18,8 @@ type config struct {
 	//服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
 	//如果服务编号不是唯一的，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑服务编号唯一性
 	ServerId uint8
-
+	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
+	ShutdownWaitTime time.Duration
 	//business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
 	Limit []Limit
 
