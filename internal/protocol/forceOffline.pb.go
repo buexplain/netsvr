@@ -28,7 +28,7 @@ type ForceOffline struct {
 
 	// 目标uniqId
 	UniqId string `protobuf:"bytes,1,opt,name=uniqId,proto3" json:"uniqId,omitempty"`
-	// 当连接有session值时，则不强制关关闭
+	// 如果为true，则判断连接是否存在session值，存在则不关闭
 	IgnoreWithSession bool `protobuf:"varint,2,opt,name=ignoreWithSession,proto3" json:"ignoreWithSession,omitempty"`
 	// 需要发给客户的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
 	Data []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`

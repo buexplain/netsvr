@@ -1,3 +1,4 @@
+// 对接网关支持的各种操作接口
 package main
 
 import (

@@ -1,5 +1,5 @@
-// Package sign 对网关登录登出进行压测
-package sign
+// Package broadcast 对网关广播进行压测
+package broadcast
 
 import (
 	"github.com/tidwall/gjson"
@@ -25,31 +25,18 @@ func init() {
 
 func (r *pool) AddWebsocket() {
 	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterSignInForForge] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-		ws.OnMessage[protocol.RouterSignOutForForge] = func(payload gjson.Result) {
+		ws.OnMessage[protocol.RouterBroadcast] = func(payload gjson.Result) {
 			log.Logger.Debug().Msg(payload.Raw)
 		}
 	})
 }
 
-// In 登录操作
-func (r *pool) In() {
+// Send 广播一条数据
+func (r *pool) Send() {
 	r.Mux.RLock()
 	defer r.Mux.RUnlock()
 	var ws *wsClient.Client
 	for _, ws = range r.P {
-		ws.Send(protocol.RouterSignInForForge, nil)
-	}
-}
-
-// Out 退出登录操作
-func (r *pool) Out() {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterSignOutForForge, nil)
+		ws.Send(protocol.RouterBroadcast, map[string]interface{}{"message": "我是一条按uniqId广播的信息"})
 	}
 }

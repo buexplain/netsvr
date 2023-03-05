@@ -1,3 +1,4 @@
+// Package userDb 模拟数据库，便于实现登录登出的逻辑
 package userDb
 
 import (
