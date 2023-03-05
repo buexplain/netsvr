@@ -266,7 +266,7 @@ func (r *ConnProcessor) LoopReceive() {
 			log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Router failed")
 			continue
 		}
-		log.Logger.Debug().Interface("cmd", router.Cmd).Msg("Worker receive business command")
+		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Worker receive business command")
 		select {
 		case <-r.producerCh:
 			//收到关闭信号，不再生产，进入丢弃数据逻辑

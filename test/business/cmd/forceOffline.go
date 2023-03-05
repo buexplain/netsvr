@@ -39,7 +39,7 @@ func (forceOffline) ForUserId(_ *internalProtocol.Transfer, param string, proces
 	}
 	ret := &internalProtocol.ForceOffline{}
 	ret.UniqId = strconv.Itoa(user.Id)
-	ret.PreventConnCloseCmdTransfer = true
+	ret.IgnoreWithSession = false
 	ret.Data = businessUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_ForceOffline
@@ -62,7 +62,7 @@ func (forceOffline) ForUniqId(_ *internalProtocol.Transfer, param string, proces
 	}
 	ret := &internalProtocol.ForceOffline{}
 	ret.UniqId = payload.UniqId
-	ret.PreventConnCloseCmdTransfer = true
+	ret.IgnoreWithSession = true
 	ret.Data = businessUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_ForceOffline

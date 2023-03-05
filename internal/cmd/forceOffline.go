@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
-	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	"netsvr/internal/timer"
@@ -27,14 +26,12 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 	if conn == nil {
 		return
 	}
-	//是否阻止worker把连接关闭事件转发到business，如果是，则立马移除掉连接的所有数据，这样在onClose的时候就不会转发数据到business
-	if payload.PreventConnCloseCmdTransfer {
-		//从连接管理器中删除
-		customerManager.Manager.Del(payload.UniqId)
-		//删除订阅关系、删除uniqId
+	//如果连接存在session值，则不再强制关闭
+	if payload.IgnoreWithSession {
 		if session, ok := conn.Session().(*info.Info); ok {
-			topics, currentUniqId, _ := session.Clear(true)
-			topic.Topic.Del(topics, currentUniqId, payload.UniqId)
+			if session.GetSession() != "" {
+				return
+			}
 		}
 	}
 	//判断是否转发数据

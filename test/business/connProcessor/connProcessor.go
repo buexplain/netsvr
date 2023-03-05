@@ -263,7 +263,7 @@ func (r *ConnProcessor) LoopReceive() {
 			log.Logger.Error().Err(err).Msg("Proto unmarshal internalProtocol.Router failed")
 			continue
 		}
-		log.Logger.Debug().Interface("cmd", router.Cmd).Msg("Business receive worker command")
+		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Business receive worker command")
 		select {
 		case <-r.producerCh:
 			//收到关闭信号，不再生产，进入丢弃数据逻辑
@@ -325,7 +325,7 @@ func (r *ConnProcessor) cmd(router *internalProtocol.Router) {
 		if clientRoute == nil {
 			return
 		}
-		log.Logger.Debug().Interface("cmd", clientRoute.Cmd).Msg("Business receive client command")
+		log.Logger.Debug().Stringer("cmd", clientRoute.Cmd).Msg("Business receive client command")
 		//客户发来的命令
 		if callback, ok := r.businessCmdCallback[clientRoute.Cmd]; ok {
 			callback(tf, clientRoute.Data, r)

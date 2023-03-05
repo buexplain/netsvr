@@ -48,13 +48,6 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		//如果新的uniqId已经存在，则要移除掉所有关系，因为接下来，这个新的uniqId会被作用在新的连接上
 		conflictConn := manager.Manager.Get(payload.NewUniqId)
 		if conflictConn != nil {
-			//从连接管理器中删除
-			manager.Manager.Del(payload.NewUniqId)
-			//删除订阅关系、删除uniqId
-			if conflictSession, ok := conflictConn.Session().(*info.Info); ok {
-				topics, currentUniqId, _ := conflictSession.Clear(true)
-				topic.Topic.Del(topics, currentUniqId, payload.NewUniqId)
-			}
 			//判断是否转发数据
 			if len(payload.DataAsNewUniqIdExisted) == 0 {
 				//无须转达任何数据，直接关闭连接

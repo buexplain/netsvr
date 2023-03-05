@@ -105,11 +105,7 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 	}
 }
 
-func (r *Info) Clear(lock bool) (topics []string, uniqId string, session string) {
-	if lock {
-		r.mux.Lock()
-		defer r.mux.Unlock()
-	}
+func (r *Info) Clear() (topics []string, uniqId string, session string) {
 	//删除所有订阅
 	topics = r.topics
 	r.topics = nil
@@ -141,7 +137,7 @@ func (r *Info) SubscribeTopics(topics []string, lock bool) (realSubscribeTopics 
 		r.mux.Lock()
 		defer r.mux.Unlock()
 	}
-	//如果是空，则全部赋值
+	//如果是个空，则全部赋值
 	if r.topics == nil {
 		r.topics = make([]string, 0, len(topics))
 		for _, topic := range topics {

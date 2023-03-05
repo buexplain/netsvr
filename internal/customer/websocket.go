@@ -124,10 +124,10 @@ func onClose(conn *websocket.Conn, _ error) {
 	session.MuxLock()
 	//关闭info
 	session.Close()
-	//断开info与conn的关系
+	//断开info与conn的关系，便于快速gc
 	conn.SetSession(nil)
 	//清空info，并返回相关数据
-	topics, uniqId, userSession := session.Clear(false)
+	topics, uniqId, userSession := session.Clear()
 	if uniqId == "" {
 		session.MuxUnLock()
 		//当前连接已经被清空了uniqId（可能被强制踢下线或者是被uniqId被顶掉了），无需进行接下来的逻辑
