@@ -27,6 +27,7 @@ enum Cmd {
   TopicDelete = 90002010;//删除主题
   TopicPublish = 90002011;//发布
   ForceOffline = 90002012;//强制关闭某个连接
+  ForceOfflineGuest = 90002013;//强制关闭某个空session值的连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 开始--------------------------------

@@ -52,6 +52,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(protocol.Cmd_InfoUpdate, cmd.InfoUpdate)
 			c.RegisterCmd(protocol.Cmd_InfoDelete, cmd.InfoDelete)
 			c.RegisterCmd(protocol.Cmd_ForceOffline, cmd.ForceOffline)
+			c.RegisterCmd(protocol.Cmd_ForceOfflineGuest, cmd.ForceOfflineGuest)
 			c.RegisterCmd(protocol.Cmd_Multicast, cmd.Multicast)
 			c.RegisterCmd(protocol.Cmd_TopicPublish, cmd.TopicPublish)
 			c.RegisterCmd(protocol.Cmd_SingleCast, cmd.SingleCast)
@@ -102,7 +103,7 @@ func Start() {
 func Shutdown() {
 	err := server.listener.Close()
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Worker tcp shutdown failed")
+		log.Logger.Error().Err(err).Msg("Worker tcp grace shutdown failed")
 		return
 	}
 	log.Logger.Info().Msg("Worker tcp grace shutdown")

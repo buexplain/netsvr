@@ -7,6 +7,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 )
 
 // SingleCast 单播
@@ -16,7 +17,7 @@ func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.SingleCast failed")
 		return
 	}
-	if payload.UniqId == "" || len(payload.Data) == 0 {
+	if strings.EqualFold(payload.UniqId, "") || len(payload.Data) == 0 {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)

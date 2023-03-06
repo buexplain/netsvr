@@ -3,12 +3,12 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 	"time"
 )
 
@@ -19,20 +19,12 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOffline failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if strings.EqualFold(payload.UniqId, "") {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
 	if conn == nil {
 		return
-	}
-	//如果连接存在session值，则不再强制关闭
-	if payload.IgnoreWithSession {
-		if session, ok := conn.Session().(*info.Info); ok {
-			if session.GetSession() != "" {
-				return
-			}
-		}
 	}
 	//判断是否转发数据
 	if len(payload.Data) == 0 {

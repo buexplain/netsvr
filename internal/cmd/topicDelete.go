@@ -31,11 +31,9 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 				if conn == nil {
 					continue
 				}
-				session, ok := conn.Session().(*info.Info)
-				if !ok {
-					continue
+				if session, ok := conn.Session().(*info.Info); ok {
+					_ = session.UnsubscribeTopic(topic)
 				}
-				session.UnsubscribeTopic(topic)
 			}
 		}
 		return

@@ -10,6 +10,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
 	"netsvr/test/utils"
+	"sync"
 	"time"
 )
 
@@ -23,13 +24,17 @@ type connOpenCmd struct {
 }
 
 type Client struct {
-	conn        *websocket.Conn
-	UniqId      string
-	LocalUniqId string
-	OnMessage   map[protocol.Cmd]func(payload gjson.Result)
-	OnClose     func()
-	sendCh      chan []byte
-	close       chan struct{}
+	conn                  *websocket.Conn
+	UniqId                string
+	LocalUniqId           string
+	topics                []string
+	topicSubscribeIndex   int
+	topicUnsubscribeIndex int
+	OnMessage             map[protocol.Cmd]func(payload gjson.Result)
+	OnClose               func()
+	sendCh                chan []byte
+	close                 chan struct{}
+	mux                   *sync.RWMutex
 }
 
 func New(urlStr string) *Client {
@@ -66,10 +71,12 @@ func New(urlStr string) *Client {
 	client := &Client{
 		conn:        c,
 		UniqId:      ret.Data.Data,
+		topics:      make([]string, 0),
 		LocalUniqId: ret.Data.Data,
 		OnMessage:   map[protocol.Cmd]func(payload gjson.Result){},
 		sendCh:      make(chan []byte, 10),
 		close:       make(chan struct{}),
+		mux:         &sync.RWMutex{},
 	}
 	return client
 }
@@ -94,6 +101,49 @@ func (r *Client) Close() {
 			r.OnClose()
 		}
 	}
+}
+
+// InitTopic 伪造主题
+func (r *Client) InitTopic() {
+	topics := make([]string, 0, 600)
+	for i := 0; i < 600; i++ {
+		topics = append(topics, utils.GetRandStr(2))
+	}
+	r.topics = topics
+}
+
+func (r *Client) GetSubscribeTopic() []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	ret := make([]string, 0, 100)
+	for {
+		if len(ret) == 100 {
+			break
+		}
+		r.topicSubscribeIndex++
+		if r.topicSubscribeIndex == len(r.topics) {
+			r.topicSubscribeIndex = 0
+		}
+		ret = append(ret, r.topics[r.topicSubscribeIndex])
+	}
+	return ret
+}
+
+func (r *Client) GetUnsubscribeTopic() []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	ret := make([]string, 0, 50)
+	for {
+		if len(ret) == 50 {
+			break
+		}
+		r.topicUnsubscribeIndex++
+		if r.topicUnsubscribeIndex == len(r.topics) {
+			r.topicUnsubscribeIndex = 0
+		}
+		ret = append(ret, r.topics[r.topicUnsubscribeIndex])
+	}
+	return ret
 }
 
 func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
@@ -137,7 +187,7 @@ func (r *Client) LoopRead() {
 		case <-r.close:
 			return
 		default:
-			if err := r.conn.SetReadDeadline(time.Now().Add(time.Second * 60)); err != nil {
+			if err := r.conn.SetReadDeadline(time.Now().Add(time.Second * 1)); err != nil {
 				r.Close()
 				return
 			}

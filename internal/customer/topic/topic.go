@@ -2,6 +2,7 @@
 package topic
 
 import (
+	"strings"
 	"sync"
 )
 
@@ -112,7 +113,7 @@ func (r *collect) Del(topics []string, currentUniqId string, previousUniqId stri
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	if currentUniqId == previousUniqId || previousUniqId == "" {
+	if strings.EqualFold(currentUniqId, previousUniqId) || strings.EqualFold(previousUniqId, "") {
 		for _, topic := range topics {
 			c, ok := r.topics[topic]
 			if !ok {

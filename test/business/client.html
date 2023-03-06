@@ -168,6 +168,19 @@
 
         <div class="case">
             <label>
+                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <label>
+                <input type="number" step="1" name="delay" data-processor="processorToInt"
+                       placeholder="请输入需要延迟下线的秒数"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.forceOfflineGuestForUniqId)">按uniqId强制下线游客</button>
+        </div>
+
+        <div class="case">
+            <label>
                 <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
                        value="我是一条按用户id的单播的信息">
             </label>
@@ -306,6 +319,7 @@
         checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
         forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
         forceOfflineForUniqId: parseInt("{!.RouterForceOfflineForUniqId!}"), //强制关闭
+        forceOfflineGuestForUniqId: parseInt("{!.RouterForceOfflineGuestForUniqId!}"), //按uniqId强制下线游客
         singleCastForUserId: parseInt("{!.RouterSingleCastForUserId!}"), //单播给某个用户
         singleCastForUniqId: parseInt("{!.RouterSingleCastForUniqId!}"), //单播给某个uniqId
         multicastForUserId: parseInt("{!.RouterMulticastForUserId!}"), //组播给多个用户

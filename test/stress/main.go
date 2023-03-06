@@ -9,16 +9,30 @@ import (
 	"netsvr/test/stress/broadcast"
 	"netsvr/test/stress/multicast"
 	"netsvr/test/stress/sign"
+	"netsvr/test/stress/silent"
 	"netsvr/test/stress/singleCast"
+	"netsvr/test/stress/topic"
 	"time"
 )
 
-const signNum = 100
-const singleCastNum = 100
-const multicastNum = 20
-const broadcastNum = 2
+const silentNum = 0
+const signNum = 0
+const singleCastNum = 0
+const multicastNum = 0
+const broadcastNum = 0
+const topicNum = 100
 
 func main() {
+	//开一批连接上去
+	x := 0
+	for i := 0; i < silentNum; i++ {
+		x++
+		if x%200 == 0 {
+			time.Sleep(time.Second * 1)
+			fmt.Println(silent.Pool.Len())
+		}
+		silent.Pool.AddWebsocket()
+	}
 	//开一批连接上去
 	for i := 0; i < signNum; i++ {
 		sign.Pool.AddWebsocket()
@@ -73,7 +87,7 @@ func main() {
 		broadcast.Pool.AddWebsocket()
 	}
 	go func() {
-		//每秒执行一次组播操作
+		//每秒执行一次广播操作
 		tc := time.NewTicker(time.Second * 1)
 		defer tc.Stop()
 		for {
@@ -83,12 +97,32 @@ func main() {
 			}()
 		}
 	}()
+	//开一批连接上去
+	for i := 0; i < topicNum; i++ {
+		topic.Pool.AddWebsocket()
+	}
+	go func() {
+		//每秒执行一次组播操作
+		tc := time.NewTicker(time.Second * 1)
+		defer tc.Stop()
+		for {
+			<-tc.C
+			go func() {
+				topic.Pool.Subscribe()
+				if rand.Intn(10) > 5 {
+					time.Sleep(time.Millisecond * 100)
+				}
+				topic.Pool.Unsubscribe()
+				topic.Pool.Publish()
+			}()
+		}
+	}()
 	go func() {
 		tc := time.NewTicker(time.Second * 20)
 		defer tc.Stop()
 		for {
 			<-tc.C
-			online := sign.Pool.Len() + singleCast.Pool.Len() + multicast.Pool.Len() + broadcast.Pool.Len()
+			online := sign.Pool.Len() + singleCast.Pool.Len() + multicast.Pool.Len() + broadcast.Pool.Len() + silent.Pool.Len() + topic.Pool.Len()
 			fmt.Printf("current online %d\n", online)
 			log.Logger.Info().Msgf("current online %d", online)
 		}

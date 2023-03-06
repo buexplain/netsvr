@@ -6,6 +6,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 )
 
 // TopicUniqIdList 获取网关中某个主题包含的uniqId
@@ -15,7 +16,7 @@ func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUniqIdListReq failed")
 		return
 	}
-	if payload.Topic == "" {
+	if strings.EqualFold(payload.Topic, "") {
 		return
 	}
 	ret := &protocol.TopicUniqIdListResp{}

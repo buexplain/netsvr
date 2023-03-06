@@ -13,13 +13,9 @@ import (
 )
 
 func main() {
-	go func() {
-		defer func() {
-			_ = recover()
-		}()
-		log.Logger.Info().Msg("Pprof http start http://127.0.0.1:6062/debug/pprof")
-		_ = http.ListenAndServe("127.0.0.1:6062", nil)
-	}()
+	if configs.Config.PprofListenAddress != "" {
+		pprof()
+	}
 	go worker.Start()
 	go customer.Start()
 	select {
@@ -44,4 +40,14 @@ func main() {
 		log.Logger.Info().Int("pid", os.Getpid()).Msg("Close the netsvr process successfully")
 		os.Exit(0)
 	}
+}
+
+func pprof() {
+	go func() {
+		defer func() {
+			_ = recover()
+		}()
+		log.Logger.Info().Msg("Pprof http start http" + "://" + configs.Config.PprofListenAddress + "/debug/pprof")
+		_ = http.ListenAndServe(configs.Config.PprofListenAddress, nil)
+	}()
 }

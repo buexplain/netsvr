@@ -49,7 +49,7 @@ func Start() {
 func Shutdown() {
 	err := server.Shutdown(context.Background())
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Customer websocket shutdown failed")
+		log.Logger.Error().Err(err).Msg("Customer websocket grace shutdown failed")
 		return
 	}
 	log.Logger.Info().Msg("Customer websocket grace shutdown")

@@ -3,6 +3,7 @@ package info
 
 import (
 	"netsvr/internal/protocol"
+	"strings"
 	"sync"
 )
 
@@ -146,11 +147,12 @@ func (r *Info) SubscribeTopics(topics []string, lock bool) (realSubscribeTopics 
 		return topics, r.uniqId
 	}
 	//不为空，判断是否存在，不存在的，则赋值
-	realSubscribeTopics = make([]string, 0)
+	realSubscribeTopics = make([]string, 0, len(topics))
+	var ok bool
 	for _, topic := range topics {
-		ok := false
+		ok = false
 		for _, has := range r.topics {
-			if topic == has {
+			if strings.EqualFold(topic, has) {
 				ok = true
 				break
 			}
@@ -176,10 +178,10 @@ func (r *Info) UnsubscribeTopics(topics []string) (realUnsubscribeTopics []strin
 		return nil, ""
 	}
 	//判断已经存在的才删除
-	realUnsubscribeTopics = make([]string, 0)
+	realUnsubscribeTopics = make([]string, 0, len(topics))
 	for _, topic := range topics {
 		for k, has := range r.topics {
-			if topic == has {
+			if strings.EqualFold(topic, has) {
 				r.topics = append(r.topics[0:k], r.topics[k+1:]...)
 				realUnsubscribeTopics = append(realUnsubscribeTopics, topic)
 				break
@@ -200,7 +202,7 @@ func (r *Info) UnsubscribeTopic(topic string) bool {
 	}
 	//判断已经存在的才删除
 	for k, has := range r.topics {
-		if topic == has {
+		if strings.EqualFold(topic, has) {
 			r.topics = append(r.topics[0:k], r.topics[k+1:]...)
 			return true
 		}

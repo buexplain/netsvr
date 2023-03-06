@@ -8,6 +8,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 )
 
 // TopicPublish 发布
@@ -17,13 +18,10 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicPublish failed")
 		return
 	}
-	if len(payload.Data) == 0 || payload.Topic == "" {
+	if len(payload.Data) == 0 || strings.EqualFold(payload.Topic, "") {
 		return
 	}
 	uniqIds := topic.Topic.GetUniqIds(payload.Topic)
-	if len(uniqIds) == 0 {
-		return
-	}
 	for _, uniqId := range uniqIds {
 		conn := manager.Manager.Get(uniqId)
 		if conn == nil {
