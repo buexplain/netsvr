@@ -20,6 +20,8 @@ type config struct {
 	ServerId uint8
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 	ShutdownWaitTime time.Duration
+	//pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
+	PprofListenAddress string
 	//business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
 	Limit []Limit
 
@@ -34,6 +36,10 @@ type config struct {
 		ReadDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
+		//获取代理透传的ip地址的header key
+		XRealIP string
+		//读取客户数据的大小限制（单位：字节）
+		ReceivePackLimit int
 	}
 	Worker struct {
 		//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
@@ -120,6 +126,12 @@ func init() {
 	if Config.Customer.ReadDeadline <= 0 {
 		//默认120秒
 		Config.Customer.ReadDeadline = time.Second * 120
+	}
+	if Config.Customer.HandlePattern == "" {
+		Config.Customer.HandlePattern = "/"
+	}
+	if Config.Customer.XRealIP == "" {
+		Config.Customer.XRealIP = "X-Real-Ip"
 	}
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒

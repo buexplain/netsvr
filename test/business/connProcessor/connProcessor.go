@@ -104,6 +104,8 @@ func (r *ConnProcessor) GraceClose() {
 		//等待消费者协程退出
 		r.consumerWg.Wait()
 		//关闭连接
+		//这里等待一下，因为连接可能已经写入了数据，所以不能立刻close它
+		time.Sleep(time.Millisecond * 100)
 		_ = r.conn.Close()
 	}
 }

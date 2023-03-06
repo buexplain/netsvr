@@ -45,7 +45,7 @@ func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	//删除主题
 	if payload.DelTopic {
 		topics := session.PullTopics()
-		topic.Topic.Del(topics, payload.UniqId, previousUniqId)
+		topic.Topic.DelByMap(topics, payload.UniqId, previousUniqId)
 	}
 	//删除session
 	if payload.DelSession {
@@ -61,8 +61,8 @@ func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 		//处理主题管理器中的关系
 		topics := session.SetUniqIdAndGetTopics(newUniqId)
 		//删除旧关系，构建新关系
-		topic.Topic.Del(topics, payload.UniqId, previousUniqId)
-		topic.Topic.Set(topics, newUniqId)
+		topic.Topic.DelBySlice(topics, payload.UniqId, previousUniqId)
+		topic.Topic.SetBySlice(topics, newUniqId)
 	}
 	session.MuxUnLock()
 	//有数据，则转发给客户

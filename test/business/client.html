@@ -88,7 +88,7 @@
     <div style="width: 70%;max-height: 90vh;overflow-y: auto;">
         <div class="case">
             <label for="address">
-                <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
+                <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}?admin=1">
             </label>
             <button onclick="openWebsocket()">打开连接</button>
             <button onclick="closeWebsocket()">关闭连接</button>
@@ -164,6 +164,19 @@
                        value="">
             </label>
             <button onclick="send(this,routerCmd.forceOfflineForUniqId)">按uniqId强制下线</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <label>
+                <input type="number" step="1" name="delay" data-processor="processorToInt"
+                       placeholder="请输入需要延迟下线的秒数"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.forceOfflineGuestForUniqId)">按uniqId强制下线游客</button>
         </div>
 
         <div class="case">
@@ -306,6 +319,7 @@
         checkOnlineForUniqId: parseInt("{!.RouterCheckOnlineForUniqId!}"),//检查某个连接是否在线
         forceOfflineForUserId: parseInt("{!.RouterForceOfflineForUserId!}"), //强制关闭
         forceOfflineForUniqId: parseInt("{!.RouterForceOfflineForUniqId!}"), //强制关闭
+        forceOfflineGuestForUniqId: parseInt("{!.RouterForceOfflineGuestForUniqId!}"), //按uniqId强制下线游客
         singleCastForUserId: parseInt("{!.RouterSingleCastForUserId!}"), //单播给某个用户
         singleCastForUniqId: parseInt("{!.RouterSingleCastForUniqId!}"), //单播给某个uniqId
         multicastForUserId: parseInt("{!.RouterMulticastForUserId!}"), //组播给多个用户
@@ -396,7 +410,7 @@
         if (ws) {
             return;
         }
-        ws = new WebSocket(document.getElementById("address").value);
+        ws = new WebSocket(document.getElementById("address").value, ["a-1", "b-2"]);
         ws.onopen = function () {
             heartbeatInterval = setInterval(function () {
                 //每隔30秒，发送一次心跳信息
@@ -431,7 +445,8 @@
                 //连接打开，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
                     clearScreen();
-                    document.getElementById("topInfo").innerText = resp.data.message + '，UniqId：' + resp.data.data;
+                    document.getElementById("topInfo").innerText = resp.data.message + '，UniqId：' + resp.data.data.uniqId;
+                    print(JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 

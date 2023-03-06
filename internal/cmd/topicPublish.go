@@ -21,9 +21,6 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	uniqIds := topic.Topic.GetUniqIds(payload.Topic)
-	if len(uniqIds) == 0 {
-		return
-	}
 	for _, uniqId := range uniqIds {
 		conn := manager.Manager.Get(uniqId)
 		if conn == nil {

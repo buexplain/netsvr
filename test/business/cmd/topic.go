@@ -274,7 +274,7 @@ func (topic) RequestTopicUnsubscribe(tf *internalProtocol.Transfer, param string
 	ret := &internalProtocol.TopicUnsubscribe{}
 	ret.UniqId = tf.UniqId
 	ret.Topics = payload.Topics
-	ret.Data = businessUtils.NewResponse(protocol.RouterTopicSubscribe, map[string]interface{}{"code": 0, "message": "取消订阅成功", "data": nil})
+	ret.Data = businessUtils.NewResponse(protocol.RouterTopicUnsubscribe, map[string]interface{}{"code": 0, "message": "取消订阅成功", "data": nil})
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

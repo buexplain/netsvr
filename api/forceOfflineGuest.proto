@@ -1,13 +1,15 @@
 syntax = "proto3";
 
-package netsvr.forceOffline;
+package netsvr.forceOfflineGuest;
 
 option go_package = "internal/protocol;protocol";
 
-//business向worker请求，将某个连接强制关闭
-message ForceOffline {
+//business向worker请求，将某个没有session值的连接强制关闭
+message ForceOfflineGuest {
   //目标uniqId
   string uniqId = 1;
+  //延迟多少秒执行，如果是0，立刻执行
+  int32 delay = 2;
   //需要发给客户的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
-  bytes data = 2;
+  bytes data = 3;
 }

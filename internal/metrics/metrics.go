@@ -45,7 +45,7 @@ func init() {
 			s.Rate5Max = gMetrics.NewGauge()
 			s.Rate15Max = gMetrics.NewGauge()
 		} else {
-			//配置不要求统计，则初始化虚拟的
+			//配置不要求统计，则初始化一个空壳子上去
 			s.Meter = gMetrics.NilMeter{}
 			s.MeanRateMax = gMetrics.NilGauge{}
 			s.Rate1Max = gMetrics.NilGauge{}

@@ -3,7 +3,9 @@ package utils
 import (
 	"encoding/binary"
 	"math/rand"
+	"net/http"
 	"netsvr/configs"
+	"strings"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -68,4 +70,16 @@ func UniqId() string {
 		j += 2
 	}
 	return unsafe.String(&buf[0], 18)
+}
+
+func ParseSubProtocols(r *http.Request) []string {
+	h := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol"))
+	if h == "" {
+		return nil
+	}
+	protocols := strings.Split(h, ",")
+	for i := range protocols {
+		protocols[i] = strings.TrimSpace(protocols[i])
+	}
+	return protocols
 }

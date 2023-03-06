@@ -29,10 +29,11 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	var topics []string
-	topics, payload.UniqId = session.SubscribeTopics(payload.Topics, true)
+	session.MuxLock()
+	payload.UniqId = session.SubscribeTopics(payload.Topics)
 	//这里根据session里面的uniqId去构建订阅关系，因为有可能当SubscribeTopics得到锁的时候，session里面的uniqId与当前的payload.UniqId不一致了
-	topic.Topic.Set(topics, payload.UniqId)
+	topic.Topic.SetBySlice(payload.Topics, payload.UniqId)
+	session.MuxUnLock()
 	if len(payload.Data) > 0 {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
 			_ = conn.Close()

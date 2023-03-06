@@ -25,11 +25,11 @@ type ConnProcessor struct {
 	//生产者退出信号
 	producerCh chan struct{}
 	//消费者协程退出等待器
-	consumerWg sync.WaitGroup
+	consumerWg *sync.WaitGroup
 	//要发送给连接的数据
 	sendCh chan []byte
 	//发送缓冲区
-	sendBuf     bytes.Buffer
+	sendBuf     *bytes.Buffer
 	sendDataLen uint32
 	//从连接中读取的数据
 	receiveCh chan *protocol.Router
@@ -44,9 +44,9 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 		conn:        conn,
 		consumerCh:  make(chan struct{}),
 		producerCh:  make(chan struct{}),
-		consumerWg:  sync.WaitGroup{},
+		consumerWg:  &sync.WaitGroup{},
 		sendCh:      make(chan []byte, 100),
-		sendBuf:     bytes.Buffer{},
+		sendBuf:     &bytes.Buffer{},
 		sendDataLen: 0,
 		receiveCh:   make(chan *protocol.Router, 100),
 		workerId:    0,
@@ -78,6 +78,8 @@ func (r *ConnProcessor) GraceClose() {
 		//等待消费者协程退出
 		r.consumerWg.Wait()
 		//关闭连接
+		//这里等待一下，因为连接可能已经写入了数据，所以不能立刻close它
+		time.Sleep(time.Millisecond * 100)
 		_ = r.conn.Close()
 	}
 }

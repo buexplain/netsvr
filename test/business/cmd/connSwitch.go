@@ -32,7 +32,14 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 	ret.Data = utils.NewResponse(protocol.RouterRespConnOpen, map[string]interface{}{
 		"code":    0,
 		"message": "连接网关成功",
-		"data":    payload.UniqId,
+		"data": map[string]interface{}{
+			"uniqId":        payload.UniqId,
+			"rawQuery":      payload.RawQuery,
+			"subProtocol":   payload.SubProtocol,
+			"xForwardedFor": payload.XForwardedFor,
+			"xRealIP":       payload.XRealIP,
+			"remoteIP":      payload.RemoteIP,
+		},
 	})
 	//发送到网关
 	router := &internalProtocol.Router{}

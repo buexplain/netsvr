@@ -11,7 +11,7 @@ import (
 type collect struct {
 	//uniqId --> *websocket.Conn
 	conn map[string]*websocket.Conn
-	mux  sync.RWMutex
+	mux  *sync.RWMutex
 }
 
 func (r *collect) Len() int {
@@ -100,6 +100,6 @@ var Manager manager
 
 func init() {
 	for i := 0; i < len(Manager); i++ {
-		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 1000), mux: sync.RWMutex{}}
+		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 1000), mux: &sync.RWMutex{}}
 	}
 }

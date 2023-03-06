@@ -25,6 +25,8 @@ import (
 )
 
 var server *nbhttp.Server
+var serviceBusy = []byte("Service Busy")
+var serviceRestarting = []byte("Service Restarting")
 
 func Start() {
 	mux := &http.ServeMux{}
@@ -49,50 +51,62 @@ func Start() {
 func Shutdown() {
 	err := server.Shutdown(context.Background())
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Customer websocket shutdown failed")
+		log.Logger.Error().Err(err).Msg("Customer websocket grace shutdown failed")
 		return
 	}
 	log.Logger.Info().Msg("Customer websocket grace shutdown")
 }
 
 func onWebsocket(w http.ResponseWriter, r *http.Request) {
+	var workerId int
 	select {
 	case <-quit.Ctx.Done():
 		//进程即将关闭，不再受理新的连接
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
+		_, _ = w.Write(serviceRestarting)
 		return
 	default:
+		//限流检查
+		workerId = workerManager.GetProcessConnOpenWorkerId()
+		//之所以要判断workerId大于0，是因为有可能业务方并不关心连接的打开信息，连接打开信息不会传递到业务方，则不必限流
+		if workerId > 0 && limit.Manager.Allow(workerId) == false {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write(serviceBusy)
+			return
+		}
 	}
 	upgrade := websocket.NewUpgrader()
 	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
 	upgrade.CheckOrigin = checkOrigin
-	upgrade.OnOpen(onOpen)
+	upgrade.SetPingHandler(pingMessageHandler)
+	upgrade.SetPongHandler(pongMessageHandler)
+	upgrade.OnOpen(nil)
 	upgrade.OnClose(onClose)
 	upgrade.OnMessage(onMessage)
-	conn, err := upgrade.Upgrade(w, r, nil)
+	//处理websocket子协议
+	upgrade.Subprotocols = nil
+	subProtocols := utils.ParseSubProtocols(r)
+	var responseHeader http.Header
+	if subProtocols != nil {
+		//返回任意一个子协议，保证连接升级成功
+		responseHeader = http.Header{}
+		responseHeader["Sec-Websocket-Protocol"] = subProtocols[0:1]
+	}
+	//开始升级
+	conn, err := upgrade.Upgrade(w, r, responseHeader)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Customer websocket upgrade failed")
 		return
 	}
-	log.Logger.Debug().Interface("remoteAddr", conn.RemoteAddr()).Msg("Customer websocket upgrade ok")
-}
-
-func onOpen(conn *websocket.Conn) {
-	//获取处理连接打开的worker
-	workerId := workerManager.GetProcessConnOpenWorkerId()
-	//限流检查，之所以要判断workerId大于0，是因为有可能业务方并不关心连接的打开信息，连接打开信息不会传递到业务方，则不必限流
-	if workerId > 0 && limit.Manager.Allow(workerId) == false {
-		_ = conn.Close()
-		return
-	}
+	//升级成功
+	wsConn := conn.(*websocket.Conn)
 	//统计打开连接次数
 	metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
 	//分配uniqId，并将添加到管理器中
 	uniqId := utils.UniqId()
 	session := info.NewInfo(uniqId)
-	conn.SetSession(session)
-	manager.Manager.Set(uniqId, conn)
+	wsConn.SetSession(session)
+	manager.Manager.Set(uniqId, wsConn)
 	log.Logger.Debug().Str("uniqId", uniqId).Msg("Customer websocket open")
 	//获取能够处理连接打开信息的business
 	worker := workerManager.Manager.Get(workerId)
@@ -102,6 +116,11 @@ func onOpen(conn *websocket.Conn) {
 	}
 	//连接打开消息回传给business
 	co := &protocol.ConnOpen{}
+	co.SubProtocol = subProtocols
+	co.XForwardedFor = r.Header.Get("X-Forwarded-For")
+	co.XRealIP = r.Header.Get(configs.Config.Customer.XRealIP)
+	co.RemoteIP = strings.Split(conn.RemoteAddr().String(), ":")[0]
+	co.RawQuery = r.URL.RawQuery
 	co.UniqId = uniqId
 	router := &protocol.Router{}
 	router.Cmd = protocol.Cmd_ConnOpen
@@ -111,6 +130,20 @@ func onOpen(conn *websocket.Conn) {
 	//统计转发到business的次数与字节数
 	metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
 	metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
+}
+
+// ping客户端心跳帧
+func pongMessageHandler(_ *websocket.Conn, _ string) {
+}
+
+// pong客户端心跳帧
+func pingMessageHandler(conn *websocket.Conn, _ string) {
+	//响应客户端心跳
+	err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
+	if err != nil {
+		_ = conn.Close()
+	}
+	metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 }
 
 func onClose(conn *websocket.Conn, _ error) {
@@ -130,16 +163,16 @@ func onClose(conn *websocket.Conn, _ error) {
 	topics, uniqId, userSession := session.Clear()
 	if uniqId == "" {
 		session.MuxUnLock()
-		//当前连接已经被清空了uniqId（可能被强制踢下线或者是被uniqId被顶掉了），无需进行接下来的逻辑
+		//当前连接已经被清空了uniqId，无需进行接下来的逻辑
 		return
 	}
 	//从连接管理器中删除
 	manager.Manager.Del(uniqId)
 	//删除订阅关系
-	topic.Topic.Del(topics, uniqId, "")
+	topic.Topic.DelByMap(topics, uniqId, "")
 	//释放锁
 	session.MuxUnLock()
-	log.Logger.Debug().Strs("topics", topics).Str("uniqId", uniqId).Str("session", userSession).Msg("Customer websocket close")
+	log.Logger.Debug().Interface("topics", topics).Str("uniqId", uniqId).Str("session", userSession).Msg("Customer websocket close")
 	//连接关闭消息回传给business
 	workerId := workerManager.GetProcessConnCloseWorkerId()
 	worker := workerManager.Manager.Get(workerId)
@@ -171,14 +204,10 @@ func onMessage(conn *websocket.Conn, messageType websocket.MessageType, data []b
 		}
 		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 		return
-	} else if messageType == websocket.PingMessage {
-		//响应客户端心跳
-		err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
-		if err != nil {
-			_ = conn.Close()
-		}
-		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
-		return
+	}
+	if len(data)-3 > configs.Config.Customer.ReceivePackLimit {
+		//TODO 尝试对户发送的数据大小进行限制客
+		//另外，给business，或者business给worker的大小限制，不应设置太小
 	}
 	//读取前三个字节，转成business的服务编号
 	workerId := utils.BytesToInt(data, 3)

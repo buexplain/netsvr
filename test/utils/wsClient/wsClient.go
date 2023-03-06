@@ -10,26 +10,38 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/protocol"
 	"netsvr/test/utils"
+	"sync"
 	"time"
 )
 
 type connOpenCmd struct {
 	Cmd  int32 `json:"cmd"`
 	Data struct {
-		Code    int32  `json:"code"`
+		Code int32 `json:"code"`
+		Data struct {
+			RawQuery      string   `json:"rawQuery"`
+			RemoteIP      string   `json:"remoteIP"`
+			SubProtocol   []string `json:"subProtocol"`
+			UniqID        string   `json:"uniqId"`
+			XForwardedFor string   `json:"xForwardedFor"`
+			XRealIP       string   `json:"xRealIP"`
+		} `json:"data"`
 		Message string `json:"message"`
-		Data    string `json:"data"`
 	} `json:"data"`
 }
 
 type Client struct {
-	conn        *websocket.Conn
-	UniqId      string
-	LocalUniqId string
-	OnMessage   map[protocol.Cmd]func(payload gjson.Result)
-	OnClose     func()
-	sendCh      chan []byte
-	close       chan struct{}
+	conn                  *websocket.Conn
+	UniqId                string
+	LocalUniqId           string
+	topics                []string
+	topicSubscribeIndex   int
+	topicUnsubscribeIndex int
+	OnMessage             map[protocol.Cmd]func(payload gjson.Result)
+	OnClose               func()
+	sendCh                chan []byte
+	close                 chan struct{}
+	mux                   *sync.RWMutex
 }
 
 func New(urlStr string) *Client {
@@ -48,14 +60,14 @@ func New(urlStr string) *Client {
 	_, p, err = c.ReadMessage()
 	if err != nil {
 		_ = c.Close()
-		log.Logger.Error().Msgf("读取服务器消息失败 %v", err)
+		log.Logger.Error().Err(err).Msg("读取服务器消息失败")
 		return nil
 	}
 	ret := connOpenCmd{}
 	err = json.Unmarshal(p, &ret)
 	if err != nil {
 		_ = c.Close()
-		log.Logger.Error().Msgf("解析服务器消息失败 %v", err)
+		log.Logger.Error().Str("receiveData", string(p)).Msgf("解析服务器消息失败 %v", err)
 		return nil
 	}
 	if ret.Cmd != int32(protocol.RouterRespConnOpen) || ret.Data.Code != 0 {
@@ -65,11 +77,13 @@ func New(urlStr string) *Client {
 	}
 	client := &Client{
 		conn:        c,
-		UniqId:      ret.Data.Data,
-		LocalUniqId: ret.Data.Data,
+		UniqId:      ret.Data.Data.UniqID,
+		topics:      make([]string, 0),
+		LocalUniqId: ret.Data.Data.UniqID,
 		OnMessage:   map[protocol.Cmd]func(payload gjson.Result){},
 		sendCh:      make(chan []byte, 10),
 		close:       make(chan struct{}),
+		mux:         &sync.RWMutex{},
 	}
 	return client
 }
@@ -94,6 +108,49 @@ func (r *Client) Close() {
 			r.OnClose()
 		}
 	}
+}
+
+// InitTopic 伪造主题
+func (r *Client) InitTopic() {
+	topics := make([]string, 0, 600)
+	for i := 0; i < 600; i++ {
+		topics = append(topics, utils.GetRandStr(2))
+	}
+	r.topics = topics
+}
+
+func (r *Client) GetSubscribeTopic() []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	ret := make([]string, 0, 100)
+	for {
+		if len(ret) == 100 {
+			break
+		}
+		r.topicSubscribeIndex++
+		if r.topicSubscribeIndex == len(r.topics) {
+			r.topicSubscribeIndex = 0
+		}
+		ret = append(ret, r.topics[r.topicSubscribeIndex])
+	}
+	return ret
+}
+
+func (r *Client) GetUnsubscribeTopic() []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	ret := make([]string, 0, 50)
+	for {
+		if len(ret) == 50 {
+			break
+		}
+		r.topicUnsubscribeIndex++
+		if r.topicUnsubscribeIndex == len(r.topics) {
+			r.topicUnsubscribeIndex = 0
+		}
+		ret = append(ret, r.topics[r.topicUnsubscribeIndex])
+	}
+	return ret
 }
 
 func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
@@ -131,18 +188,19 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 }
 
 func (r *Client) LoopRead() {
+	if err := r.conn.SetReadDeadline(time.Time{}); err != nil {
+		r.Close()
+		return
+	}
 	for {
 		select {
 		case <-quit.Ctx.Done():
 		case <-r.close:
 			return
 		default:
-			if err := r.conn.SetReadDeadline(time.Now().Add(time.Second * 60)); err != nil {
-				r.Close()
-				return
-			}
 			_, p, err := r.conn.ReadMessage()
 			if err != nil {
+				log.Logger.Debug().Err(err).Msg("读取服务器消息失败")
 				r.Close()
 				return
 			}
@@ -171,7 +229,7 @@ func (r *Client) LoopSend() {
 		case <-r.close:
 			return
 		case p := <-r.sendCh:
-			if err := r.conn.SetWriteDeadline(time.Now().Add(time.Second * 60)); err != nil {
+			if err := r.conn.SetWriteDeadline(time.Now().Add(time.Second * 5)); err != nil {
 				r.Close()
 				return
 			}

@@ -8,7 +8,7 @@ import (
 type collect struct {
 	//topic --> []uniqId
 	topics map[string]map[string]struct{}
-	mux    sync.RWMutex
+	mux    *sync.RWMutex
 }
 
 // Len 统计主题个数
@@ -43,14 +43,31 @@ func (r *collect) Count(topics []string, items map[string]int32) {
 	}
 }
 
-// Set 设置主题与uniqId的对应关系
-func (r *collect) Set(topics []string, uniqId string) {
+// SetBySlice 设置主题与uniqId的对应关系
+func (r *collect) SetBySlice(topics []string, uniqId string) {
 	if len(topics) == 0 {
 		return
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for _, topic := range topics {
+		c, ok := r.topics[topic]
+		if !ok {
+			c = map[string]struct{}{}
+			r.topics[topic] = c
+		}
+		c[uniqId] = struct{}{}
+	}
+}
+
+// SetByMap 设置主题与uniqId的对应关系
+func (r *collect) SetByMap(topics map[string]struct{}, uniqId string) {
+	if len(topics) == 0 {
+		return
+	}
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	for topic := range topics {
 		c, ok := r.topics[topic]
 		if !ok {
 			c = map[string]struct{}{}
@@ -105,14 +122,47 @@ func (r *collect) Get() (topics []string) {
 	return topics
 }
 
-// Del 删除主题与uniqId的对应关系
-func (r *collect) Del(topics []string, currentUniqId string, previousUniqId string) {
+// DelByMap 删除主题与uniqId的对应关系
+func (r *collect) DelByMap(topics map[string]struct{}, currentUniqId string, previousUniqId string) {
 	if len(topics) == 0 {
 		return
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	if currentUniqId == previousUniqId || previousUniqId == "" {
+		for topic := range topics {
+			c, ok := r.topics[topic]
+			if !ok {
+				continue
+			}
+			delete(c, currentUniqId)
+			if len(c) == 0 {
+				delete(r.topics, topic)
+			}
+		}
+		return
+	}
+	for topic := range topics {
+		c, ok := r.topics[topic]
+		if !ok {
+			continue
+		}
+		delete(c, currentUniqId)
+		delete(c, previousUniqId)
+		if len(c) == 0 {
+			delete(r.topics, topic)
+		}
+	}
+}
+
+// DelBySlice 删除主题与uniqId的对应关系
+func (r *collect) DelBySlice(topics []string, currentUniqId string, previousUniqId string) {
+	if len(topics) == 0 {
+		return
+	}
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	if previousUniqId == "" || currentUniqId == previousUniqId {
 		for _, topic := range topics {
 			c, ok := r.topics[topic]
 			if !ok {
@@ -141,5 +191,5 @@ func (r *collect) Del(topics []string, currentUniqId string, previousUniqId stri
 var Topic *collect
 
 func init() {
-	Topic = &collect{topics: map[string]map[string]struct{}{}, mux: sync.RWMutex{}}
+	Topic = &collect{topics: map[string]map[string]struct{}{}, mux: &sync.RWMutex{}}
 }

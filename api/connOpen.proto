@@ -6,5 +6,16 @@ option go_package = "internal/protocol;protocol";
 
 //worker转发客户连接打开的信息到business
 message ConnOpen {
+  //网关分配给连接的唯一id
   string uniqId = 1;
+  //连接携带的参数
+  string rawQuery = 2;
+  //连接的websocket子协议信息
+  repeated string subProtocol = 3;
+  //代理附加的ip列表
+  string xForwardedFor = 4;
+  //代理透传的ip
+  string xRealIP = 5;
+  //和网关直接连接的ip
+  string remoteIP = 6;
 }

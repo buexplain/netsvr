@@ -71,18 +71,18 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 			//如果需要设置新的主题，则在这里一并搞定，设置新的uniqId
 			topics := session.SetUniqIdAndPUllTopics(payload.NewUniqId)
 			//移除旧主题的关系
-			topic.Topic.Del(topics, payload.UniqId, previousUniqId)
+			topic.Topic.DelByMap(topics, payload.UniqId, previousUniqId)
 			//订阅新主题
-			session.SubscribeTopics(payload.NewTopics, false)
+			session.SubscribeTopics(payload.NewTopics)
 			//设置新主题的关系
-			topic.Topic.Set(payload.NewTopics, payload.NewUniqId)
+			topic.Topic.SetBySlice(payload.NewTopics, payload.NewUniqId)
 			//清空掉，避免接下来的逻辑重新设置主题
 			payload.NewTopics = nil
 		} else {
 			topics := session.SetUniqIdAndGetTopics(payload.NewUniqId)
 			//删除旧关系，构建新关系
-			topic.Topic.Del(topics, payload.UniqId, previousUniqId)
-			topic.Topic.Set(topics, payload.NewUniqId)
+			topic.Topic.DelBySlice(topics, payload.UniqId, previousUniqId)
+			topic.Topic.SetBySlice(topics, payload.NewUniqId)
 		}
 	}
 	//设置session
@@ -94,11 +94,11 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		//清空主题
 		topics := session.PullTopics()
 		//删除关系
-		topic.Topic.Del(topics, payload.UniqId, previousUniqId)
+		topic.Topic.DelByMap(topics, payload.UniqId, previousUniqId)
 		//订阅主题
-		session.SubscribeTopics(payload.NewTopics, false)
+		session.SubscribeTopics(payload.NewTopics)
 		//构建关系
-		topic.Topic.Set(payload.NewTopics, payload.UniqId)
+		topic.Topic.SetBySlice(payload.NewTopics, payload.UniqId)
 	}
 	session.MuxUnLock()
 	//有数据，则转发给客户

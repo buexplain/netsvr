@@ -7,18 +7,23 @@ import (
 )
 
 type Info struct {
-	uniqId  string
+	//客户在网关中的唯一id
+	uniqId string
+	//客户存储在网关中的数据
 	session string
-	topics  []string
-	mux     sync.RWMutex
-	closed  chan struct{}
+	//客户订阅的主题
+	topics map[string]struct{}
+	//锁
+	mux *sync.RWMutex
+	//关闭信号
+	closed chan struct{}
 }
 
 func NewInfo(uniqId string) *Info {
 	return &Info{
 		uniqId: uniqId,
 		topics: nil,
-		mux:    sync.RWMutex{},
+		mux:    &sync.RWMutex{},
 		closed: make(chan struct{}),
 	}
 }
@@ -53,11 +58,8 @@ func (r *Info) GetUniqId() string {
 	return r.uniqId
 }
 
-func (r *Info) SetUniqIdAndPUllTopics(uniqId string) (topics []string) {
+func (r *Info) SetUniqIdAndPUllTopics(uniqId string) (topics map[string]struct{}) {
 	r.uniqId = uniqId
-	if len(r.topics) == 0 {
-		return nil
-	}
 	ret := r.topics
 	r.topics = nil
 	return ret
@@ -68,8 +70,9 @@ func (r *Info) SetUniqIdAndGetTopics(uniqId string) (topics []string) {
 	if len(r.topics) == 0 {
 		return nil
 	}
+	//复制一份主题数据出来
 	topics = make([]string, 0, len(r.topics))
-	for _, topic := range r.topics {
+	for topic := range r.topics {
 		topics = append(topics, topic)
 	}
 	return topics
@@ -99,13 +102,13 @@ func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
 	infoResp.Session = r.session
 	if len(r.topics) > 0 {
 		infoResp.Topics = make([]string, 0, len(r.topics))
-		for _, topic := range r.topics {
+		for topic := range r.topics {
 			infoResp.Topics = append(infoResp.Topics, topic)
 		}
 	}
 }
 
-func (r *Info) Clear() (topics []string, uniqId string, session string) {
+func (r *Info) Clear() (topics map[string]struct{}, uniqId string, session string) {
 	//删除所有订阅
 	topics = r.topics
 	r.topics = nil
@@ -118,73 +121,27 @@ func (r *Info) Clear() (topics []string, uniqId string, session string) {
 	return
 }
 
-func (r *Info) PullTopics() []string {
-	if len(r.topics) == 0 {
-		return nil
-	}
+func (r *Info) PullTopics() map[string]struct{} {
 	ret := r.topics
 	r.topics = nil
 	return ret
 }
 
-// SubscribeTopics 订阅，并返回成功订阅的主题，以及当前的uniqId
-func (r *Info) SubscribeTopics(topics []string, lock bool) (realSubscribeTopics []string, currentUniqId string) {
-	if len(topics) == 0 {
-		//这里返回空的uniqId，因为无妨
-		return nil, ""
-	}
-	if lock {
-		r.mux.Lock()
-		defer r.mux.Unlock()
-	}
-	//如果是个空，则全部赋值
+// SubscribeTopics 订阅，并返回当前的uniqId
+func (r *Info) SubscribeTopics(topics []string) (currentUniqId string) {
 	if r.topics == nil {
-		r.topics = make([]string, 0, len(topics))
-		for _, topic := range topics {
-			r.topics = append(r.topics, topic)
-		}
-		return topics, r.uniqId
+		r.topics = make(map[string]struct{}, len(topics))
 	}
-	//不为空，判断是否存在，不存在的，则赋值
-	realSubscribeTopics = make([]string, 0)
 	for _, topic := range topics {
-		ok := false
-		for _, has := range r.topics {
-			if topic == has {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			r.topics = append(r.topics, topic)
-			realSubscribeTopics = append(realSubscribeTopics, topic)
-		}
+		r.topics[topic] = struct{}{}
 	}
-	currentUniqId = r.uniqId
-	return
+	return r.uniqId
 }
 
-// UnsubscribeTopics 取消订阅，并返回成功取消订阅的主题，以及当前的uniqId
-func (r *Info) UnsubscribeTopics(topics []string) (realUnsubscribeTopics []string, currentUniqId string) {
-	if len(topics) == 0 {
-		return nil, ""
-	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	//为空，则无需任何操作
-	if r.topics == nil {
-		return nil, ""
-	}
-	//判断已经存在的才删除
-	realUnsubscribeTopics = make([]string, 0)
+// UnsubscribeTopics 取消订阅，并返回当前的uniqId
+func (r *Info) UnsubscribeTopics(topics []string) (currentUniqId string) {
 	for _, topic := range topics {
-		for k, has := range r.topics {
-			if topic == has {
-				r.topics = append(r.topics[0:k], r.topics[k+1:]...)
-				realUnsubscribeTopics = append(realUnsubscribeTopics, topic)
-				break
-			}
-		}
+		delete(r.topics, topic)
 	}
 	currentUniqId = r.uniqId
 	return
@@ -194,16 +151,9 @@ func (r *Info) UnsubscribeTopics(topics []string) (realUnsubscribeTopics []strin
 func (r *Info) UnsubscribeTopic(topic string) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	//为空，则无需任何操作
-	if r.topics == nil {
-		return false
-	}
-	//判断已经存在的才删除
-	for k, has := range r.topics {
-		if topic == has {
-			r.topics = append(r.topics[0:k], r.topics[k+1:]...)
-			return true
-		}
+	if _, ok := r.topics[topic]; ok {
+		delete(r.topics, topic)
+		return true
 	}
 	return false
 }

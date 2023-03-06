@@ -5,6 +5,8 @@ LogLevel = "debug"
 ServerId = 0
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 ShutdownWaitTime = "3s"
+# pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
+PprofListenAddress = "127.0.0.1:6062"
 
 # business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
 Limit = [
@@ -26,6 +28,8 @@ AllowOrigin = []
 ReadDeadline = "120s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
+# 获取代理透传的ip地址的header key
+XRealIP = "X-Real-Ip"
 
 #worker服务器
 [Worker]

@@ -44,7 +44,7 @@ func clientServer() {
 }
 
 func main() {
-	processCmdGoroutineNum := 100
+	processCmdGoroutineNum := 300
 	conn, err := net.Dial("tcp", configs.Config.Worker.ListenAddress)
 	if err != nil {
 		log.Logger.Error().Msgf("连接服务端失败，%v", err)
@@ -55,10 +55,10 @@ func main() {
 	processor := connProcessor.NewConnProcessor(conn, 1)
 	//注册到worker
 	if err := processor.RegisterWorker(uint32(processCmdGoroutineNum)); err != nil {
-		log.Logger.Error().Msgf("注册到worker失败 %v", err)
+		log.Logger.Debug().Int("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
 		os.Exit(1)
 	}
-	log.Logger.Debug().Msgf("注册到worker %d ok", processor.GetWorkerId())
+	log.Logger.Debug().Int("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")
 	//注册各种回调函数
 	cmd.CheckOnline.Init(processor)
 	cmd.Broadcast.Init(processor)
@@ -67,6 +67,7 @@ func main() {
 	cmd.ConnSwitch.Init(processor)
 	cmd.Sign.Init(processor)
 	cmd.ForceOffline.Init(processor)
+	cmd.ForceOfflineGuest.Init(processor)
 	cmd.Topic.Init(processor)
 	cmd.UniqId.Init(processor)
 	cmd.Metrics.Init(processor)

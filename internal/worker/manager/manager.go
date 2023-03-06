@@ -9,7 +9,7 @@ import (
 type collect struct {
 	conn  []*ConnProcessor
 	index uint64
-	lock  sync.RWMutex
+	lock  *sync.RWMutex
 }
 
 func (r *collect) Get() *ConnProcessor {
@@ -79,7 +79,7 @@ func init() {
 	Manager = manager{}
 	for i := MinWorkerId; i <= MaxWorkerId; i++ {
 		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
-		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), lock: sync.RWMutex{}}
+		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), lock: &sync.RWMutex{}}
 	}
 }
 
