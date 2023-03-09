@@ -11,6 +11,7 @@ import (
 	"netsvr/internal/heartbeat"
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
+	"strings"
 	"sync"
 	"time"
 )
@@ -188,7 +189,7 @@ func (r *ConnProcessor) LoopReceive() {
 		if err := recover(); err != nil {
 			errStr := fmt.Sprint(err)
 			//TODO 等golang发布了针对panic的错误类型的时候，这里需要优化一下
-			if errStr == "send on closed channel" {
+			if strings.EqualFold(errStr, "send on closed channel") {
 				log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
 			} else {
 				log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")

@@ -10,6 +10,7 @@ import (
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/utils"
+	"strings"
 )
 
 // InfoDelete 删除连接的info信息
@@ -19,7 +20,7 @@ func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoDelete failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if strings.EqualFold(payload.UniqId, "") {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)

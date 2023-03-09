@@ -9,6 +9,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 )
 
 // TopicUnsubscribe 取消订阅
@@ -18,7 +19,7 @@ func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUnsubscribe failed")
 		return
 	}
-	if payload.UniqId == "" || len(payload.Topics) == 0 {
+	if strings.EqualFold(payload.UniqId, "") || len(payload.Topics) == 0 {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)

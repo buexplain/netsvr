@@ -8,6 +8,7 @@ import (
 	"netsvr/internal/protocol"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 	"time"
 )
 
@@ -18,7 +19,7 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOffline failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if strings.EqualFold(payload.UniqId, "") {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)

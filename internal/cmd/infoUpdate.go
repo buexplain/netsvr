@@ -10,6 +10,7 @@ import (
 	"netsvr/internal/protocol"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 	"time"
 )
 
@@ -20,7 +21,7 @@ func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoUpdate failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if strings.EqualFold(payload.UniqId, "") {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)

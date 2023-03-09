@@ -7,6 +7,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"strings"
 )
 
 // Info 获取连接的信息
@@ -16,7 +17,7 @@ func Info(param []byte, processor *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoReq failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if strings.EqualFold(payload.UniqId, "") {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
