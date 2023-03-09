@@ -194,7 +194,7 @@ func onClose(conn *websocket.Conn, _ error) {
 	metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
 }
 
-func onMessage(conn *websocket.Conn, messageType websocket.MessageType, data []byte) {
+func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
 	if bytes.Equal(data, heartbeat.PingMessage) {
 		//响应客户端心跳
