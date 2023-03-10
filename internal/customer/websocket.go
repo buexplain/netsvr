@@ -27,6 +27,7 @@ import (
 var server *nbhttp.Server
 var serviceBusy = []byte("Service Busy")
 var serviceRestarting = []byte("Service Restarting")
+var dataTooLarge = []byte("Data too large")
 
 func Start() {
 	mux := &http.ServeMux{}
@@ -36,7 +37,6 @@ func Start() {
 		Addrs:   []string{configs.Config.Customer.ListenAddress},
 		Handler: mux,
 		MaxLoad: configs.Config.Customer.MaxOnlineNum,
-		//TODO 测试更多的配置信息
 	}
 	config.Name = "customer"
 	server = nbhttp.NewServer(config)
@@ -205,9 +205,12 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 		return
 	}
+	//限制数据包大小
 	if len(data)-3 > configs.Config.Customer.ReceivePackLimit {
-		//TODO 尝试对户发送的数据大小进行限制客
-		//另外，给business，或者business给worker的大小限制，不应设置太小
+		if err := conn.WriteMessage(websocket.TextMessage, dataTooLarge); err != nil {
+			_ = conn.Close()
+		}
+		return
 	}
 	//读取前三个字节，转成business的服务编号
 	workerId := utils.BytesToInt(data, 3)

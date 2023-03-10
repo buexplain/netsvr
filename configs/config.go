@@ -38,20 +38,17 @@ type config struct {
 		MaxOnlineNum int
 		//获取代理透传的ip地址的header key
 		XRealIP string
-		//读取客户数据的大小限制（单位：字节）
+		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
 	}
+
 	Worker struct {
 		//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
 		ListenAddress string
 		//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 		ReadDeadline time.Duration
-		//worker读取business的包的大小限制（单位：字节）
-		ReceivePackLimit uint32
 		//worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 		SendDeadline time.Duration
-		//worker发送给business的包的大小限制（单位：字节）
-		SendPackLimit uint32
 	}
 
 	Metrics struct {
@@ -93,7 +90,7 @@ var RootPath string
 func init() {
 	dir, err := os.Getwd()
 	if err != nil {
-		logging.Error("获取进程工作目录失败：%s", err)
+		logging.Error("Get process working directory failed：%s", err)
 		os.Exit(1)
 	}
 	RootPath = strings.TrimSuffix(filepath.ToSlash(dir), "/") + "/"
@@ -104,18 +101,18 @@ var Config *config
 
 func init() {
 	var configFile string
-	flag.StringVar(&configFile, "config", filepath.Join(RootPath, "configs/config.toml"), "set configuration file")
+	flag.StringVar(&configFile, "config", filepath.Join(RootPath, "configs/config.toml"), "Set config.toml file")
 	flag.Parse()
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("读取配置失败：%s", err)
+		logging.Error("Read config.toml failed：%s", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
 	if _, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("配置解析错误：%s", err)
+		logging.Error("Parse config.toml failed：%s", err)
 		os.Exit(1)
 	}
 	//检查各种参数
@@ -140,14 +137,6 @@ func init() {
 	if Config.Worker.SendDeadline <= 0 {
 		//默认10秒
 		Config.Worker.SendDeadline = time.Second * 10
-	}
-	if Config.Worker.ReceivePackLimit <= 0 {
-		//默认2MB
-		Config.Worker.ReceivePackLimit = 2 * 1024 * 1024
-	}
-	if Config.Worker.SendPackLimit <= 0 {
-		//默认2MB
-		Config.Worker.SendPackLimit = 2 * 1024 * 1024
 	}
 	if Config.Metrics.MaxRecordInterval <= 0 {
 		//默认10秒

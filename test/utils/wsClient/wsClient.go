@@ -119,6 +119,12 @@ func (r *Client) InitTopic() {
 	r.topics = topics
 }
 
+func (r *Client) GetTopic() string {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	return r.topics[0]
+}
+
 func (r *Client) GetSubscribeTopic() []string {
 	r.mux.Lock()
 	defer r.mux.Unlock()
@@ -146,7 +152,8 @@ func (r *Client) GetUnsubscribeTopic() []string {
 		}
 		r.topicUnsubscribeIndex++
 		if r.topicUnsubscribeIndex == len(r.topics) {
-			r.topicUnsubscribeIndex = 0
+			//这里忽略第零个主题，因为第零个主题会被用于消息发布
+			r.topicUnsubscribeIndex = 1
 		}
 		ret = append(ret, r.topics[r.topicUnsubscribeIndex])
 	}

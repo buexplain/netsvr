@@ -18,19 +18,27 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOffline failed")
 		return
 	}
-	if payload.UniqId == "" {
-		return
-	}
-	conn := customerManager.Manager.Get(payload.UniqId)
-	if conn == nil {
+	if len(payload.UniqIds) == 0 {
 		return
 	}
 	//判断是否转发数据
 	if len(payload.Data) == 0 {
 		//无须转发任何数据，直接关闭连接
-		_ = conn.Close()
-	} else {
-		//写入数据，并在一定倒计时后关闭连接
+		for _, uniqId := range payload.UniqIds {
+			conn := customerManager.Manager.Get(uniqId)
+			if conn == nil {
+				continue
+			}
+			_ = conn.Close()
+		}
+		return
+	}
+	//写入数据，并在一定倒计时后关闭连接
+	for _, uniqId := range payload.UniqIds {
+		conn := customerManager.Manager.Get(uniqId)
+		if conn == nil {
+			continue
+		}
 		_ = conn.WriteMessage(websocket.TextMessage, payload.Data)
 		timer.Timer.AfterFunc(time.Second*3, func() {
 			defer func() {

@@ -19,11 +19,11 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOfflineGuest failed")
 		return
 	}
-	if payload.UniqId == "" {
+	if len(payload.UniqIds) == 0 {
 		return
 	}
-	f := func() {
-		conn := customerManager.Manager.Get(payload.UniqId)
+	f := func(uniqId string) {
+		conn := customerManager.Manager.Get(uniqId)
 		if conn == nil {
 			return
 		}
@@ -47,10 +47,14 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 		}
 	}
 	if payload.Delay <= 0 {
-		f()
+		for _, uniqId := range payload.UniqIds {
+			f(uniqId)
+		}
 	} else {
 		timer.Timer.AfterFunc(time.Second*time.Duration(payload.Delay), func() {
-			f()
+			for _, uniqId := range payload.UniqIds {
+				f(uniqId)
+			}
 		})
 	}
 }

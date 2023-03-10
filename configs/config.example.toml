@@ -30,6 +30,8 @@ ReadDeadline = "120s"
 MaxOnlineNum = 100000
 # 获取代理透传的ip地址的header key
 XRealIP = "X-Real-Ip"
+# 客户发送数据的大小限制（单位：字节）
+ReceivePackLimit = 2097152
 
 #worker服务器
 [Worker]
@@ -37,12 +39,8 @@ XRealIP = "X-Real-Ip"
 ListenAddress = "127.0.0.1:6061"
 # worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 ReadDeadline = "120s"
-# worker读取business的包的大小限制（单位：字节）
-ReceivePackLimit = 2097152
 # worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 SendDeadline = "10s"
-# worker发送给business的包的大小限制（单位：字节）
-SendPackLimit = 2097152
 
 # 统计服务
 [Metrics]

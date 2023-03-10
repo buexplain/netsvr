@@ -117,7 +117,7 @@
         </div>
 
         <div class="case">
-            <button onclick="send(null,routerCmd.metrics)">获取网关统计的服务状态</button>
+            <button onclick="send(null,routerCmd.metrics)">获取网关状态的统计信息</button>
             <button onclick="send(null,routerCmd.uniqIdList)">获取网关所有uniqId</button>
             <button onclick="send(null,routerCmd.uniqIdCount)">获取网关中的uniqId数量</button>
         </div>
@@ -305,7 +305,7 @@
     const routerCmd = {
         connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
         connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
-        metrics: parseInt("{!.RouterMetrics!}"),//获取网关统计的服务状态
+        metrics: parseInt("{!.RouterMetrics!}"),//获取网关状态的统计信息
         limit: parseInt("{!.RouterLimit!}"),//更新限流配置、获取网关中的限流配置的真实情况
         uniqIdList: parseInt("{!.RouterUniqIdList!}"), //获取网关中全部的uniqId
         uniqIdCount: parseInt("{!.RouterUniqIdCount!}"), //获取网关中uniqId的数量

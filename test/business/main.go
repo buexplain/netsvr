@@ -2,7 +2,7 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"html/template"
 	"net"
 	"net/http"
@@ -16,36 +16,20 @@ import (
 	"os"
 )
 
-// 输出html客户端
-func clientServer() {
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		t, err := template.New("client.html").Delims("{!", "!}").ParseFiles(configs.RootPath + "test/business/client.html")
-		if err != nil {
-			log.Logger.Error().Err(err).Msg("模板解析失败")
-			return
-		}
-		data := map[string]interface{}{}
-		//注入连接地址
-		data["conn"] = fmt.Sprintf("ws://%s%s", configs.Config.Customer.ListenAddress, configs.Config.Customer.HandlePattern)
-		//把所有的命令注入到客户端
-		for c, name := range protocol.CmdName {
-			data[name] = int(c)
-		}
-		data["pingMessage"] = string(heartbeat.PingMessage)
-		data["pongMessage"] = string(heartbeat.PongMessage)
-		err = t.Execute(writer, data)
-		if err != nil {
-			log.Logger.Error().Msgf("模板输出失败：%s", err)
-			return
-		}
-	})
-	log.Logger.Info().Msg("点击访问客户端：http://127.0.0.1:6063/")
-	_ = http.ListenAndServe("127.0.0.1:6063", nil)
+var workerListenAddress string
+var clientListenAddress string
+var customerWsAddress string
+
+func init() {
+	flag.StringVar(&workerListenAddress, "workerAddr", "127.0.0.1:6061", "worker服务的监听地址")
+	flag.StringVar(&customerWsAddress, "clientAddr", "ws://127.0.0.1:6060/netsvr", "customer服务的websocket连接地址")
+	flag.StringVar(&clientListenAddress, "customerWs", "127.0.0.1:6063", "输出客户端界面的http服务的监听地址")
+	flag.Parse()
 }
 
 func main() {
 	processCmdGoroutineNum := 300
-	conn, err := net.Dial("tcp", configs.Config.Worker.ListenAddress)
+	conn, err := net.Dial("tcp", workerListenAddress)
 	if err != nil {
 		log.Logger.Error().Msgf("连接服务端失败，%v", err)
 		os.Exit(1)
@@ -108,4 +92,31 @@ func main() {
 		log.Logger.Info().Int("pid", os.Getpid()).Msg("关闭business进程成功")
 		os.Exit(0)
 	}
+}
+
+// 输出html客户端
+func clientServer() {
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		t, err := template.New("client.html").Delims("{!", "!}").ParseFiles(configs.RootPath + "test/business/client.html")
+		if err != nil {
+			log.Logger.Error().Err(err).Msg("模板解析失败")
+			return
+		}
+		data := map[string]interface{}{}
+		//注入连接地址
+		data["conn"] = customerWsAddress
+		//把所有的命令注入到客户端
+		for c, name := range protocol.CmdName {
+			data[name] = int(c)
+		}
+		data["pingMessage"] = string(heartbeat.PingMessage)
+		data["pongMessage"] = string(heartbeat.PongMessage)
+		err = t.Execute(writer, data)
+		if err != nil {
+			log.Logger.Error().Msgf("模板输出失败：%s", err)
+			return
+		}
+	})
+	log.Logger.Info().Msg("点击访问客户端：http" + ":" + "//" + clientListenAddress + "/")
+	_ = http.ListenAndServe(clientListenAddress, nil)
 }

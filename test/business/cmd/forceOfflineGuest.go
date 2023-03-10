@@ -32,7 +32,7 @@ func (forceOfflineGuest) ForUniqId(_ *internalProtocol.Transfer, param string, p
 		return
 	}
 	ret := &internalProtocol.ForceOfflineGuest{}
-	ret.UniqId = payload.UniqId
+	ret.UniqIds = []string{payload.UniqId}
 	ret.Delay = payload.Delay
 	ret.Data = businessUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "游客您好，您已被迫下线！"})
 	router := &internalProtocol.Router{}

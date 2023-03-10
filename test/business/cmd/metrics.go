@@ -45,7 +45,7 @@ func (metrics) Response(param []byte, processor *connProcessor.ConnProcessor) {
 	//将结果单播给客户端
 	ret := &internalProtocol.SingleCast{}
 	ret.UniqId = uniqId
-	ret.Data = businessUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关统计的服务状态成功", "data": payload.Items})
+	ret.Data = businessUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的统计信息成功", "data": payload.Items})
 	router := &internalProtocol.Router{}
 	router.Cmd = internalProtocol.Cmd_SingleCast
 	router.Data, _ = proto.Marshal(ret)

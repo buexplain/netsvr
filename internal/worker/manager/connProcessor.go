@@ -124,12 +124,7 @@ func (r *ConnProcessor) LoopSend() {
 }
 
 func (r *ConnProcessor) send(data []byte) {
-	//包太大，不发
 	r.sendDataLen = uint32(len(data))
-	if r.sendDataLen-4 > configs.Config.Worker.SendPackLimit {
-		log.Logger.Error().Uint32("packLength", r.sendDataLen-4).Uint32("packLimit", configs.Config.Worker.SendPackLimit).Msg("Worker send pack is too large")
-		return
-	}
 	//先写包头，注意这是大端序
 	r.sendBuf.WriteByte(byte(r.sendDataLen >> 24))
 	r.sendBuf.WriteByte(byte(r.sendDataLen >> 16))
@@ -197,15 +192,16 @@ func (r *ConnProcessor) LoopReceive() {
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
 		}
 	}()
+	//包头专用
 	dataLenBuf := make([]byte, 4)
-	//先分配4kb，不够的话，中途再分配
-	var dataBufCap uint32 = 4096
-	dataBuf := make([]byte, dataBufCap)
+	//包体专用
+	var dataBufCap uint32 = 0
+	var dataBuf []byte
 	var err error
 	for {
 		dataLenBuf = dataLenBuf[:0]
 		dataLenBuf = dataLenBuf[0:4]
-		//设置读超时时间
+		//设置读超时时间，再这个时间之内，business没有发数据过来，则会发生超时错误，导致连接被关闭
 		if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
 			r.ForceClose()
 			log.Logger.Error().Err(err).Msg("Worker SetReadDeadline to business conn failed")
@@ -220,38 +216,17 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//这里采用大端序
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
-		//判断数据长度是否异常
-		if dataLen > configs.Config.Worker.ReceivePackLimit || dataLen < 1 {
-			//如果数据太长，则接下来的make([]byte, dataBufCap)有可能导致程序崩溃，所以直接close对方吧
-			r.ForceClose()
-			log.Logger.Error().Uint32("packLength", dataLen).Uint32("packLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack is too large")
-			break
-		}
 		//判断装载数据的缓存区是否足够
 		if dataLen > dataBufCap {
-			for {
-				dataBufCap *= 2
-				if dataBufCap < dataLen {
-					//一次翻倍不够，继续翻倍
-					continue
-				}
-				if dataBufCap > configs.Config.Worker.ReceivePackLimit {
-					//n倍之后，溢出限制大小，则变更为限制大小值
-					dataBufCap = configs.Config.Worker.ReceivePackLimit
-				}
-				dataBuf = make([]byte, dataBufCap)
-				break
-			}
+			//分配一块更大的，如果dataLen非常的大，则有可能导致内存分配失败
+			dataBufCap = dataLen
+			dataBuf = make([]byte, dataBufCap)
+		} else {
+			//清空当前的
+			dataBuf = dataBuf[:0]
+			dataBuf = dataBuf[0:dataLen]
 		}
-		//设置读超时时间
-		if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
-			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Worker SetReadDeadline to business conn failed")
-			break
-		}
-		//获取数据包
-		dataBuf = dataBuf[:0]
-		dataBuf = dataBuf[0:dataLen]
+		//获取数据包，这里不必设置读取超时，因为接下来大大概率是有数据的
 		if _, err = io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
 			r.ForceClose()
 			log.Logger.Error().Err(err).Msg("Worker receive failed")

@@ -6,7 +6,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
-	"netsvr/configs"
 	"netsvr/internal/heartbeat"
 	"netsvr/internal/log"
 	internalProtocol "netsvr/internal/protocol"
@@ -154,13 +153,7 @@ func (r *ConnProcessor) LoopSend() {
 }
 
 func (r *ConnProcessor) send(data []byte) {
-	//包太大，不发
 	r.sendDataLen = uint32(len(data))
-	if r.sendDataLen-4 > configs.Config.Worker.ReceivePackLimit {
-		//不能超过worker的收包的大小，否则worker会断开连接
-		log.Logger.Error().Uint32("packLength", r.sendDataLen-4).Uint32("packLimit", configs.Config.Worker.ReceivePackLimit).Msg("Business send pack is too large")
-		return
-	}
 	//先写包头，注意这是大端序
 	r.sendBuf.WriteByte(byte(r.sendDataLen >> 24))
 	r.sendBuf.WriteByte(byte(r.sendDataLen >> 16))
@@ -175,7 +168,7 @@ func (r *ConnProcessor) send(data []byte) {
 		return
 	}
 	//设置写超时
-	if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
+	if err = r.conn.SetWriteDeadline(time.Now().Add(time.Second * 60)); err != nil {
 		r.ForceClose()
 		log.Logger.Warn().Err(err).Msg("Business SetWriteDeadline to worker conn failed")
 		return
@@ -223,38 +216,38 @@ func (r *ConnProcessor) LoopReceive() {
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Business receive coroutine is closed")
 		}
 	}()
+	//包头专用
 	dataLenBuf := make([]byte, 4)
-	dataBuf := make([]byte, configs.Config.Worker.SendPackLimit)
+	//包体专用
+	var dataBufCap uint32 = 0
+	var dataBuf []byte
+	var err error
 	for {
 		dataLenBuf = dataLenBuf[:0]
 		dataLenBuf = dataLenBuf[0:4]
 		//获取前4个字节，确定数据包长度
-		if _, err := io.ReadFull(r.conn, dataLenBuf); err != nil {
+		if _, err = io.ReadFull(r.conn, dataLenBuf); err != nil {
 			//读失败了，直接干掉这个连接，让business重新连接，因为缓冲区的tcp流已经脏了，程序无法拆包
 			r.ForceClose()
 			break
 		}
 		//这里采用大端序
 		dataLen := binary.BigEndian.Uint32(dataLenBuf)
-		if dataLen > configs.Config.Worker.SendPackLimit || dataLen < 1 {
-			//如果数据太长，直接close对方吧
-			r.ForceClose()
-			log.Logger.Error().Uint32("packLength", dataLen).Uint32("packLimit", configs.Config.Worker.SendPackLimit).Msg("Business receive pack is too large")
-			break
+		//判断装载数据的缓存区是否足够
+		if dataLen > dataBufCap {
+			//分配一块更大的，如果dataLen非常的大，则有可能导致内存分配失败
+			dataBufCap = dataLen
+			dataBuf = make([]byte, dataBufCap)
+		} else {
+			//清空当前的
+			dataBuf = dataBuf[:0]
+			dataBuf = dataBuf[0:dataLen]
 		}
 		//获取数据包
-		dataBuf = dataBuf[:0]
-		dataBuf = dataBuf[0:dataLen]
-		if _, err := io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
+		if _, err = io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
 			r.ForceClose()
 			log.Logger.Error().Err(err).Msg("Business receive failed")
 			break
-		}
-		//worker发来心跳
-		if bytes.Equal(heartbeat.PingMessage, dataBuf[0:dataLen]) {
-			//响应客户端的心跳
-			r.Send(heartbeat.PongMessage)
-			continue
 		}
 		//worker响应心跳
 		if bytes.Equal(heartbeat.PongMessage, dataBuf[0:dataLen]) {
@@ -272,7 +265,7 @@ func (r *ConnProcessor) LoopReceive() {
 			//如果是强制关闭，则这里会触发错误，直接退出
 			//如果是优雅关闭，则这里会不断读取连接中的数据，直到r.sendCh、r.receiveCh被消费干净，进而关闭r.conn，导致这里触发错误退出
 			for {
-				if err := r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
+				if err := r.conn.SetReadDeadline(time.Now().Add(time.Second * 60)); err != nil {
 					return
 				}
 				dataBuf = dataBuf[:0]

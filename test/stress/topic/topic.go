@@ -65,6 +65,6 @@ func (r *pool) Publish() {
 	defer r.Mux.RUnlock()
 	var ws *wsClient.Client
 	for _, ws = range r.P {
-		ws.Send(protocol.RouterTopicPublish, map[string]string{"topic": businessUtils.GetRandStr(2), "message": "我是一条发布信息"})
+		ws.Send(protocol.RouterTopicPublish, map[string]string{"topic": ws.GetTopic(), "message": "我是一条发布信息"})
 	}
 }
