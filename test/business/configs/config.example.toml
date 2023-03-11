@@ -1,0 +1,10 @@
+#日志级别 debug、info、warn、error
+LogLevel = "info"
+# worker服务的监听地址
+WorkerListenAddress = "127.0.0.1:6061"
+# 输出客户端界面的http服务的监听地址
+ClientListenAddress = "127.0.0.1:6063"
+# customer服务的websocket连接地址
+CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+# 让worker为我开启n条协程来处理我的请求
+ProcessCmdGoroutineNum = 100

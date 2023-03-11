@@ -7,8 +7,8 @@ import (
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 )
 
 // TopicUnsubscribe 取消订阅

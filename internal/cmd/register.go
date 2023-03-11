@@ -3,8 +3,8 @@ package cmd
 import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 )
 
 // Register 注册business进程

@@ -7,8 +7,8 @@ import (
 	"golang.org/x/time/rate"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 	"os"
 )
 

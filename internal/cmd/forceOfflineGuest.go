@@ -6,9 +6,9 @@ import (
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 	"time"
 )
 

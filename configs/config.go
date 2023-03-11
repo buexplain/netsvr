@@ -6,9 +6,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
+	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -84,24 +84,12 @@ func (r *config) GetLogLevel() zerolog.Level {
 	return zerolog.ErrorLevel
 }
 
-// RootPath 程序根目录
-var RootPath string
-
-func init() {
-	dir, err := os.Getwd()
-	if err != nil {
-		logging.Error("Get process working directory failed：%s", err)
-		os.Exit(1)
-	}
-	RootPath = strings.TrimSuffix(filepath.ToSlash(dir), "/") + "/"
-}
-
 // Config 应用程序配置
 var Config *config
 
 func init() {
 	var configFile string
-	flag.StringVar(&configFile, "config", filepath.Join(RootPath, "configs/config.toml"), "Set config.toml file")
+	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/config.toml"), "Set config.toml file")
 	flag.Parse()
 	//读取配置文件
 	c, err := os.ReadFile(configFile)

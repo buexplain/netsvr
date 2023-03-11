@@ -13,14 +13,14 @@ import (
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
-	"netsvr/internal/heartbeat"
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
-	"netsvr/internal/protocol"
+	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/heartbeat"
+	protocol2 "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
-	"netsvr/pkg/utils"
 	"strings"
 )
 
@@ -115,15 +115,15 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//连接打开消息回传给business
-	co := &protocol.ConnOpen{}
+	co := &protocol2.ConnOpen{}
 	co.SubProtocol = subProtocols
 	co.XForwardedFor = r.Header.Get("X-Forwarded-For")
 	co.XRealIP = r.Header.Get(configs.Config.Customer.XRealIP)
 	co.RemoteIP = strings.Split(conn.RemoteAddr().String(), ":")[0]
 	co.RawQuery = r.URL.RawQuery
 	co.UniqId = uniqId
-	router := &protocol.Router{}
-	router.Cmd = protocol.Cmd_ConnOpen
+	router := &protocol2.Router{}
+	router.Cmd = protocol2.Cmd_ConnOpen
 	router.Data, _ = proto.Marshal(co)
 	data, _ := proto.Marshal(router)
 	worker.Send(data)
@@ -181,11 +181,11 @@ func onClose(conn *websocket.Conn, _ error) {
 		return
 	}
 	//转发数据到business
-	cl := &protocol.ConnClose{}
+	cl := &protocol2.ConnClose{}
 	cl.UniqId = uniqId
 	cl.Session = userSession
-	router := &protocol.Router{}
-	router.Cmd = protocol.Cmd_ConnClose
+	router := &protocol2.Router{}
+	router.Cmd = protocol2.Cmd_ConnClose
 	router.Data, _ = proto.Marshal(cl)
 	data, _ := proto.Marshal(router)
 	worker.Send(data)
@@ -230,11 +230,11 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		return
 	}
 	//编码数据成business需要的格式
-	tf := &protocol.Transfer{}
+	tf := &protocol2.Transfer{}
 	tf.Data = data[3:]
 	session.GetToProtocolTransfer(tf)
-	router := &protocol.Router{}
-	router.Cmd = protocol.Cmd_Transfer
+	router := &protocol2.Router{}
+	router.Cmd = protocol2.Cmd_Transfer
 	router.Data, _ = proto.Marshal(tf)
 	//转发数据到business
 	data, _ = proto.Marshal(router)

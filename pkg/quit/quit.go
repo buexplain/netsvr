@@ -48,7 +48,7 @@ func init() {
 				//忽略session断开信号
 				continue
 			}
-			Execute(fmt.Sprintf("收到进程结束信号(%d %s)", s, s))
+			Execute(fmt.Sprintf("receive signal(%d %s)", s, s))
 		}
 	}()
 }

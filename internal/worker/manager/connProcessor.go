@@ -8,9 +8,9 @@ import (
 	"io"
 	"net"
 	"netsvr/configs"
-	"netsvr/internal/heartbeat"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
+	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/protocol"
 	"sync"
 	"time"
 )

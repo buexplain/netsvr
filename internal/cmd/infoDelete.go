@@ -7,9 +7,9 @@ import (
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
+	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/utils"
+	"netsvr/pkg/protocol"
 )
 
 // InfoDelete 删除连接的info信息

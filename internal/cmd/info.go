@@ -5,13 +5,13 @@ import (
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	protocol2 "netsvr/pkg/protocol"
 )
 
 // Info 获取连接的信息
 func Info(param []byte, processor *workerManager.ConnProcessor) {
-	payload := protocol.InfoReq{}
+	payload := protocol2.InfoReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoReq failed")
 		return
@@ -27,11 +27,11 @@ func Info(param []byte, processor *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	ret := &protocol.InfoResp{}
+	ret := &protocol2.InfoResp{}
 	ret.CtxData = payload.CtxData
 	session.GetToProtocolInfoResp(ret)
-	route := &protocol.Router{}
-	route.Cmd = protocol.Cmd(payload.RouterCmd)
+	route := &protocol2.Router{}
+	route.Cmd = protocol2.Cmd(payload.RouterCmd)
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

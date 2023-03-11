@@ -2,42 +2,124 @@ package configs
 
 import (
 	"flag"
+	"github.com/BurntSushi/toml"
+	"github.com/lesismal/nbio/logging"
+	"github.com/rs/zerolog"
+	"netsvr/pkg/wd"
+	"os"
+	"path/filepath"
 )
 
-var Config *config
-
-func init() {
-	var configFile string
-	flag.StringVar(&configFile, "config", "stress.toml", "Set stress.toml file")
-	flag.Parse()
+type config struct {
+	//日志级别 debug、info、warn、error
+	LogLevel string
+	//customer服务的websocket连接地址
+	CustomerWsAddress string
+	//心跳间隔秒数
+	Heartbeat int
+	//是否并发初始化
+	Concurrent bool
+	//当所有连接建立完毕后的持续时间，单位秒
+	Suspend int
+	//沉默的大多数
+	Silent struct {
+		Enable bool
+		Step   []Step
+	}
+	//疯狂的登录登出
+	Sign struct {
+		Enable bool
+		//发消息的间隔，单位秒
+		MessageInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂单播
+	SingleCast struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//发消息的间隔，单位秒
+		MessageInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂组播
+	Multicast struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//一组包含的uniqId数量
+		UniqIdNum int
+		//发消息的间隔，单位秒
+		MessageInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂订阅、取消订阅、发布
+	Topic struct {
+		Enable bool
+		//订阅、取消订阅、发布的间隔
+		MessageInterval int
+		//发送的消息大小
+		MessageLen int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂广播
+	Broadcast struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//发消息的间隔，单位秒
+		MessageInterval int
+		//阶段式发起连接
+		Step []Step
+	}
 }
 
-type config struct {
-	//沉默的大多数
-	Silent []Step
-	//疯狂的登录登出
-	Sign []Step
-	//疯狂单发
-	SingleCast []Step
-	//疯狂群发
-	MulticastCast []Step
-	//疯狂广播
-	Broadcast []Step
-	//疯狂订阅、取消订阅、发布
-	Topic []Step
+func (r *config) GetLogLevel() zerolog.Level {
+	switch r.LogLevel {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	}
+	return zerolog.ErrorLevel
 }
 
 type Step struct {
 	//连接数
 	ConnNum int
-	//发起连接的间隔，单位毫秒
-	ConnectInterval int
-	//连接完成后，暂停时间，该时间后进入下一个step
+	//每秒发起的连接数量
+	ConnectNum int
+	//连接完成后，暂停时间，单位秒，该时间后进入下一个step
 	Suspend int
-	//发送的消息大小
-	MessageLen int
-	//发消息的间隔，单位毫秒
-	MessageInterval int
-	//可以执行的方法名单
-	Method []string
+}
+
+var Config *config
+
+func init() {
+	var configFile string
+	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "test/stress/configs/config.toml"), "Set config.toml file")
+	flag.Parse()
+	//读取配置文件
+	c, err := os.ReadFile(configFile)
+	if err != nil {
+		logging.Error("Read config.toml failed：%s", err)
+		os.Exit(1)
+	}
+	//解析配置文件到对象
+	Config = new(config)
+	if _, err := toml.Decode(string(c), Config); err != nil {
+		logging.Error("Parse config.toml failed：%s", err)
+		os.Exit(1)
+	}
+	if Config.Suspend <= 0 {
+		Config.Suspend = 60
+	}
 }

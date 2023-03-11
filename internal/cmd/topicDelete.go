@@ -7,8 +7,8 @@ import (
 	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 )
 
 // TopicDelete 删除主题

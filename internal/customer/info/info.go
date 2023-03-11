@@ -2,7 +2,7 @@
 package info
 
 import (
-	"netsvr/internal/protocol"
+	protocol2 "netsvr/pkg/protocol"
 	"sync"
 )
 
@@ -88,14 +88,14 @@ func (r *Info) SetSession(session string) {
 	r.session = session
 }
 
-func (r *Info) GetToProtocolTransfer(tf *protocol.Transfer) {
+func (r *Info) GetToProtocolTransfer(tf *protocol2.Transfer) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	tf.Session = r.session
 	tf.UniqId = r.uniqId
 }
 
-func (r *Info) GetToProtocolInfoResp(infoResp *protocol.InfoResp) {
+func (r *Info) GetToProtocolInfoResp(infoResp *protocol2.InfoResp) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	infoResp.UniqId = r.uniqId

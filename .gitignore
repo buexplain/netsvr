@@ -1,4 +1,4 @@
 .idea
 *config.toml
-log
-log/*.log
+./log
+./log/*.log

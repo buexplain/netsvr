@@ -5,8 +5,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 )
 
 // Broadcast 广播

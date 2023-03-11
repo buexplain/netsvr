@@ -7,8 +7,8 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/cmd"
 	"netsvr/internal/log"
-	"netsvr/internal/protocol"
 	"netsvr/internal/worker/manager"
+	"netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
 	"time"
 )
