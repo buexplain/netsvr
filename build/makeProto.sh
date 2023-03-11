@@ -1,6 +1,6 @@
 #!/bin/bash
-mkdir -p ./../internal/protocol
-rm -rf ./../internal/protocol/*
+mkdir -p ./../pkg/protocol
+rm -rf ./../pkg/protocol/*
 
 # https://protobuf.dev/reference/go/go-generated/
 

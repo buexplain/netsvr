@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.forceOfflineGuest;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //business向worker请求，将某个没有session值的连接强制关闭
 message ForceOfflineGuest {

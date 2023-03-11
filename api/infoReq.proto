@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.infoReq;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //business向worker请求，获取网关中的info
 message InfoReq {

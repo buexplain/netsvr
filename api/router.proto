@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.router;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
 enum Cmd {

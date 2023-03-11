@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.uniqIdCountReq;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //business向worker请求，获取网关中uniqId的数量
 message UniqIdCountReq {

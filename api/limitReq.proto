@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.limitReq;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //更新限流配置、获取网关中的限流配置的真实情况
 //这个配置不是永久生效的，网关进程重启后就以config.toml为准

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.connClose;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //worker转发客户连接关闭的信息到business
 message ConnClose {

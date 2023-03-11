@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.uniqIdListResp;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //worker响应business，返回网关中全部的uniqId
 message UniqIdListResp {

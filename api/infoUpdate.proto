@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.infoUpdate;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //更新连接的info信息
 message InfoUpdate {

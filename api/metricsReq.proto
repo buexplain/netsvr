@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package netsvr.metricsReq;
 
-option go_package = "internal/protocol;protocol";
+option go_package = "pkg/protocol;protocol";
 
 //business向worker请求网关统计的服务状态
 message MetricsReq {
