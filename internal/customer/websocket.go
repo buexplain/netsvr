@@ -1,3 +1,19 @@
+/**
+* Copyright 2022 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
 // Package customer 客户连接维持模块
 // 负责承载客户的websocket连接、维护客户的订阅、保持客户连接的session数据
 package customer
@@ -19,7 +35,7 @@ import (
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/heartbeat"
-	protocol2 "netsvr/pkg/protocol"
+	netsvrProtocol "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
 	"strings"
 )
@@ -115,15 +131,17 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//连接打开消息回传给business
-	co := &protocol2.ConnOpen{}
+	co := &netsvrProtocol.ConnOpen{}
 	co.SubProtocol = subProtocols
 	co.XForwardedFor = r.Header.Get("X-Forwarded-For")
-	co.XRealIP = r.Header.Get(configs.Config.Customer.XRealIP)
-	co.RemoteIP = strings.Split(conn.RemoteAddr().String(), ":")[0]
+	if co.XForwardedFor == "" {
+		//没有代理信息，则将直接与网关连接的ip转发给business
+		co.XForwardedFor = strings.Split(conn.RemoteAddr().String(), ":")[0]
+	}
 	co.RawQuery = r.URL.RawQuery
 	co.UniqId = uniqId
-	router := &protocol2.Router{}
-	router.Cmd = protocol2.Cmd_ConnOpen
+	router := &netsvrProtocol.Router{}
+	router.Cmd = netsvrProtocol.Cmd_ConnOpen
 	router.Data, _ = proto.Marshal(co)
 	data, _ := proto.Marshal(router)
 	worker.Send(data)
@@ -181,11 +199,11 @@ func onClose(conn *websocket.Conn, _ error) {
 		return
 	}
 	//转发数据到business
-	cl := &protocol2.ConnClose{}
+	cl := &netsvrProtocol.ConnClose{}
 	cl.UniqId = uniqId
 	cl.Session = userSession
-	router := &protocol2.Router{}
-	router.Cmd = protocol2.Cmd_ConnClose
+	router := &netsvrProtocol.Router{}
+	router.Cmd = netsvrProtocol.Cmd_ConnClose
 	router.Data, _ = proto.Marshal(cl)
 	data, _ := proto.Marshal(router)
 	worker.Send(data)
@@ -230,11 +248,11 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		return
 	}
 	//编码数据成business需要的格式
-	tf := &protocol2.Transfer{}
+	tf := &netsvrProtocol.Transfer{}
 	tf.Data = data[3:]
 	session.GetToProtocolTransfer(tf)
-	router := &protocol2.Router{}
-	router.Cmd = protocol2.Cmd_Transfer
+	router := &netsvrProtocol.Router{}
+	router.Cmd = netsvrProtocol.Cmd_Transfer
 	router.Data, _ = proto.Marshal(tf)
 	//转发数据到business
 	data, _ = proto.Marshal(router)

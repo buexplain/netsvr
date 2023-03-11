@@ -1,8 +1,24 @@
+/**
+* Copyright 2022 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
 // Package info 保持客户连接的session数据模块
 package info
 
 import (
-	protocol2 "netsvr/pkg/protocol"
+	netsvrProtocol "netsvr/pkg/protocol"
 	"sync"
 )
 
@@ -88,14 +104,14 @@ func (r *Info) SetSession(session string) {
 	r.session = session
 }
 
-func (r *Info) GetToProtocolTransfer(tf *protocol2.Transfer) {
+func (r *Info) GetToProtocolTransfer(tf *netsvrProtocol.Transfer) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	tf.Session = r.session
 	tf.UniqId = r.uniqId
 }
 
-func (r *Info) GetToProtocolInfoResp(infoResp *protocol2.InfoResp) {
+func (r *Info) GetToProtocolInfoResp(infoResp *netsvrProtocol.InfoResp) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	infoResp.UniqId = r.uniqId
