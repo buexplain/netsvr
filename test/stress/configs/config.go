@@ -121,18 +121,21 @@ var Config *config
 
 func init() {
 	var configFile string
-	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "test/stress/configs/config.toml"), "Set config.toml file")
+	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/stress.toml"), "Set stress.toml file")
 	flag.Parse()
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("Read config.toml failed：%s", err)
+		logging.Error("Read stress.toml failed：%s", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
-	if _, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("Parse config.toml failed：%s", err)
+	if metaData, err := toml.Decode(string(c), Config); err != nil {
+		logging.Error("Parse stress.toml failed：%s", err)
+		os.Exit(1)
+	} else if metaData.IsDefined("ShutdownWaitTime") {
+		logging.Error("Process working directory is error: %s", wd.RootPath)
 		os.Exit(1)
 	}
 	if Config.Suspend <= 0 {

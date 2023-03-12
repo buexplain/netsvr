@@ -36,11 +36,9 @@ type connOpenCmd struct {
 		Code int32 `json:"code"`
 		Data struct {
 			RawQuery      string   `json:"rawQuery"`
-			RemoteIP      string   `json:"remoteIP"`
 			SubProtocol   []string `json:"subProtocol"`
 			UniqID        string   `json:"uniqId"`
 			XForwardedFor string   `json:"xForwardedFor"`
-			XRealIP       string   `json:"xRealIP"`
 		} `json:"data"`
 		Message string `json:"message"`
 	} `json:"data"`

@@ -37,7 +37,9 @@ import (
 	"netsvr/pkg/heartbeat"
 	netsvrProtocol "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
+	"os"
 	"strings"
+	"time"
 )
 
 var server *nbhttp.Server
@@ -59,6 +61,8 @@ func Start() {
 	err := server.Start()
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Customer websocket start failed")
+		time.Sleep(time.Millisecond * 100)
+		os.Exit(1)
 		return
 	}
 	log.Logger.Info().Msg("Customer websocket start")

@@ -52,8 +52,6 @@ type config struct {
 		ReadDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
-		//获取代理透传的ip地址的header key
-		XRealIP string
 		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
 	}
@@ -105,18 +103,18 @@ var Config *config
 
 func init() {
 	var configFile string
-	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/config.toml"), "Set config.toml file")
+	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/netsvr.toml"), "Set netsvr.toml file")
 	flag.Parse()
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("Read config.toml failed：%s", err)
+		logging.Error("Read netsvr.toml failed：%s", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
 	if _, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("Parse config.toml failed：%s", err)
+		logging.Error("Parse netsvr.toml failed：%s", err)
 		os.Exit(1)
 	}
 	//检查各种参数
@@ -130,9 +128,6 @@ func init() {
 	}
 	if Config.Customer.HandlePattern == "" {
 		Config.Customer.HandlePattern = "/"
-	}
-	if Config.Customer.XRealIP == "" {
-		Config.Customer.XRealIP = "X-Real-Ip"
 	}
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒

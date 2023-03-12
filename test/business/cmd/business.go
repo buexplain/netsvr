@@ -18,16 +18,17 @@
 package main
 
 import (
+	_ "embed"
 	"html/template"
 	"net"
 	"net/http"
 	"netsvr/pkg/heartbeat"
 	"netsvr/pkg/quit"
-	"netsvr/pkg/wd"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/web"
 	"netsvr/test/pkg/protocol"
 	"os"
 )
@@ -101,7 +102,7 @@ func main() {
 // 输出html客户端
 func clientServer() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		t, err := template.New("client.html").Delims("{!", "!}").ParseFiles(wd.RootPath + "test/business/web/client.html")
+		t, err := template.New("").Delims("{!", "!}").Parse(web.Client)
 		if err != nil {
 			log.Logger.Error().Err(err).Msg("模板解析失败")
 			return

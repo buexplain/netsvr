@@ -1,0 +1,78 @@
+# 日志级别 debug、info、warn、error
+LogLevel = "info"
+# customer服务的websocket连接地址
+CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+# 心跳间隔秒数
+Heartbeat = 30
+# 是否并发初始化
+Concurrent = true
+# 当所有连接建立完毕后的持续时间，单位秒
+Suspend = 300
+# 沉默的连接
+[Silent]
+Enable = true
+Step = [
+    #每个阶段初始化的连接数、每秒初始化的连接数、本阶段初始化完毕后的暂停秒数
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+]
+
+# 疯狂登录登出的连接
+[Sign]
+Enable = true
+# 间隔多少秒进行一次所有连接的登录登出操作
+MessageInterval = 5
+Step = [
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+]
+
+# 疯狂单播的连接
+[SingleCast]
+Enable = true
+# 单播时发送的消息大小
+MessageLen = 0
+# 间隔多少秒进行一次所有连接的单播
+MessageInterval = 6
+Step = [
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+]
+
+# 疯狂组播的连接
+[Multicast]
+Enable = true
+MessageLen = 0
+# 一组包含的uniqId数量
+UniqIdNum = 10
+MessageInterval = 7
+Step = [
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+]
+
+# 疯狂订阅、取消订阅、发布
+[Topic]
+Enable = true
+MessageInterval = 8
+MessageLen = 0
+Step = [
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+]
+
+# 疯狂广播的连接
+[Broadcast]
+Enable = true
+MessageLen = 0
+MessageInterval = 9
+Step = [
+    { ConnNum = 1, ConnectNum = 1, Suspend = 180 },
+    { ConnNum = 2, ConnectNum = 1, Suspend = 180 },
+    { ConnNum = 3, ConnectNum = 1, Suspend = 180 },
+]

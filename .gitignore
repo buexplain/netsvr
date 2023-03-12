@@ -1,4 +1,6 @@
 .idea
-*config.toml
-./log
-./log/*.log
+*netsvr.toml
+*business.toml
+*stress.toml
+build
+log/netSvr.log

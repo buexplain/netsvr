@@ -26,6 +26,7 @@ import (
 	"netsvr/internal/worker/manager"
 	"netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
+	"os"
 	"time"
 )
 
@@ -107,6 +108,9 @@ var server *Server
 func Start() {
 	listen, err := net.Listen("tcp", configs.Config.Worker.ListenAddress)
 	if err != nil {
+		log.Logger.Error().Err(err).Msg("Worker tcp start failed")
+		time.Sleep(time.Millisecond * 100)
+		os.Exit(1)
 		return
 	}
 	server = &Server{
