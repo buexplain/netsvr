@@ -18,6 +18,7 @@ package manager
 
 import (
 	"math/rand"
+	"netsvr/pkg/constant"
 	"sync"
 	"sync/atomic"
 )
@@ -25,22 +26,22 @@ import (
 type collect struct {
 	conn  []*ConnProcessor
 	index uint64
-	lock  *sync.RWMutex
+	mux   *sync.RWMutex
 }
 
 func (r *collect) Get() *ConnProcessor {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
+	index := atomic.AddUint64(&r.index, 1)
+	r.mux.RLock()
+	defer r.mux.RUnlock()
 	if len(r.conn) == 0 {
 		return nil
 	}
-	r.index++
-	return r.conn[r.index%uint64(len(r.conn))]
+	return r.conn[index%uint64(len(r.conn))]
 }
 
 func (r *collect) Set(conn *ConnProcessor) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.mux.Lock()
+	defer r.mux.Unlock()
 	exist := false
 	for _, v := range r.conn {
 		if v == conn {
@@ -54,8 +55,8 @@ func (r *collect) Set(conn *ConnProcessor) {
 }
 
 func (r *collect) Del(conn *ConnProcessor) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.mux.Lock()
+	defer r.mux.Unlock()
 	for k, v := range r.conn {
 		if v == conn {
 			r.conn = append(r.conn[0:k], r.conn[k+1:]...)
@@ -63,27 +64,23 @@ func (r *collect) Del(conn *ConnProcessor) {
 	}
 }
 
-// MaxWorkerId business的编号范围
-const MaxWorkerId = 999
-const MinWorkerId = 1
-
-type manager [MaxWorkerId + 1]*collect
+type manager [constant.MaxWorkerId + 1]*collect
 
 func (r manager) Get(workerId int) *ConnProcessor {
-	if workerId < MinWorkerId || workerId > MaxWorkerId {
+	if workerId < constant.MinWorkerId || workerId > constant.MaxWorkerId {
 		return nil
 	}
 	return r[workerId].Get()
 }
 
 func (r manager) Set(workerId int, conn *ConnProcessor) {
-	if workerId >= MinWorkerId && workerId <= MaxWorkerId {
+	if workerId >= constant.MinWorkerId && workerId <= constant.MaxWorkerId {
 		r[workerId].Set(conn)
 	}
 }
 
 func (r manager) Del(workerId int, conn *ConnProcessor) {
-	if workerId >= MinWorkerId && workerId <= MaxWorkerId {
+	if workerId >= constant.MinWorkerId && workerId <= constant.MaxWorkerId {
 		r[workerId].Del(conn)
 	}
 }
@@ -93,36 +90,8 @@ var Manager manager
 
 func init() {
 	Manager = manager{}
-	for i := MinWorkerId; i <= MaxWorkerId; i++ {
+	for i := constant.MinWorkerId; i <= constant.MaxWorkerId; i++ {
 		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
-		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), lock: &sync.RWMutex{}}
+		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), mux: &sync.RWMutex{}}
 	}
-}
-
-// 处理客户连接关闭的business编号
-var processConnCloseWorkerId *int32
-
-func SetProcessConnCloseWorkerId(workerId int32) {
-	atomic.StoreInt32(processConnCloseWorkerId, workerId)
-}
-func GetProcessConnCloseWorkerId() int {
-	return int(atomic.LoadInt32(processConnCloseWorkerId))
-}
-func init() {
-	var currentProcessConnCloseWorkerId int32 = 0
-	processConnCloseWorkerId = &currentProcessConnCloseWorkerId
-}
-
-// 处理客户连接关闭的business编号
-var processConnOpenWorkerId *int32
-
-func SetProcessConnOpenWorkerId(workerId int32) {
-	atomic.StoreInt32(processConnOpenWorkerId, workerId)
-}
-func GetProcessConnOpenWorkerId() int {
-	return int(atomic.LoadInt32(processConnOpenWorkerId))
-}
-func init() {
-	var currentProcessConnOpenWorkerId int32 = 0
-	processConnOpenWorkerId = &currentProcessConnOpenWorkerId
 }

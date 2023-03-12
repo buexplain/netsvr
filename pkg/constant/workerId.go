@@ -14,9 +14,18 @@
 * limitations under the License.
  */
 
-// Package heartbeat 心跳模块
-// 约定心跳字符串
-package heartbeat
+// Package constant 常量约定
+// 约定worker id范围
+package constant
 
-var PingMessage = []byte("~3yPvmnz~")
-var PongMessage = []byte("~u38NvZ~")
+// MaxWorkerId business的编号范围
+const MaxWorkerId = 999
+const MinWorkerId = 1
+
+// CheckWorkerId 校验worker id是否合法
+func CheckWorkerId(workerId int32) bool {
+	if workerId < MinWorkerId || workerId > MaxWorkerId {
+		return false
+	}
+	return true
+}

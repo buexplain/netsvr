@@ -22,7 +22,7 @@ import (
 	"html/template"
 	"net"
 	"net/http"
-	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/constant"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"
@@ -114,8 +114,8 @@ func clientServer() {
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)
 		}
-		data["pingMessage"] = string(heartbeat.PingMessage)
-		data["pongMessage"] = string(heartbeat.PongMessage)
+		data["pingMessage"] = string(constant.PingMessage)
+		data["pongMessage"] = string(constant.PongMessage)
 		err = t.Execute(writer, data)
 		if err != nil {
 			log.Logger.Error().Msgf("模板输出失败：%s", err)

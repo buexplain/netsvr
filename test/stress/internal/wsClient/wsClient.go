@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
-	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/constant"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils"
@@ -122,7 +122,7 @@ func (r *Client) Heartbeat() {
 	case <-r.close:
 		return
 	default:
-		r.sendCh <- heartbeat.PingMessage
+		r.sendCh <- constant.PingMessage
 	}
 }
 
@@ -240,7 +240,7 @@ func (r *Client) LoopRead() {
 				r.Close()
 				return
 			}
-			if bytes.Equal(p, heartbeat.PongMessage) {
+			if bytes.Equal(p, constant.PongMessage) {
 				return
 			}
 			ret := gjson.GetManyBytes(p, "cmd", "data")

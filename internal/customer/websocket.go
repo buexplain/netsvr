@@ -34,7 +34,7 @@ import (
 	"netsvr/internal/metrics"
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/constant"
 	netsvrProtocol "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
 	"os"
@@ -78,7 +78,6 @@ func Shutdown() {
 }
 
 func onWebsocket(w http.ResponseWriter, r *http.Request) {
-	var workerId int
 	select {
 	case <-quit.Ctx.Done():
 		//进程即将关闭，不再受理新的连接
@@ -87,9 +86,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 		//限流检查
-		workerId = workerManager.GetProcessConnOpenWorkerId()
 		//之所以要判断workerId大于0，是因为有可能业务方并不关心连接的打开信息，连接打开信息不会传递到业务方，则不必限流
-		if workerId > 0 && limit.Manager.Allow(workerId) == false {
+		if configs.Config.Customer.ConnOpenWorkerId > 0 && limit.Manager.Allow(configs.Config.Customer.ConnOpenWorkerId) == false {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write(serviceBusy)
 			return
@@ -129,9 +127,9 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	manager.Manager.Set(uniqId, wsConn)
 	log.Logger.Debug().Str("uniqId", uniqId).Msg("Customer websocket open")
 	//获取能够处理连接打开信息的business
-	worker := workerManager.Manager.Get(workerId)
+	worker := workerManager.Manager.Get(configs.Config.Customer.ConnOpenWorkerId)
 	if worker == nil {
-		log.Logger.Debug().Int("workerId", workerId).Msg("Not found process conn open business")
+		log.Logger.Debug().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Msg("Not found process conn open business")
 		return
 	}
 	//连接打开消息回传给business
@@ -161,7 +159,7 @@ func pongMessageHandler(_ *websocket.Conn, _ string) {
 // pong客户端心跳帧
 func pingMessageHandler(conn *websocket.Conn, _ string) {
 	//响应客户端心跳
-	err := conn.WriteMessage(websocket.PongMessage, heartbeat.PongMessage)
+	err := conn.WriteMessage(websocket.PongMessage, constant.PongMessage)
 	if err != nil {
 		_ = conn.Close()
 	}
@@ -196,10 +194,9 @@ func onClose(conn *websocket.Conn, _ error) {
 	session.MuxUnLock()
 	log.Logger.Debug().Interface("topics", topics).Str("uniqId", uniqId).Str("session", userSession).Msg("Customer websocket close")
 	//连接关闭消息回传给business
-	workerId := workerManager.GetProcessConnCloseWorkerId()
-	worker := workerManager.Manager.Get(workerId)
+	worker := workerManager.Manager.Get(configs.Config.Customer.ConnCloseWorkerId)
 	if worker == nil {
-		log.Logger.Debug().Int("workerId", workerId).Msg("Not found process conn close business")
+		log.Logger.Debug().Int("workerId", configs.Config.Customer.ConnCloseWorkerId).Msg("Not found process conn close business")
 		return
 	}
 	//转发数据到business
@@ -218,9 +215,9 @@ func onClose(conn *websocket.Conn, _ error) {
 
 func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
-	if bytes.Equal(data, heartbeat.PingMessage) {
+	if bytes.Equal(data, constant.PingMessage) {
 		//响应客户端心跳
-		err := conn.WriteMessage(websocket.TextMessage, heartbeat.PongMessage)
+		err := conn.WriteMessage(websocket.TextMessage, constant.PongMessage)
 		if err != nil {
 			_ = conn.Close()
 		}

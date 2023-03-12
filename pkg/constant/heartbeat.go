@@ -14,19 +14,9 @@
 * limitations under the License.
  */
 
-package cmd
+// Package constant 常量约定
+// 约定心跳字符串
+package constant
 
-import (
-	"netsvr/internal/log"
-	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/constant"
-)
-
-// Unregister business取消已注册的服务编号
-func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
-	workerId := processor.GetWorkerId()
-	if constant.MinWorkerId <= workerId && workerId <= constant.MaxWorkerId {
-		workerManager.Manager.Del(workerId, processor)
-		log.Logger.Error().Int("workerId", workerId).Msg("Unregister a business")
-	}
-}
+var PingMessage = []byte("~3yPvmnz~")
+var PongMessage = []byte("~u38NvZ~")

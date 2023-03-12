@@ -19,13 +19,12 @@ package manager
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/constant"
 	"netsvr/pkg/protocol"
 	"sync"
 	"time"
@@ -40,6 +39,9 @@ type ConnProcessor struct {
 	consumerCh chan struct{}
 	//生产者退出信号
 	producerCh chan struct{}
+	//通道关闭信号
+	//TODO 思考 -race 情况下的协程冲突问题
+	chanCloseCh chan struct{}
 	//消费者协程退出等待器
 	consumerWg *sync.WaitGroup
 	//要发送给连接的数据
@@ -60,6 +62,7 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 		conn:        conn,
 		consumerCh:  make(chan struct{}),
 		producerCh:  make(chan struct{}),
+		chanCloseCh: make(chan struct{}),
 		consumerWg:  &sync.WaitGroup{},
 		sendCh:      make(chan []byte, 100),
 		sendBuf:     &bytes.Buffer{},
@@ -69,6 +72,17 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 		cmdCallback: map[protocol.Cmd]CmdCallback{},
 	}
 	return tmp
+}
+
+func (r *ConnProcessor) closeChan() {
+	select {
+	case <-r.chanCloseCh:
+		return
+	default:
+		close(r.chanCloseCh)
+		close(r.sendCh)
+		close(r.receiveCh)
+	}
 }
 
 // GraceClose 优雅关闭
@@ -83,14 +97,13 @@ func (r *ConnProcessor) GraceClose() {
 		//贸然close掉两个管道会引起send on closed channel错误
 		//所以，先检查管道是否空着，等待彻底空着，再关闭管道
 		for {
-			time.Sleep(time.Millisecond * 200)
+			time.Sleep(time.Millisecond * 300)
 			if len(r.sendCh) == 0 && len(r.receiveCh) == 0 {
 				break
 			}
 		}
 		//通知所有消费者，消费完毕后退出
-		close(r.sendCh)
-		close(r.receiveCh)
+		r.closeChan()
 		//等待消费者协程退出
 		r.consumerWg.Wait()
 		//关闭连接
@@ -108,8 +121,6 @@ func (r *ConnProcessor) ForceClose() {
 	default:
 		//通知所有生产者，不再生产数据
 		close(r.producerCh)
-		close(r.sendCh)
-		close(r.receiveCh)
 		//通知所有消费者，立刻退出
 		close(r.consumerCh)
 		//关闭连接
@@ -176,14 +187,10 @@ func (r *ConnProcessor) send(data []byte) {
 }
 
 func (r *ConnProcessor) Send(data []byte) {
-	defer func() {
-		//因为有可能已经阻塞在r.sendCh <- data的时候，收到<-r.producerCh信号
-		//然后因为close(r.sendCh)，最终导致send on closed channel
-		_ = recover()
-	}()
 	select {
 	case <-r.producerCh:
-		//收到关闭信号，不再生产
+		//收到关闭信号，关闭数据通道，不再生产数据进去
+		r.closeChan()
 		return
 	default:
 		r.sendCh <- data
@@ -197,13 +204,7 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//打印日志信息
 		if err := recover(); err != nil {
-			errStr := fmt.Sprint(err)
-			//TODO 等golang发布了针对panic的错误类型的时候，这里需要优化一下
-			if errStr == "send on closed channel" {
-				log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
-			} else {
-				log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
-			}
+			log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
 		} else {
 			log.Logger.Debug().Int("workerId", r.workerId).Msg("Worker receive coroutine is closed")
 		}
@@ -249,9 +250,9 @@ func (r *ConnProcessor) LoopReceive() {
 			break
 		}
 		//business发来心跳
-		if bytes.Equal(heartbeat.PingMessage, dataBuf[0:dataLen]) {
+		if bytes.Equal(constant.PingMessage, dataBuf[0:dataLen]) {
 			//响应business的心跳
-			r.Send(heartbeat.PongMessage)
+			r.Send(constant.PongMessage)
 			continue
 		}
 		router := &protocol.Router{}
@@ -262,18 +263,9 @@ func (r *ConnProcessor) LoopReceive() {
 		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Worker receive business command")
 		select {
 		case <-r.producerCh:
-			//收到关闭信号，不再生产，进入丢弃数据逻辑
-			//如果是强制关闭，则这里会触发错误，直接退出
-			//如果是优雅关闭，则这里会不断读取连接中的数据，直到r.sendCh、r.receiveCh被消费干净，进而关闭r.conn，导致这里触发错误退出
-			for {
-				if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
-					return
-				}
-				dataBuf = dataBuf[:0]
-				if _, err = io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
-					return
-				}
-			}
+			//收到关闭信号，关闭数据通道，不再生产数据进去
+			r.closeChan()
+			return
 		default:
 			r.receiveCh <- router
 		}

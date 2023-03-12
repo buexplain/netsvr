@@ -30,6 +30,10 @@ ReadDeadline = "120s"
 MaxOnlineNum = 100000
 # 客户发送数据的大小限制（单位：字节）
 ReceivePackLimit = 2097152
+# 指定处理连接打开的worker id
+ConnOpenWorkerId = 1
+# 指定处理连接关闭的worker id
+ConnCloseWorkerId = 1
 
 #worker服务器
 [Worker]

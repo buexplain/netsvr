@@ -22,6 +22,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
+	"netsvr/pkg/constant"
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
@@ -39,8 +40,7 @@ type config struct {
 	//pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
 	PprofListenAddress string
 	//business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
-	Limit []Limit
-
+	Limit    []Limit
 	Customer struct {
 		//客户服务器监听的地址，ip:port，这个地址一般是外网地址
 		ListenAddress string
@@ -54,6 +54,10 @@ type config struct {
 		MaxOnlineNum int
 		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
+		//指定处理连接打开的worker id
+		ConnOpenWorkerId int
+		//指定处理连接关闭的worker id
+		ConnCloseWorkerId int
 	}
 
 	Worker struct {
@@ -140,5 +144,13 @@ func init() {
 	if Config.Metrics.MaxRecordInterval <= 0 {
 		//默认10秒
 		Config.Metrics.MaxRecordInterval = time.Second * 10
+	}
+	if Config.Customer.ConnOpenWorkerId < constant.MinWorkerId || Config.Customer.ConnOpenWorkerId > constant.MaxWorkerId {
+		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId, constant.MaxWorkerId)
+		os.Exit(1)
+	}
+	if Config.Customer.ConnCloseWorkerId < constant.MinWorkerId || Config.Customer.ConnCloseWorkerId > constant.MaxWorkerId {
+		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId, constant.MaxWorkerId)
+		os.Exit(1)
 	}
 }

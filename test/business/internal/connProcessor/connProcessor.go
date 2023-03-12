@@ -23,7 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
-	"netsvr/pkg/heartbeat"
+	"netsvr/pkg/constant"
 	netsvrProtocol "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/internal/log"
@@ -92,7 +92,7 @@ func (r *ConnProcessor) LoopHeartbeat() {
 			return
 		case <-t.C:
 			//这个心跳一定要发，否则服务端会把连接干掉
-			r.Send(heartbeat.PingMessage)
+			r.Send(constant.PingMessage)
 		}
 	}
 }
@@ -261,7 +261,7 @@ func (r *ConnProcessor) LoopReceive() {
 			break
 		}
 		//worker响应心跳
-		if bytes.Equal(heartbeat.PongMessage, dataBuf[0:dataLen]) {
+		if bytes.Equal(constant.PongMessage, dataBuf[0:dataLen]) {
 			continue
 		}
 		router := &netsvrProtocol.Router{}
@@ -382,8 +382,6 @@ func (r *ConnProcessor) RegisterWorker(processCmdGoroutineNum uint32) error {
 	reg.Id = int32(r.workerId)
 	//让worker为我开启n条协程来处理我的请求
 	reg.ProcessCmdGoroutineNum = processCmdGoroutineNum
-	reg.ProcessConnClose = true
-	reg.ProcessConnOpen = true
 	router.Data, _ = proto.Marshal(reg)
 	data, _ := proto.Marshal(router)
 	err := binary.Write(r.conn, binary.BigEndian, uint32(len(data)))
