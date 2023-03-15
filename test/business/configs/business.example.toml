@@ -8,3 +8,5 @@ ClientListenAddress = "127.0.0.1:6063"
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
 # 让worker为我开启n条协程来处理我的请求
 ProcessCmdGoroutineNum = 100
+# 业务进程注册到网关的工作id
+WorkerId = 1

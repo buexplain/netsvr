@@ -41,13 +41,13 @@ func main() {
 	}
 	//启动html客户端的服务器
 	go clientServer()
-	processor := connProcessor.NewConnProcessor(conn, 1)
+	processor := connProcessor.NewConnProcessor(conn, configs.Config.WorkerId)
 	//注册到worker
 	if err := processor.RegisterWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
-		log.Logger.Debug().Int("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
+		log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
 		os.Exit(1)
 	}
-	log.Logger.Debug().Int("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")
+	log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")
 	//注册各种回调函数
 	cmd.CheckOnline.Init(processor)
 	cmd.Broadcast.Init(processor)
@@ -82,7 +82,7 @@ func main() {
 		//取消注册
 		processor.UnregisterWorker()
 		//优雅关闭
-		processor.GraceClose()
+		processor.ForceClose()
 	}()
 	//开始关闭进程
 	select {

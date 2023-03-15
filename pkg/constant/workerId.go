@@ -21,11 +21,3 @@ package constant
 // MaxWorkerId business的编号范围
 const MaxWorkerId = 999
 const MinWorkerId = 1
-
-// CheckWorkerId 校验worker id是否合法
-func CheckWorkerId(workerId int32) bool {
-	if workerId < MinWorkerId || workerId > MaxWorkerId {
-		return false
-	}
-	return true
-}

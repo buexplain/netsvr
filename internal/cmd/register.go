@@ -31,21 +31,21 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Register failed")
 		return
 	}
-	//检查服务编号是否在允许的范围内
+	//检查workerId是否在允许的范围内
 	if constant.MinWorkerId > payload.Id || payload.Id > constant.MaxWorkerId {
 		log.Logger.Error().Int32("workerId", payload.Id).Int("minWorkerId", constant.MinWorkerId).Int("maxWorkerId", constant.MaxWorkerId).Msg("WorkerId range overflow")
 		processor.ForceClose()
 		return
 	}
-	//检查当前的business连接是否已经注册过服务编号了，不允许重复注册
+	//检查当前的business连接是否已经注册过workerId了，不允许重复注册
 	if processor.GetWorkerId() > 0 {
 		processor.ForceClose()
 		log.Logger.Error().Msg("Register are not allowed")
 		return
 	}
-	//设置business连接的服务编号
-	processor.SetWorkerId(int(payload.Id))
-	//将该服务编号登记到worker管理器中
+	//设置business连接的workerId
+	processor.SetWorkerId(payload.Id)
+	//将该workerId登记到worker管理器中
 	workerManager.Manager.Set(processor.GetWorkerId(), processor)
 	//判断该business连接是否要开启更多的协程去处理它发来的请求命令
 	if payload.ProcessCmdGoroutineNum > 1 {

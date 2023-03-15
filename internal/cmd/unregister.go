@@ -22,11 +22,11 @@ import (
 	"netsvr/pkg/constant"
 )
 
-// Unregister business取消已注册的服务编号
+// Unregister business取消已注册的workerId
 func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
 	if constant.MinWorkerId <= workerId && workerId <= constant.MaxWorkerId {
 		workerManager.Manager.Del(workerId, processor)
-		log.Logger.Error().Int("workerId", workerId).Msg("Unregister a business")
+		log.Logger.Info().Int32("workerId", workerId).Msg("Unregister a business")
 	}
 }

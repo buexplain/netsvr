@@ -24,6 +24,7 @@ import (
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 type config struct {
@@ -31,6 +32,9 @@ type config struct {
 	LogLevel string
 	//customer服务的websocket连接地址
 	CustomerWsAddress string
+	//表示消息被哪个workerId的业务进程处理
+	WorkerId      int
+	WorkerIdBytes []byte
 	//心跳间隔秒数
 	Heartbeat int
 	//是否并发初始化
@@ -141,4 +145,9 @@ func init() {
 	if Config.Suspend <= 0 {
 		Config.Suspend = 60
 	}
+	s := strconv.Itoa(Config.WorkerId)
+	for i := len(s); i < 3; i++ {
+		s = "0" + s
+	}
+	Config.WorkerIdBytes = []byte(s)
 }

@@ -42,11 +42,13 @@ type Register struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 服务编号，取值范围是 1~999，包含1与999
-	// 业务层可以自己随意安排，如果多个business共用一个服务编号，则网关在数据转发的过程中是轮询转发的
+	// workerId，取值区间是：[1,999]
+	// 业务层可以自己随意安排，如果多个business共用一个workerId，则网关在数据转发的过程中是轮询转发给business的
 	Id int32 `protobuf:"varint,1,opt,name=Id,proto3" json:"Id,omitempty"`
-	// 表示接下来，需要worker开启多少协程来处理本business的请求
-	// 如果本business，非常频繁的与worker交互，可以考虑开大一点，但是也不能无限大，开太多也许不能解决问题，因为发送消息到客户连接是会被阻塞的，建议100~200条左右即可
+	// 该参数表示接下来，需要worker服务器开启多少协程来处理本business的请求
+	// 如果本business，非常频繁的与worker交互,并且是那种组播、广播的耗时操作
+	// 可以考虑开大一点，但是也不能无限大，开太多也许不能解决问题，因为发送消息到客户连接是会被阻塞的，建议5~100条左右即可
+	// 请根据业务，实际压测一下试试，找到最佳的数量
 	// 请注意worker默认已经开启了一条协程来处理本business的请求，所以该值只有在大于1的时候才会开启更多协程
 	ProcessCmdGoroutineNum uint32 `protobuf:"varint,2,opt,name=ProcessCmdGoroutineNum,proto3" json:"ProcessCmdGoroutineNum,omitempty"`
 }

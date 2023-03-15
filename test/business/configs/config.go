@@ -37,6 +37,8 @@ type config struct {
 	CustomerWsAddress string
 	//让worker为我开启n条协程来处理我的请求
 	ProcessCmdGoroutineNum int
+	//业务进程注册到网关的工作id
+	WorkerId int32
 }
 
 func (r *config) GetLogLevel() zerolog.Level {

@@ -41,13 +41,13 @@ type ConnOpen struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关分配给连接的唯一id
+	// 网关分配给连接的唯一id，格式是：网关服务编号(2个字符)+时间戳(8个字符)+自增值(8个字符)，共18个16进制的字符
 	UniqId string `protobuf:"bytes,1,opt,name=uniqId,proto3" json:"uniqId,omitempty"`
-	// 连接携带的参数
+	// 连接携带的GET参数
 	RawQuery string `protobuf:"bytes,2,opt,name=rawQuery,proto3" json:"rawQuery,omitempty"`
 	// 连接的websocket子协议信息
 	SubProtocol []string `protobuf:"bytes,3,rep,name=subProtocol,proto3" json:"subProtocol,omitempty"`
-	// X-Forwarded-For，如果没有，则是和tcp直连的ip
+	// X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的ip
 	XForwardedFor string `protobuf:"bytes,4,opt,name=xForwardedFor,proto3" json:"xForwardedFor,omitempty"`
 }
 

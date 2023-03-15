@@ -25,6 +25,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils"
+	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"sync"
 	"time"
@@ -217,7 +218,7 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 			return
 		}
 		b := make([]byte, 0, len(ret)+3)
-		b = append(b, []byte("001")...)
+		b = append(b, configs.Config.WorkerIdBytes...)
 		b = append(b, ret...)
 		r.sendCh <- b
 	}

@@ -25,18 +25,18 @@ import (
 
 type collect struct {
 	conn  []*ConnProcessor
-	index uint64
+	index uint32
 	mux   *sync.RWMutex
 }
 
 func (r *collect) Get() *ConnProcessor {
-	index := atomic.AddUint64(&r.index, 1)
+	index := atomic.AddUint32(&r.index, 1)
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	if len(r.conn) == 0 {
 		return nil
 	}
-	return r.conn[index%uint64(len(r.conn))]
+	return r.conn[index%uint32(len(r.conn))]
 }
 
 func (r *collect) Set(conn *ConnProcessor) {
@@ -73,13 +73,13 @@ func (r manager) Get(workerId int) *ConnProcessor {
 	return r[workerId].Get()
 }
 
-func (r manager) Set(workerId int, conn *ConnProcessor) {
+func (r manager) Set(workerId int32, conn *ConnProcessor) {
 	if workerId >= constant.MinWorkerId && workerId <= constant.MaxWorkerId {
 		r[workerId].Set(conn)
 	}
 }
 
-func (r manager) Del(workerId int, conn *ConnProcessor) {
+func (r manager) Del(workerId int32, conn *ConnProcessor) {
 	if workerId >= constant.MinWorkerId && workerId <= constant.MaxWorkerId {
 		r[workerId].Del(conn)
 	}
@@ -89,9 +89,8 @@ func (r manager) Del(workerId int, conn *ConnProcessor) {
 var Manager manager
 
 func init() {
-	Manager = manager{}
 	for i := constant.MinWorkerId; i <= constant.MaxWorkerId; i++ {
 		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
-		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint64(), mux: &sync.RWMutex{}}
+		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint32(), mux: &sync.RWMutex{}}
 	}
 }

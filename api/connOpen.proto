@@ -22,12 +22,12 @@ option go_package = "pkg/protocol;protocol";
 
 //worker转发客户连接打开的信息到business
 message ConnOpen {
-  //网关分配给连接的唯一id
+  //网关分配给连接的唯一id，格式是：网关服务编号(2个字符)+时间戳(8个字符)+自增值(8个字符)，共18个16进制的字符
   string uniqId = 1;
-  //连接携带的参数
+  //连接携带的GET参数
   string rawQuery = 2;
   //连接的websocket子协议信息
   repeated string subProtocol = 3;
-  //X-Forwarded-For，如果没有，则是和tcp直连的ip
+  //X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的ip
   string xForwardedFor = 4;
 }

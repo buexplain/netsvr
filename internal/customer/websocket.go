@@ -177,8 +177,6 @@ func onClose(conn *websocket.Conn, _ error) {
 	session.MuxLock()
 	//关闭info
 	session.Close()
-	//断开info与conn的关系，便于快速gc
-	conn.SetSession(nil)
 	//清空info，并返回相关数据
 	topics, uniqId, userSession := session.Clear()
 	if uniqId == "" {
@@ -231,7 +229,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		}
 		return
 	}
-	//读取前三个字节，转成business的服务编号
+	//读取前三个字节，转成business的workerId
 	workerId := utils.BytesToInt(data, 3)
 	//限流检查
 	if limit.Manager.Allow(workerId) == false {
@@ -245,7 +243,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//获取能处理消息的business
 	worker := workerManager.Manager.Get(workerId)
 	if worker == nil {
-		log.Logger.Warn().Int("workerId", workerId).Str("session", session.GetSession()).Bytes("customerToWorkerData", data[3:]).Msg("Not found business")
+		log.Logger.Debug().Int("workerId", workerId).Str("session", session.GetSession()).Bytes("customerToWorkerData", data[3:]).Msg("Not found business")
 		return
 	}
 	//编码数据成business需要的格式

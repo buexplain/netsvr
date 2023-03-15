@@ -96,8 +96,13 @@ func (r *Server) Start() {
 					_ = recover()
 					quit.Wg.Done()
 				}()
-				<-quit.Ctx.Done()
-				c.GraceClose()
+				select {
+				case <-quit.Ctx.Done():
+					c.ForceClose()
+					return
+				case <-c.GetCloseCh():
+					return
+				}
 			}()
 		}
 	}
