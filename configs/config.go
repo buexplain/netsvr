@@ -156,4 +156,20 @@ func init() {
 		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId, constant.MaxWorkerId)
 		os.Exit(1)
 	}
+	fileIsExist := func(path string) bool {
+		fi, err := os.Stat(path)
+		if err == nil {
+			return !fi.IsDir()
+		}
+		if os.IsNotExist(err) {
+			return false
+		}
+		return true
+	}
+	if Config.Customer.TLSKey != "" && !fileIsExist(Config.Customer.TLSKey) {
+		Config.Customer.TLSKey = filepath.Join(wd.RootPath, "configs/"+Config.Customer.TLSKey)
+	}
+	if Config.Customer.TLSCert != "" && !fileIsExist(Config.Customer.TLSCert) {
+		Config.Customer.TLSCert = filepath.Join(wd.RootPath, "configs/"+Config.Customer.TLSCert)
+	}
 }
