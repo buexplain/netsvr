@@ -58,6 +58,9 @@ type config struct {
 		ConnOpenWorkerId int
 		//指定处理连接关闭的worker id
 		ConnCloseWorkerId int
+		//tls配置
+		TLSCert string
+		TLSKey  string
 	}
 
 	Worker struct {
