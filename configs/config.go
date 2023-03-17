@@ -54,9 +54,9 @@ type config struct {
 		MaxOnlineNum int
 		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
-		//指定处理连接打开的worker id
+		//指定处理连接打开的worker id，允许设置为0，表示不关心连接的打开
 		ConnOpenWorkerId int
-		//指定处理连接关闭的worker id
+		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
 		ConnCloseWorkerId int
 	}
 
@@ -145,12 +145,14 @@ func init() {
 		//默认10秒
 		Config.Metrics.MaxRecordInterval = time.Second * 10
 	}
-	if Config.Customer.ConnOpenWorkerId < constant.MinWorkerId || Config.Customer.ConnOpenWorkerId > constant.MaxWorkerId {
-		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId, constant.MaxWorkerId)
+	//允许设置为0，表示不关心连接的打开
+	if Config.Customer.ConnOpenWorkerId < constant.MinWorkerId-1 || Config.Customer.ConnOpenWorkerId > constant.MaxWorkerId {
+		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId-1, constant.MaxWorkerId)
 		os.Exit(1)
 	}
-	if Config.Customer.ConnCloseWorkerId < constant.MinWorkerId || Config.Customer.ConnCloseWorkerId > constant.MaxWorkerId {
-		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId, constant.MaxWorkerId)
+	//允许设置为0，表示不关心连接的关闭
+	if Config.Customer.ConnCloseWorkerId < constant.MinWorkerId-1 || Config.Customer.ConnCloseWorkerId > constant.MaxWorkerId {
+		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId-1, constant.MaxWorkerId)
 		os.Exit(1)
 	}
 }

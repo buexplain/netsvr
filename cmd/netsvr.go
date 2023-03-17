@@ -25,6 +25,7 @@ import (
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -63,6 +64,7 @@ func pprof() {
 		defer func() {
 			_ = recover()
 		}()
+		runtime.SetMutexProfileFraction(1)
 		log.Logger.Info().Msg("Pprof http start http" + "://" + configs.Config.PprofListenAddress + "/debug/pprof")
 		_ = http.ListenAndServe(configs.Config.PprofListenAddress, nil)
 	}()
