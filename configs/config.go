@@ -58,6 +58,9 @@ type config struct {
 		ConnOpenWorkerId int
 		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
 		ConnCloseWorkerId int
+		//tls配置
+		TLSCert string
+		TLSKey  string
 	}
 
 	Worker struct {
@@ -154,5 +157,21 @@ func init() {
 	if Config.Customer.ConnCloseWorkerId < constant.MinWorkerId-1 || Config.Customer.ConnCloseWorkerId > constant.MaxWorkerId {
 		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId-1, constant.MaxWorkerId)
 		os.Exit(1)
+	}
+	fileIsExist := func(path string) bool {
+		fi, err := os.Stat(path)
+		if err == nil {
+			return !fi.IsDir()
+		}
+		if os.IsNotExist(err) {
+			return false
+		}
+		return true
+	}
+	if Config.Customer.TLSKey != "" && !fileIsExist(Config.Customer.TLSKey) {
+		Config.Customer.TLSKey = filepath.Join(wd.RootPath, "configs/"+Config.Customer.TLSKey)
+	}
+	if Config.Customer.TLSCert != "" && !fileIsExist(Config.Customer.TLSCert) {
+		Config.Customer.TLSCert = filepath.Join(wd.RootPath, "configs/"+Config.Customer.TLSCert)
 	}
 }

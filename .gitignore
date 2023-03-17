@@ -4,3 +4,5 @@
 *stress.toml
 build
 log/netSvr.log
+rsa.cert
+rsa.key

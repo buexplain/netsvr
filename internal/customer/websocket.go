@@ -21,6 +21,7 @@ package customer
 import (
 	"bytes"
 	"context"
+	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
@@ -48,15 +49,32 @@ var serviceRestarting = []byte("Service Restarting")
 var dataTooLarge = []byte("Data too large")
 
 func Start() {
-	mux := &http.ServeMux{}
-	mux.HandleFunc(configs.Config.Customer.HandlePattern, onWebsocket)
+	var tlsConfig *tls.Config
+	if configs.Config.Customer.TLSKey != "" || configs.Config.Customer.TLSCert != "" {
+		cert, err := tls.LoadX509KeyPair(configs.Config.Customer.TLSCert, configs.Config.Customer.TLSKey)
+		if err != nil {
+			log.Logger.Error().Err(err).Msg("Customer websocket tls.LoadX509KeyPair failed")
+			os.Exit(1)
+		}
+		tlsConfig = &tls.Config{
+			Certificates:       []tls.Certificate{cert},
+			InsecureSkipVerify: true,
+		}
+	}
 	config := nbhttp.Config{
 		Network: "tcp",
-		Addrs:   []string{configs.Config.Customer.ListenAddress},
-		Handler: mux,
+		Name:    "customer",
 		MaxLoad: configs.Config.Customer.MaxOnlineNum,
 	}
-	config.Name = "customer"
+	if tlsConfig == nil {
+		config.Addrs = []string{configs.Config.Customer.ListenAddress}
+	} else {
+		config.AddrsTLS = []string{configs.Config.Customer.ListenAddress}
+		config.TLSConfig = tlsConfig
+	}
+	mux := &http.ServeMux{}
+	mux.HandleFunc(configs.Config.Customer.HandlePattern, onWebsocket)
+	config.Handler = mux
 	server = nbhttp.NewServer(config)
 	err := server.Start()
 	if err != nil {
