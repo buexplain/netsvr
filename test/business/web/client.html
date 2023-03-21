@@ -286,7 +286,8 @@
                        value="我是一条发布信息">
             </label>
             <label>
-                <input type="text" name="topic" data-processor="processorToString" placeholder="请输入要发布的主题"
+                <input type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要发布的主题，多个用逗号分割"
                        value="戏曲频道">
             </label>
             <button onclick="send(this,routerCmd.topicPublish)">发布</button>

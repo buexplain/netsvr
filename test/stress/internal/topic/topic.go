@@ -90,12 +90,14 @@ func (r *pool) Unsubscribe() {
 		ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic()})
 	}
 }
+
+// Publish 发布主题
 func (r *pool) Publish(message string) {
 	r.Mux.RLock()
 	defer r.Mux.RUnlock()
 	var ws *wsClient.Client
 	for _, ws = range r.P {
-		ws.Send(protocol.RouterTopicPublish, map[string]string{"topic": ws.GetTopic(), "message": message})
+		ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": []string{ws.GetTopic()}, "message": message})
 	}
 }
 
@@ -143,7 +145,7 @@ func Run(wg *sync.WaitGroup) {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
-	log.Logger.Info().Str("topic", strings.Join(Pool.waitPublish(), ",")).Msg("发布的主题")
+	log.Logger.Info().Str("topics", strings.Join(Pool.waitPublish(), ",")).Msg("发布的主题")
 	go func() {
 		<-quit.Ctx.Done()
 		Pool.Close()

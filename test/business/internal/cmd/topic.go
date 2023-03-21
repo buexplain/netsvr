@@ -299,7 +299,7 @@ func (topic) RequestTopicUnsubscribe(tf *netsvrProtocol.Transfer, param string, 
 // TopicPublishParam 客户端发送的发布信息
 type TopicPublishParam struct {
 	Message string
-	Topic   string
+	Topics  []string
 }
 
 // RequestTopicPublish 处理客户的发布请求
@@ -319,7 +319,7 @@ func (topic) RequestTopicPublish(tf *netsvrProtocol.Transfer, param string, proc
 	}
 	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
 	ret := &netsvrProtocol.TopicPublish{}
-	ret.Topic = target.Topic
+	ret.Topics = target.Topics
 	ret.Data = testUtils.NewResponse(protocol.RouterTopicPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_TopicPublish

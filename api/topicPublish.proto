@@ -23,7 +23,7 @@ option go_package = "pkg/protocol;protocol";
 //business向worker请求，给某个主题发布信息
 message TopicPublish {
   //目标主题
-  string topic = 1;
+  repeated string topics = 1;
   //需要发给客户的数据
   bytes data = 2;
 }

@@ -33,17 +33,19 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicPublish failed")
 		return
 	}
-	if len(payload.Data) == 0 || payload.Topic == "" {
+	if len(payload.Data) == 0 {
 		return
 	}
-	uniqIds := topic.Topic.GetUniqIds(payload.Topic)
-	for _, uniqId := range uniqIds {
-		conn := manager.Manager.Get(uniqId)
-		if conn == nil {
-			continue
-		}
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
-			_ = conn.Close()
+	for _, t := range payload.Topics {
+		uniqIds := topic.Topic.GetUniqIds(t)
+		for _, uniqId := range uniqIds {
+			conn := manager.Manager.Get(uniqId)
+			if conn == nil {
+				continue
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+				_ = conn.Close()
+			}
 		}
 	}
 }
