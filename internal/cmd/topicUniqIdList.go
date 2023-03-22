@@ -17,11 +17,11 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	netsvrProtocol "netsvr/pkg/protocol"
 )
 
 // TopicUniqIdList 获取网关中某个主题包含的uniqId

@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
@@ -24,13 +25,12 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 	"time"
 )
 
 // ForceOfflineGuest 强制关闭某个空session值的连接
 func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.ForceOfflineGuest{}
+	payload := &netsvrProtocol.ForceOfflineGuest{}
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOfflineGuest failed")
 		return

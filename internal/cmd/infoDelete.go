@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
@@ -25,12 +26,11 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 )
 
 // InfoDelete 删除连接的info信息
 func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.InfoDelete{}
+	payload := &netsvrProtocol.InfoDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoDelete failed")
 		return

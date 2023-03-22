@@ -17,11 +17,11 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	netsvrProtocol "netsvr/pkg/protocol"
 )
 
 // Limit 更新限流配置、获取网关中的限流配置的真实情况

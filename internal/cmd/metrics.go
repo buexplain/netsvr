@@ -17,11 +17,11 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	workerManager "netsvr/internal/worker/manager"
-	netsvrProtocol "netsvr/pkg/protocol"
 )
 
 // Metrics 返回网关统计的服务状态

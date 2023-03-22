@@ -17,8 +17,8 @@
 package metrics
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	gMetrics "github.com/rcrowley/go-metrics"
-	"netsvr/pkg/protocol"
 )
 
 type Status struct {
@@ -30,11 +30,11 @@ type Status struct {
 	Rate15Max   gMetrics.Gauge
 }
 
-func (r *Status) ToStatusResp() *protocol.MetricsStatusResp {
+func (r *Status) ToStatusResp() *netsvrProtocol.MetricsStatusResp {
 	if _, ok := r.Meter.(gMetrics.NilMeter); ok {
 		return nil
 	}
-	ret := protocol.MetricsStatusResp{}
+	ret := netsvrProtocol.MetricsStatusResp{}
 	r.recordMax()
 	ret.Count = r.Meter.Count()
 	sp := r.Meter.Snapshot()

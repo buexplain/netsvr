@@ -17,23 +17,23 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/constant"
-	"netsvr/pkg/protocol"
 )
 
 // Register 注册business进程
 func Register(param []byte, processor *workerManager.ConnProcessor) {
-	payload := protocol.Register{}
+	payload := netsvrProtocol.Register{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Register failed")
 		return
 	}
 	//检查workerId是否在允许的范围内
-	if constant.MinWorkerId > payload.Id || payload.Id > constant.MaxWorkerId {
-		log.Logger.Error().Int32("workerId", payload.Id).Int("minWorkerId", constant.MinWorkerId).Int("maxWorkerId", constant.MaxWorkerId).Msg("WorkerId range overflow")
+	if constant.WorkerIdMin > payload.Id || payload.Id > constant.WorkerIdMax {
+		log.Logger.Error().Int32("workerId", payload.Id).Int("workerIdMin", constant.WorkerIdMin).Int("workerIdMax", constant.WorkerIdMax).Msg("WorkerId range overflow")
 		processor.ForceClose()
 		return
 	}

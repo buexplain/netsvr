@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
@@ -25,13 +26,12 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 	"time"
 )
 
 // InfoUpdate 更新连接的info信息
 func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.InfoUpdate{}
+	payload := &netsvrProtocol.InfoUpdate{}
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoUpdate failed")
 		return

@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
@@ -24,12 +25,11 @@ import (
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 )
 
 // TopicDelete 删除主题
 func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.TopicDelete{}
+	payload := &netsvrProtocol.TopicDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicDelete failed")
 		return

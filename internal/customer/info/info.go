@@ -18,7 +18,7 @@
 package info
 
 import (
-	netsvrProtocol "netsvr/pkg/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"sync"
 )
 

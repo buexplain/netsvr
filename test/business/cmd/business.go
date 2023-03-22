@@ -19,10 +19,10 @@ package main
 
 import (
 	_ "embed"
+	"github.com/buexplain/netsvr-protocol-go/constant"
 	"html/template"
 	"net"
 	"net/http"
-	"netsvr/pkg/constant"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"

@@ -17,11 +17,11 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	netsvrProtocol "netsvr/pkg/protocol"
 )
 
 // UniqIdCount 获取网关中uniqId的数量

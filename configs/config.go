@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/BurntSushi/toml"
+	"github.com/buexplain/netsvr-protocol-go/constant"
 	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
-	"netsvr/pkg/constant"
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
@@ -149,13 +149,13 @@ func init() {
 		Config.Metrics.MaxRecordInterval = time.Second * 10
 	}
 	//允许设置为0，表示不关心连接的打开
-	if Config.Customer.ConnOpenWorkerId < constant.MinWorkerId-1 || Config.Customer.ConnOpenWorkerId > constant.MaxWorkerId {
-		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId-1, constant.MaxWorkerId)
+	if Config.Customer.ConnOpenWorkerId < constant.WorkerIdMin-1 || Config.Customer.ConnOpenWorkerId > constant.WorkerIdMax {
+		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", constant.WorkerIdMin-1, constant.WorkerIdMax)
 		os.Exit(1)
 	}
 	//允许设置为0，表示不关心连接的关闭
-	if Config.Customer.ConnCloseWorkerId < constant.MinWorkerId-1 || Config.Customer.ConnCloseWorkerId > constant.MaxWorkerId {
-		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.MinWorkerId-1, constant.MaxWorkerId)
+	if Config.Customer.ConnCloseWorkerId < constant.WorkerIdMin-1 || Config.Customer.ConnCloseWorkerId > constant.WorkerIdMax {
+		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", constant.WorkerIdMin-1, constant.WorkerIdMax)
 		os.Exit(1)
 	}
 	fileIsExist := func(path string) bool {

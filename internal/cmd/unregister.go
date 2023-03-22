@@ -17,15 +17,15 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/constant"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/constant"
 )
 
 // Unregister business取消已注册的workerId
 func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
-	if constant.MinWorkerId <= workerId && workerId <= constant.MaxWorkerId {
+	if constant.WorkerIdMin <= workerId && workerId <= constant.WorkerIdMax {
 		workerManager.Manager.Del(workerId, processor)
 		log.Logger.Info().Int32("workerId", workerId).Msg("Unregister a business")
 	}

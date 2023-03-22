@@ -21,6 +21,8 @@ package customer
 import (
 	"bytes"
 	"context"
+	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -35,8 +37,6 @@ import (
 	"netsvr/internal/metrics"
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/constant"
-	netsvrProtocol "netsvr/pkg/protocol"
 	"netsvr/pkg/quit"
 	"os"
 	"strings"

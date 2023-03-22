@@ -20,11 +20,11 @@
 package limit
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"golang.org/x/time/rate"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"netsvr/pkg/constant"
-	"netsvr/pkg/protocol"
 	"os"
 )
 
@@ -44,10 +44,10 @@ func (nilLimit) Allow() bool {
 func (nilLimit) SetLimit(_ rate.Limit) {
 }
 
-type manager [constant.MaxWorkerId + 1]limiter
+type manager [constant.WorkerIdMax + 1]limiter
 
 func (r manager) Allow(workerId int) bool {
-	if workerId < constant.MinWorkerId || workerId > constant.MaxWorkerId {
+	if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
 		return false
 	}
 	return r[workerId].Allow()
@@ -62,7 +62,7 @@ func (r manager) SetLimits(num int32, workerIds []int32) {
 	notes := map[*rate.Limiter]struct{}{}
 	for _, workerId := range workerIds {
 		//无效参数，不予处理
-		if workerId < constant.MinWorkerId || workerId > constant.MaxWorkerId {
+		if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
 			continue
 		}
 		l := r[workerId]
@@ -82,8 +82,8 @@ func (r manager) SetLimits(num int32, workerIds []int32) {
 	}
 }
 
-func (r manager) Count() []*protocol.LimitCountItem {
-	notes := map[*rate.Limiter]*protocol.LimitCountItem{}
+func (r manager) Count() []*netsvrProtocol.LimitCountItem {
+	notes := map[*rate.Limiter]*netsvrProtocol.LimitCountItem{}
 	for workerId, l := range r {
 		//是个空壳子限流器，不予处理
 		if _, ok := l.(nilLimit); ok {
@@ -95,11 +95,11 @@ func (r manager) Count() []*protocol.LimitCountItem {
 			continue
 		}
 		if _, ok = notes[rl]; !ok {
-			notes[rl] = &protocol.LimitCountItem{Num: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
+			notes[rl] = &netsvrProtocol.LimitCountItem{Num: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
 		}
 		notes[rl].WorkerIds = append(notes[rl].WorkerIds, int32(workerId))
 	}
-	items := make([]*protocol.LimitCountItem, 0, len(notes))
+	items := make([]*netsvrProtocol.LimitCountItem, 0, len(notes))
 	for _, v := range notes {
 		items = append(items, v)
 	}
@@ -114,8 +114,8 @@ func init() {
 	for _, v := range configs.Config.Limit {
 		var l limiter
 		for workerId := v.Min; workerId <= v.Max; workerId++ {
-			if workerId < constant.MinWorkerId || workerId > constant.MaxWorkerId {
-				log.Logger.Error().Int("workerId", workerId).Int("minWorkerId", constant.MinWorkerId).Int("maxWorkerId", constant.MaxWorkerId).Msg("Limit workerId range overflow")
+			if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
+				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", constant.WorkerIdMin).Int("workerIdMax", constant.WorkerIdMax).Msg("Limit workerId range overflow")
 				os.Exit(1)
 			}
 			if v.Num <= 0 {
@@ -136,7 +136,7 @@ func init() {
 	}
 	//填充满整个数组
 	l := nilLimit{}
-	for i := constant.MinWorkerId; i <= constant.MaxWorkerId; i++ {
+	for i := constant.WorkerIdMin; i <= constant.WorkerIdMax; i++ {
 		if Manager[i] == nil {
 			Manager[i] = l
 		}

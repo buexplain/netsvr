@@ -17,17 +17,17 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 )
 
 // Broadcast 广播
 func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
-	payload := protocol.Broadcast{}
+	payload := netsvrProtocol.Broadcast{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Broadcast failed")
 		return

@@ -17,19 +17,19 @@
 package cmd
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
-	"netsvr/pkg/protocol"
 	"time"
 )
 
 // ForceOffline 将连接强制关闭
 func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &protocol.ForceOffline{}
+	payload := &netsvrProtocol.ForceOffline{}
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOffline failed")
 		return
