@@ -93,7 +93,7 @@ func (r *ConnProcessor) GetCloseCh() <-chan struct{} {
 	return r.closeCh
 }
 
-// ForceClose 强制关闭
+// ForceClose 优雅的强制关闭，发给worker的数据会被丢弃，worker发来的数据会被处理
 func (r *ConnProcessor) ForceClose() {
 	defer func() {
 		_ = recover()
@@ -106,6 +106,7 @@ func (r *ConnProcessor) ForceClose() {
 		close(r.closeCh)
 		//因为生产者协程(r.sendCh <- data)可能被阻塞，而没有收到关闭信号，所以要丢弃数据，直到所有生产者不再阻塞
 		//因为r.sendCh是空的，所以消费者协程可能阻塞，所以要丢弃数据，直到判断出管子是空的，再关闭管子，让消费者协程感知管子已经关闭，可以退出协程
+		//这里丢弃的数据有可能是让worker发给客户的，也有可能是只给worker的
 		for {
 			select {
 			case _, ok := <-r.sendCh:
@@ -196,6 +197,8 @@ func (r *ConnProcessor) Send(data []byte) {
 
 func (r *ConnProcessor) LoopReceive() {
 	defer func() {
+		//关闭数据管道，不再生产数据进去，让消费者协程退出
+		close(r.receiveCh)
 		//打印日志信息
 		if err := recover(); err != nil {
 			quit.Execute("Business receive coroutine error")
@@ -248,29 +251,16 @@ func (r *ConnProcessor) LoopReceive() {
 			continue
 		}
 		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Business receive worker command")
-		select {
-		case <-r.closeCh:
-			//收到关闭信号，不再生产，进入丢弃数据逻辑
-			//如果是强制关闭，则这里会触发错误，直接退出
-			//如果是优雅关闭，则这里会不断读取连接中的数据，直到r.sendCh、r.receiveCh被消费干净，进而关闭r.conn，导致这里触发错误退出
-			for {
-				if err := r.conn.SetReadDeadline(time.Now().Add(time.Second * 60)); err != nil {
-					return
-				}
-				dataBuf = dataBuf[:0]
-				if _, err := io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
-					return
-				}
-			}
-		default:
-			r.receiveCh <- router
-		}
+		r.receiveCh <- router
 	}
 }
 
 // LoopCmd 循环处理worker发来的各种请求命令
 func (r *ConnProcessor) LoopCmd() {
+	//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
+	quit.Wg.Add(1)
 	defer func() {
+		quit.Wg.Done()
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("workerId", r.workerId).Msg("Business cmd coroutine is closed")
 			time.Sleep(5 * time.Second)

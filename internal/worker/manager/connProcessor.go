@@ -26,6 +26,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/pkg/constant"
 	netsvrProtocol "netsvr/pkg/protocol"
+	"netsvr/pkg/quit"
 	"sync/atomic"
 	"time"
 )
@@ -67,7 +68,7 @@ func (r *ConnProcessor) GetCloseCh() <-chan struct{} {
 	return r.closeCh
 }
 
-// ForceClose 强制关闭
+// ForceClose 优雅的强制关闭，发给business的数据会被丢弃，business发来的数据会被处理
 func (r *ConnProcessor) ForceClose() {
 	defer func() {
 		_ = recover()
@@ -80,6 +81,7 @@ func (r *ConnProcessor) ForceClose() {
 		close(r.closeCh)
 		//因为生产者协程(r.sendCh <- data)可能被阻塞，而没有收到关闭信号，所以要丢弃数据，直到所有生产者不再阻塞
 		//因为r.sendCh是空的，所以消费者协程可能阻塞，所以要丢弃数据，直到判断出管子是空的，再关闭管子，让消费者协程感知管子已经关闭，可以退出协程
+		//这里丢弃的数据有可能是客户发的，也有可能是只给business的
 		for {
 			select {
 			case _, ok := <-r.sendCh:
@@ -171,7 +173,7 @@ func (r *ConnProcessor) Send(data []byte) {
 
 func (r *ConnProcessor) LoopReceive() {
 	defer func() {
-		//关闭数据管道，让消费者协程退出
+		//关闭数据管道，不再生产数据进去，让消费者协程退出
 		close(r.receiveCh)
 		//也许business没有主动发送注销指令，只是关闭了连接，所以这里必须去操作一次注销函数，确保business连接从连接管理器中移除，不再接受的数据转发
 		if unregisterWorker, ok := r.cmdCallback[netsvrProtocol.Cmd_Unregister]; ok {
@@ -236,19 +238,16 @@ func (r *ConnProcessor) LoopReceive() {
 			continue
 		}
 		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Worker receive business command")
-		select {
-		case <-r.closeCh:
-			//收到关闭信号，不再生产数据
-			return
-		default:
-			r.receiveCh <- router
-		}
+		r.receiveCh <- router
 	}
 }
 
 // LoopCmd 循环处理business发来的各种请求命令
 func (r *ConnProcessor) LoopCmd() {
+	//添加到进程结束时的等待中，这样business发来的数据都会被处理完毕
+	quit.Wg.Add(1)
 	defer func() {
+		quit.Wg.Done()
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("workerId", r.GetWorkerId()).Msg("Worker cmd coroutine is closed")
 			time.Sleep(5 * time.Second)

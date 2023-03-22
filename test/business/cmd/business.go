@@ -81,7 +81,7 @@ func main() {
 		<-quit.Ctx.Done()
 		//取消注册
 		processor.UnregisterWorker()
-		//优雅关闭
+		//优雅的强制关闭
 		processor.ForceClose()
 	}()
 	//开始关闭进程
@@ -93,7 +93,6 @@ func main() {
 		quit.Cancel()
 		//等待协程退出
 		quit.Wg.Wait()
-		processor.ForceClose()
 		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("关闭business进程成功")
 		os.Exit(0)
 	}
