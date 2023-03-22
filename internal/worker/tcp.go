@@ -19,7 +19,7 @@
 package worker
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"

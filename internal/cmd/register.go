@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/constant"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -32,8 +31,8 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	//检查workerId是否在允许的范围内
-	if constant.WorkerIdMin > payload.Id || payload.Id > constant.WorkerIdMax {
-		log.Logger.Error().Int32("workerId", payload.Id).Int("workerIdMin", constant.WorkerIdMin).Int("workerIdMax", constant.WorkerIdMax).Msg("WorkerId range overflow")
+	if netsvrProtocol.WorkerIdMin > payload.Id || payload.Id > netsvrProtocol.WorkerIdMax {
+		log.Logger.Error().Int32("workerId", payload.Id).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow")
 		processor.ForceClose()
 		return
 	}

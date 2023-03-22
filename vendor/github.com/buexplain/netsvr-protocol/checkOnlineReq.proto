@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.checkOnlineReq;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，检查网关中是否包含某几个uniqId
 message CheckOnlineReq {

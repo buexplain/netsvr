@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.limitResp;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //business向worker请求，返回网关中的限流配置的真实情况
 message LimitResp {

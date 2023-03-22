@@ -19,7 +19,7 @@ package wsClient
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
 	"netsvr/pkg/quit"
@@ -123,7 +123,7 @@ func (r *Client) Heartbeat() {
 	case <-r.close:
 		return
 	default:
-		r.sendCh <- constant.PingMessage
+		r.sendCh <- netsvrProtocol.PingMessage
 	}
 }
 
@@ -241,7 +241,7 @@ func (r *Client) LoopRead() {
 				r.Close()
 				return
 			}
-			if bytes.Equal(p, constant.PongMessage) {
+			if bytes.Equal(p, netsvrProtocol.PongMessage) {
 				return
 			}
 			ret := gjson.GetManyBytes(p, "cmd", "data")

@@ -19,7 +19,7 @@ package main
 
 import (
 	_ "embed"
-	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"html/template"
 	"net"
 	"net/http"
@@ -113,8 +113,8 @@ func clientServer() {
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)
 		}
-		data["pingMessage"] = string(constant.PingMessage)
-		data["pongMessage"] = string(constant.PongMessage)
+		data["pingMessage"] = string(netsvrProtocol.PingMessage)
+		data["pongMessage"] = string(netsvrProtocol.PongMessage)
 		err = t.Execute(writer, data)
 		if err != nil {
 			log.Logger.Error().Msgf("模板输出失败：%s", err)

@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.register;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //business向worker请求，注册自己，注册成功后，当网关收到客户发送的信息的时候，会转发客户发送的信息到business
 //如果不想接收来自客户的信息，只是与网关交互，可以不发起注册指令

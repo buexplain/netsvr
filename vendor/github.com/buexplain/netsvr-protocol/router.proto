@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.router;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
 enum Cmd {

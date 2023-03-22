@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.topicSubscribe;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //business向worker请求，进行订阅操作
 message TopicSubscribe {

@@ -18,7 +18,9 @@ syntax = "proto3";
 
 package netsvr.transfer;
 
-option go_package = "protocol/";
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker转发客户发送的信息到business
 message Transfer {

@@ -20,8 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/constant"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -84,7 +83,7 @@ func (r *ConnProcessor) LoopHeartbeat() {
 			return
 		case <-t.C:
 			//这个心跳一定要发，否则服务端会把连接干掉
-			r.Send(constant.PingMessage)
+			r.Send(netsvrProtocol.PingMessage)
 		}
 	}
 }
@@ -242,7 +241,7 @@ func (r *ConnProcessor) LoopReceive() {
 			break
 		}
 		//worker响应心跳
-		if bytes.Equal(constant.PongMessage, dataBuf[0:dataLen]) {
+		if bytes.Equal(netsvrProtocol.PongMessage, dataBuf[0:dataLen]) {
 			continue
 		}
 		router := &netsvrProtocol.Router{}

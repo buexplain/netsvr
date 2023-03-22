@@ -17,7 +17,7 @@
 package manager
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -64,23 +64,23 @@ func (r *collect) Del(conn *ConnProcessor) {
 	}
 }
 
-type manager [constant.WorkerIdMax + 1]*collect
+type manager [netsvrProtocol.WorkerIdMax + 1]*collect
 
 func (r manager) Get(workerId int) *ConnProcessor {
-	if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
+	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
 		return nil
 	}
 	return r[workerId].Get()
 }
 
 func (r manager) Set(workerId int32, conn *ConnProcessor) {
-	if workerId >= constant.WorkerIdMin && workerId <= constant.WorkerIdMax {
+	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
 		r[workerId].Set(conn)
 	}
 }
 
 func (r manager) Del(workerId int32, conn *ConnProcessor) {
-	if workerId >= constant.WorkerIdMin && workerId <= constant.WorkerIdMax {
+	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
 		r[workerId].Del(conn)
 	}
 }
@@ -89,7 +89,7 @@ func (r manager) Del(workerId int32, conn *ConnProcessor) {
 var Manager manager
 
 func init() {
-	for i := constant.WorkerIdMin; i <= constant.WorkerIdMax; i++ {
+	for i := netsvrProtocol.WorkerIdMin; i <= netsvrProtocol.WorkerIdMax; i++ {
 		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
 		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint32(), mux: &sync.RWMutex{}}
 	}

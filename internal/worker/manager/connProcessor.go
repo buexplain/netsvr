@@ -19,8 +19,7 @@ package manager
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/constant"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -227,9 +226,9 @@ func (r *ConnProcessor) LoopReceive() {
 			break
 		}
 		//business发来心跳
-		if bytes.Equal(constant.PingMessage, dataBuf[0:dataLen]) {
+		if bytes.Equal(netsvrProtocol.PingMessage, dataBuf[0:dataLen]) {
 			//响应business的心跳
-			r.Send(constant.PongMessage)
+			r.Send(netsvrProtocol.PongMessage)
 			continue
 		}
 		router := &netsvrProtocol.Router{}

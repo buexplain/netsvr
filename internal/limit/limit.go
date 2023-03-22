@@ -20,8 +20,7 @@
 package limit
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/constant"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"golang.org/x/time/rate"
 	"netsvr/configs"
 	"netsvr/internal/log"
@@ -44,10 +43,10 @@ func (nilLimit) Allow() bool {
 func (nilLimit) SetLimit(_ rate.Limit) {
 }
 
-type manager [constant.WorkerIdMax + 1]limiter
+type manager [netsvrProtocol.WorkerIdMax + 1]limiter
 
 func (r manager) Allow(workerId int) bool {
-	if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
+	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
 		return false
 	}
 	return r[workerId].Allow()
@@ -62,7 +61,7 @@ func (r manager) SetLimits(num int32, workerIds []int32) {
 	notes := map[*rate.Limiter]struct{}{}
 	for _, workerId := range workerIds {
 		//无效参数，不予处理
-		if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
+		if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
 			continue
 		}
 		l := r[workerId]
@@ -114,8 +113,8 @@ func init() {
 	for _, v := range configs.Config.Limit {
 		var l limiter
 		for workerId := v.Min; workerId <= v.Max; workerId++ {
-			if workerId < constant.WorkerIdMin || workerId > constant.WorkerIdMax {
-				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", constant.WorkerIdMin).Int("workerIdMax", constant.WorkerIdMax).Msg("Limit workerId range overflow")
+			if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
+				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("Limit workerId range overflow")
 				os.Exit(1)
 			}
 			if v.Num <= 0 {
@@ -136,7 +135,7 @@ func init() {
 	}
 	//填充满整个数组
 	l := nilLimit{}
-	for i := constant.WorkerIdMin; i <= constant.WorkerIdMax; i++ {
+	for i := netsvrProtocol.WorkerIdMin; i <= netsvrProtocol.WorkerIdMax; i++ {
 		if Manager[i] == nil {
 			Manager[i] = l
 		}

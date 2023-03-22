@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/constant"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -25,7 +25,7 @@ import (
 // Unregister business取消已注册的workerId
 func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
-	if constant.WorkerIdMin <= workerId && workerId <= constant.WorkerIdMax {
+	if netsvrProtocol.WorkerIdMin <= workerId && workerId <= netsvrProtocol.WorkerIdMax {
 		workerManager.Manager.Del(workerId, processor)
 		log.Logger.Info().Int32("workerId", workerId).Msg("Unregister a business")
 	}

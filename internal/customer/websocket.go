@@ -21,8 +21,7 @@ package customer
 import (
 	"bytes"
 	"context"
-	"github.com/buexplain/netsvr-protocol-go/constant"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/protocol"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -177,7 +176,7 @@ func pongMessageHandler(_ *websocket.Conn, _ string) {
 // pong客户端心跳帧
 func pingMessageHandler(conn *websocket.Conn, _ string) {
 	//响应客户端心跳
-	err := conn.WriteMessage(websocket.PongMessage, constant.PongMessage)
+	err := conn.WriteMessage(websocket.PongMessage, netsvrProtocol.PongMessage)
 	if err != nil {
 		_ = conn.Close()
 	}
@@ -231,9 +230,9 @@ func onClose(conn *websocket.Conn, _ error) {
 
 func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
-	if bytes.Equal(data, constant.PingMessage) {
+	if bytes.Equal(data, netsvrProtocol.PingMessage) {
 		//响应客户端心跳
-		err := conn.WriteMessage(websocket.TextMessage, constant.PongMessage)
+		err := conn.WriteMessage(websocket.TextMessage, netsvrProtocol.PongMessage)
 		if err != nil {
 			_ = conn.Close()
 		}
