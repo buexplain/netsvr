@@ -10,14 +10,14 @@ Heartbeat = 30
 Concurrent = true
 # 当所有连接建立完毕后的持续时间，单位秒
 Suspend = 300
-# 沉默的连接
+# 沉默的连接，除了发心跳，其它啥也不发
 [Silent]
 Enable = true
 Step = [
     #每个阶段初始化的连接数、每秒初始化的连接数、本阶段初始化完毕后的暂停秒数
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
 ]
 
 # 疯狂登录登出的连接
@@ -26,9 +26,9 @@ Enable = true
 # 间隔多少秒进行一次所有连接的登录登出操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
 ]
 
 # 疯狂单播的连接
@@ -39,9 +39,9 @@ MessageLen = 0
 # 间隔多少秒进行一次所有连接的单播
 MessageInterval = 6
 Step = [
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
 ]
 
 # 疯狂组播的连接
@@ -52,9 +52,9 @@ MessageLen = 0
 UniqIdNum = 10
 MessageInterval = 7
 Step = [
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
 ]
 
 # 疯狂订阅、取消订阅、发布
@@ -63,9 +63,9 @@ Enable = true
 MessageInterval = 8
 MessageLen = 0
 Step = [
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
 ]
 
 # 疯狂广播的连接

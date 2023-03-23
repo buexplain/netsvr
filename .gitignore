@@ -3,6 +3,6 @@
 *business.toml
 *stress.toml
 build
-log/netSvr.log
+netSvr.log
 rsa.cert
 rsa.key
