@@ -49,6 +49,7 @@ var dataTooLarge = []byte("Data too large")
 
 func Start() {
 	var tlsConfig *tls.Config
+	var connAddr string
 	if configs.Config.Customer.TLSKey != "" || configs.Config.Customer.TLSCert != "" {
 		cert, err := tls.LoadX509KeyPair(configs.Config.Customer.TLSCert, configs.Config.Customer.TLSKey)
 		if err != nil {
@@ -67,9 +68,11 @@ func Start() {
 	}
 	if tlsConfig == nil {
 		config.Addrs = []string{configs.Config.Customer.ListenAddress}
+		connAddr = "ws://" + configs.Config.Customer.ListenAddress + configs.Config.Customer.HandlePattern
 	} else {
 		config.AddrsTLS = []string{configs.Config.Customer.ListenAddress}
 		config.TLSConfig = tlsConfig
+		connAddr = "wss://" + configs.Config.Customer.ListenAddress + configs.Config.Customer.HandlePattern
 	}
 	mux := &http.ServeMux{}
 	mux.HandleFunc(configs.Config.Customer.HandlePattern, onWebsocket)
@@ -82,7 +85,7 @@ func Start() {
 		os.Exit(1)
 		return
 	}
-	log.Logger.Info().Msg("Customer websocket start")
+	log.Logger.Info().Msgf("Customer websocket start %s", connAddr)
 }
 
 func Shutdown() {

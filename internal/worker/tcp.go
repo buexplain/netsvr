@@ -121,7 +121,7 @@ func Start() {
 	server = &Server{
 		listener: listen,
 	}
-	log.Logger.Info().Msg("Worker tcp start")
+	log.Logger.Info().Msgf("Worker tcp start tcp://%s", configs.Config.Worker.ListenAddress)
 	server.Start()
 }
 

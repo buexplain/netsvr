@@ -66,12 +66,10 @@ func NewLoggingSubstitute(zero *zerolog.Logger) logging.Logger {
 func (r *loggingSubstitute) SetLevel(_ int) {
 }
 
-func (r *loggingSubstitute) Debug(format string, v ...interface{}) {
-	r.zero.Debug().CallerSkipFrame(2).Msgf(format, v...)
+func (r *loggingSubstitute) Debug(_ string, _ ...interface{}) {
 }
 
-func (r *loggingSubstitute) Info(format string, v ...interface{}) {
-	r.zero.Info().CallerSkipFrame(2).Msgf(format, v...)
+func (r *loggingSubstitute) Info(_ string, _ ...interface{}) {
 }
 
 func (r *loggingSubstitute) Warn(format string, v ...interface{}) {
