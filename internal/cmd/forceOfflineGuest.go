@@ -32,7 +32,7 @@ import (
 func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.ForceOfflineGuest{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOfflineGuest failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ForceOfflineGuest failed")
 		return
 	}
 	if len(payload.UniqIds) == 0 {

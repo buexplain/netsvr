@@ -28,7 +28,7 @@ import (
 func TopicCount(param []byte, processor *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.TopicCountReq{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicCountReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicCountReq failed")
 		return
 	}
 	ret := &netsvrProtocol.TopicCountResp{}

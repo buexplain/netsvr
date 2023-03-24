@@ -33,7 +33,7 @@ import (
 func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.InfoUpdate{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoUpdate failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.InfoUpdate failed")
 		return
 	}
 	if payload.UniqId == "" {

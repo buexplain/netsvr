@@ -29,7 +29,7 @@ import (
 func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.Multicast{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Multicast failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Multicast failed")
 		return
 	}
 	if len(payload.Data) == 0 {

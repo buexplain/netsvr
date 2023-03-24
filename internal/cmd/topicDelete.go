@@ -31,7 +31,7 @@ import (
 func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.TopicDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicDelete failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicDelete failed")
 		return
 	}
 	//topic --> []uniqId

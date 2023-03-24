@@ -28,7 +28,7 @@ import (
 func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.TopicUniqIdCountReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUniqIdCountReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUniqIdCountReq failed")
 		return
 	}
 	if len(payload.Topics) == 0 && payload.CountAll == false {

@@ -31,7 +31,7 @@ import (
 func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.ForceOffline{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.ForceOffline failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ForceOffline failed")
 		return
 	}
 	if len(payload.UniqIds) == 0 {

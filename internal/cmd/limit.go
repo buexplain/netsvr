@@ -28,7 +28,7 @@ import (
 func Limit(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.LimitReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.LimitReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.LimitReq failed")
 		return
 	}
 	//更新限流配置

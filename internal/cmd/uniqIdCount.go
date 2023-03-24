@@ -28,7 +28,7 @@ import (
 func UniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.UniqIdCountReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.UniqIdCountReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.UniqIdCountReq failed")
 		return
 	}
 	ret := &netsvrProtocol.UniqIdCountResp{}

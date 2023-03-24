@@ -32,7 +32,7 @@ import (
 func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.InfoDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.InfoDelete failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.InfoDelete failed")
 		return
 	}
 	if payload.UniqId == "" {

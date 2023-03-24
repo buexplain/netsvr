@@ -31,7 +31,7 @@ import (
 func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.TopicSubscribe{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicSubscribe failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicSubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {

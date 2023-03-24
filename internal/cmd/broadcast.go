@@ -29,7 +29,7 @@ import (
 func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.Broadcast{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Broadcast failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Broadcast failed")
 		return
 	}
 	if len(payload.Data) == 0 {

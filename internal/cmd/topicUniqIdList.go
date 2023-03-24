@@ -28,7 +28,7 @@ import (
 func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.TopicUniqIdListReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUniqIdListReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUniqIdListReq failed")
 		return
 	}
 	if payload.Topic == "" {

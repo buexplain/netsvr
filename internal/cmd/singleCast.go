@@ -29,7 +29,7 @@ import (
 func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.SingleCast{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.SingleCast failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCast failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Data) == 0 {

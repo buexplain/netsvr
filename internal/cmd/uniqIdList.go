@@ -28,7 +28,7 @@ import (
 func UniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.UniqIdListReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.UniqIdListReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.UniqIdListReq failed")
 		return
 	}
 	uniqIds := make([]string, 0, customerManager.Manager.Len())

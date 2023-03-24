@@ -28,7 +28,7 @@ import (
 func TopicList(param []byte, processor *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.TopicListReq{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicListReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicListReq failed")
 		return
 	}
 	ret := &netsvrProtocol.TopicListResp{}

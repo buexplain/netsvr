@@ -28,7 +28,7 @@ import (
 func Metrics(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.MetricsReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.MetricsReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.MetricsReq failed")
 		return
 	}
 	ret := &netsvrProtocol.MetricsResp{}

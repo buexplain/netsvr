@@ -28,7 +28,7 @@ import (
 func CheckOnline(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.CheckOnlineReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.CheckOnlineReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.CheckOnlineReq failed")
 		return
 	}
 	ret := &netsvrProtocol.CheckOnlineResp{}

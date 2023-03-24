@@ -31,7 +31,7 @@ import (
 func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	payload := &netsvrProtocol.TopicUnsubscribe{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.TopicUnsubscribe failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUnsubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {

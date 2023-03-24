@@ -27,7 +27,7 @@ import (
 func Register(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.Register{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal protocol.Register failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Register failed")
 		return
 	}
 	//检查workerId是否在允许的范围内
