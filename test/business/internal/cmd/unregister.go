@@ -18,19 +18,17 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
-	"netsvr/internal/log"
-	workerManager "netsvr/internal/worker/manager"
+	"netsvr/test/business/internal/connProcessor"
 )
 
-// Unregister business取消已注册的workerId
-func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
-	workerId := processor.GetWorkerId()
-	if netsvrProtocol.WorkerIdMin <= workerId && workerId <= netsvrProtocol.WorkerIdMax && workerManager.Manager.Del(workerId, processor) {
-		route := &netsvrProtocol.Router{}
-		route.Cmd = netsvrProtocol.Cmd_Unregister
-		pt, _ := proto.Marshal(route)
-		processor.Send(pt)
-		log.Logger.Info().Int32("workerId", workerId).Msg("Unregister a business")
-	}
+type unregister struct{}
+
+var Unregister = unregister{}
+
+func (r unregister) Init(processor *connProcessor.ConnProcessor) {
+	processor.RegisterWorkerCmd(netsvrProtocol.Cmd_Unregister, r.UnregisterWorkerOk)
+}
+
+func (unregister) UnregisterWorkerOk(_ []byte, processor *connProcessor.ConnProcessor) {
+	processor.UnregisterWorkerOk()
 }

@@ -54,14 +54,16 @@ func (r *collect) Set(conn *ConnProcessor) {
 	}
 }
 
-func (r *collect) Del(conn *ConnProcessor) {
+func (r *collect) Del(conn *ConnProcessor) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for k, v := range r.conn {
 		if v == conn {
 			r.conn = append(r.conn[0:k], r.conn[k+1:]...)
+			return true
 		}
 	}
+	return false
 }
 
 type manager [netsvrProtocol.WorkerIdMax + 1]*collect
@@ -79,10 +81,11 @@ func (r manager) Set(workerId int32, conn *ConnProcessor) {
 	}
 }
 
-func (r manager) Del(workerId int32, conn *ConnProcessor) {
+func (r manager) Del(workerId int32, conn *ConnProcessor) bool {
 	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
-		r[workerId].Del(conn)
+		return r[workerId].Del(conn)
 	}
+	return false
 }
 
 // Manager 管理所有的business连接

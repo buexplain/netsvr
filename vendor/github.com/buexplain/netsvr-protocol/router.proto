@@ -24,41 +24,41 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
 enum Cmd {
-  //毫无意义的占位符，目的是避免枚举从零开始，把指令搞大一点的目的是避免和business的指令段冲突
+  //毫无意义的占位符，目的是避免枚举从零开始，另外把指令搞大一点的目的是避免和business的指令段冲突
   Placeholder = 0;
   //--------------------------------worker单向转发给business的指令 开始--------------------------------
-  Transfer = 90001001;//透传客户数据
+  ConnOpen = 90001001; //连接打开
   ConnClose = 90001002;//连接关闭
-  ConnOpen = 90001003; //连接打开
+  Transfer = 90001003;//透传客户数据
   //--------------------------------worker单向转发给business的指令 结束--------------------------------
 
   //--------------------------------business单向请求worker的指令，worker不会响应business 开始--------------------------------
   Register = 90002001; //注册business到worker，注册后，business会收到worker转发的客户信息
-  Unregister = 90002002; //取消注册，取消后不会再收到客户信息
-  InfoUpdate = 90002003;//更新连接的info信息
-  InfoDelete = 90002004;//删除连接的info信息
-  Broadcast = 90002005; //广播
-  Multicast = 90002006; //组播
-  SingleCast = 90002007;//单播
-  TopicSubscribe = 90002008;//订阅
-  TopicUnsubscribe = 90002009;//取消订阅
-  TopicDelete = 90002010;//删除主题
-  TopicPublish = 90002011;//发布
-  ForceOffline = 90002012;//强制关闭某个连接
-  ForceOfflineGuest = 90002013;//强制关闭某个空session值的连接
+  InfoUpdate = 90002002;//更新连接的info信息
+  InfoDelete = 90002003;//删除连接的info信息
+  Broadcast = 90002004; //广播
+  Multicast = 90002005; //组播
+  SingleCast = 90002006;//单播
+  TopicSubscribe = 90002007;//订阅
+  TopicUnsubscribe = 90002008;//取消订阅
+  TopicDelete = 9000209;//删除主题
+  TopicPublish = 90002010;//发布
+  ForceOffline = 90002011;//强制关闭某个连接
+  ForceOfflineGuest = 90002012;//强制关闭某个空session值的连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 开始--------------------------------
-  CheckOnline = 90003001; //判断uniqId是否在网关中
-  UniqIdList = 90003002; //获取网关中全部的uniqId
-  UniqIdCount = 90003003; //获取网关中uniqId的数量
-  TopicCount = 90003004; //获取网关中的主题数量
-  TopicList = 90003005; //获取网关中的主题
-  TopicUniqIdList = 90003006; //获取网关中某个主题包含的uniqId
-  TopicUniqIdCount = 90003007; //获取网关中的主题包含的连接数
-  Info = 90003008; //获取连接的信息
-  Metrics = 90003009; //获取网关统计的服务状态
-  Limit = 90003010; //更新限流配置、获取网关中的限流配置的真实情况
+  Unregister = 90003001; //取消注册，取消后不会再收到客户信息
+  CheckOnline = 90003002; //判断uniqId是否在网关中
+  UniqIdList = 90003003; //获取网关中全部的uniqId
+  UniqIdCount = 90003004; //获取网关中uniqId的数量
+  TopicCount = 90003005; //获取网关中的主题数量
+  TopicList = 90003006; //获取网关中的主题
+  TopicUniqIdList = 90003007; //获取网关中某个主题包含的uniqId
+  TopicUniqIdCount = 90003008; //获取网关中的主题包含的连接数
+  Info = 90003009; //获取连接的信息
+  Metrics = 900030010; //获取网关统计的服务状态
+  Limit = 90003011; //更新限流配置、获取网关中的限流配置的真实情况
   //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 结束--------------------------------
 }
 
