@@ -2,6 +2,8 @@
 LogLevel = "info"
 # worker服务的监听地址
 WorkerListenAddress = "127.0.0.1:6061"
+# 网关服务唯一编号，如果配置不对，网关会拒绝连接
+ServerId = 0
 # 输出客户端界面的http服务的监听地址
 ClientListenAddress = "127.0.0.1:6063"
 # customer服务的websocket连接地址

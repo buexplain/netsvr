@@ -19,6 +19,8 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"math"
+	"netsvr/configs"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -31,9 +33,15 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	//检查workerId是否在允许的范围内
-	if netsvrProtocol.WorkerIdMin > payload.Id || payload.Id > netsvrProtocol.WorkerIdMax {
-		log.Logger.Error().Int32("workerId", payload.Id).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow")
+	if netsvrProtocol.WorkerIdMin > payload.WorkerId || payload.WorkerId > netsvrProtocol.WorkerIdMax {
+		log.Logger.Error().Int32("workerId", payload.WorkerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow")
 		processor.ForceClose()
+		return
+	}
+	//检查business报出的serverId是否与本网关配置的serverId一致，如果不一致，则断开连接
+	if payload.ServerId > math.MaxUint8 || uint8(payload.ServerId) != configs.Config.ServerId {
+		processor.ForceClose()
+		log.Logger.Error().Uint8("correctServerId", configs.Config.ServerId).Uint32("errorServerId", payload.ServerId).Msg("ServerId is error")
 		return
 	}
 	//检查当前的business连接是否已经注册过workerId了，不允许重复注册
@@ -43,7 +51,7 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	//设置business连接的workerId
-	processor.SetWorkerId(payload.Id)
+	processor.SetWorkerId(payload.WorkerId)
 	//将该workerId登记到worker管理器中
 	workerManager.Manager.Set(processor.GetWorkerId(), processor)
 	//判断该business连接是否要开启更多的协程去处理它发来的请求命令
@@ -53,5 +61,5 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	log.Logger.Debug().Int32("workerId", payload.Id).Msg("Register a business")
+	log.Logger.Debug().Int32("workerId", payload.WorkerId).Msg("Register a business")
 }

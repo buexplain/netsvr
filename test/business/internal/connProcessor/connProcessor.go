@@ -48,6 +48,8 @@ type ConnProcessor struct {
 	receiveCh chan *netsvrProtocol.Router
 	//当前连接的workerId
 	workerId int32
+	//网关服务唯一编号，如果配置不对，网关会拒绝连接
+	serverId uint32
 	//worker发来的各种命令的回调函数
 	workerCmdCallback map[int32]WorkerCmdCallback
 	//客户发来的各种命令的回调函数
@@ -56,7 +58,7 @@ type ConnProcessor struct {
 	unregisterCancel context.CancelFunc
 }
 
-func NewConnProcessor(conn net.Conn, workerId int32) *ConnProcessor {
+func NewConnProcessor(conn net.Conn, workerId int32, serverId uint32) *ConnProcessor {
 	return &ConnProcessor{
 		conn:                conn,
 		closeCh:             make(chan struct{}),
@@ -65,6 +67,7 @@ func NewConnProcessor(conn net.Conn, workerId int32) *ConnProcessor {
 		sendDataLen:         0,
 		receiveCh:           make(chan *netsvrProtocol.Router, 1000),
 		workerId:            workerId,
+		serverId:            serverId,
 		workerCmdCallback:   map[int32]WorkerCmdCallback{},
 		businessCmdCallback: map[protocol.Cmd]BusinessCmdCallback{},
 	}
@@ -334,7 +337,8 @@ func (r *ConnProcessor) RegisterWorker(processCmdGoroutineNum uint32) error {
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_Register
 	reg := &netsvrProtocol.Register{}
-	reg.Id = r.workerId
+	reg.WorkerId = r.workerId
+	reg.ServerId = r.serverId
 	//让worker为我开启n条协程来处理我的请求
 	reg.ProcessCmdGoroutineNum = processCmdGoroutineNum
 	router.Data, _ = proto.Marshal(reg)
