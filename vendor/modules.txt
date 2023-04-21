@@ -8,10 +8,10 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.0.10
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-protocol v0.0.0-20230418054506-b4df180f9e5a
+# github.com/buexplain/netsvr-protocol v0.0.0-20230421063344-01360aeef213
 ## explicit; go 1.20
 github.com/buexplain/netsvr-protocol
-# github.com/buexplain/netsvr-protocol-go v0.0.0-20230418060001-96a2e7d926d5
+# github.com/buexplain/netsvr-protocol-go v0.0.0-20230421065419-37b33182943a
 ## explicit; go 1.20
 github.com/buexplain/netsvr-protocol-go/netsvr
 # github.com/gorilla/websocket v1.5.0

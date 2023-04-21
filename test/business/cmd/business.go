@@ -43,8 +43,8 @@ func main() {
 	go clientServer()
 	processor := connProcessor.NewConnProcessor(conn, configs.Config.WorkerId, configs.Config.ServerId)
 	//注册到worker
-	if err := processor.RegisterWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
-		log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
+	if err = processor.RegisterWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
+		log.Logger.Error().Int32("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
 		os.Exit(1)
 	}
 	log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")

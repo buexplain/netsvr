@@ -27,28 +27,30 @@ import (
 
 // Register 注册business进程
 func Register(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.Register{}
+	payload := netsvrProtocol.RegisterReq{}
+	var ret netsvrProtocol.RegisterResp
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Register failed")
-		return
+		ret.Code = netsvrProtocol.RegisterRespCode_UnmarshalError
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.RegisterReq failed")
+		goto RESPONSE
 	}
 	//检查workerId是否在允许的范围内
 	if netsvrProtocol.WorkerIdMin > payload.WorkerId || payload.WorkerId > netsvrProtocol.WorkerIdMax {
+		ret.Code = netsvrProtocol.RegisterRespCode_WorkerIdOverflow
 		log.Logger.Error().Int32("workerId", payload.WorkerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow")
-		processor.ForceClose()
-		return
+		goto RESPONSE
 	}
 	//检查business报出的serverId是否与本网关配置的serverId一致，如果不一致，则断开连接
 	if payload.ServerId > math.MaxUint8 || uint8(payload.ServerId) != configs.Config.ServerId {
-		processor.ForceClose()
+		ret.Code = netsvrProtocol.RegisterRespCode_ServerIdInconsistent
 		log.Logger.Error().Uint8("correctServerId", configs.Config.ServerId).Uint32("errorServerId", payload.ServerId).Msg("ServerId is error")
-		return
+		goto RESPONSE
 	}
 	//检查当前的business连接是否已经注册过workerId了，不允许重复注册
 	if processor.GetWorkerId() > 0 {
-		processor.ForceClose()
-		log.Logger.Error().Msg("Register are not allowed")
-		return
+		ret.Code = netsvrProtocol.RegisterRespCode_DuplicateRegister
+		log.Logger.Error().Msg("Duplicate register are not allowed")
+		goto RESPONSE
 	}
 	//设置business连接的workerId
 	processor.SetWorkerId(payload.WorkerId)
@@ -61,5 +63,13 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	log.Logger.Debug().Int32("workerId", payload.WorkerId).Msg("Register a business")
+	log.Logger.Debug().Int32("workerId", payload.WorkerId).Msg("Register a business ok")
+	ret.Code = netsvrProtocol.RegisterRespCode_Success
+RESPONSE:
+	ret.Message = ret.Code.String()
+	route := &netsvrProtocol.Router{}
+	route.Cmd = netsvrProtocol.Cmd_Register
+	route.Data, _ = proto.Marshal(&ret)
+	pt, _ := proto.Marshal(route)
+	processor.Send(pt)
 }

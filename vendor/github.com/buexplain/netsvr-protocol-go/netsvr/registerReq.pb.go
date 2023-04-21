@@ -17,7 +17,7 @@
 // versions:
 // 	protoc-gen-go v1.26.0
 // 	protoc        v3.21.12
-// source: register.proto
+// source: registerReq.proto
 
 package netsvr
 
@@ -35,9 +35,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，注册自己，注册成功后，当网关收到客户发送的信息的时候，会转发客户发送的信息到business
+// business向worker请求，注册自己
+// 注册逻辑：检查注册条件后，会给business的连接异步写入注册成功的信息、将business的连接注册到管理器，让business的连接接收网关转发的客户数据，如果注册失败，会返回失败的信息
 // 如果不想接收来自客户的信息，只是与网关交互，可以不发起注册指令
-type Register struct {
+type RegisterReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -51,27 +52,27 @@ type Register struct {
 	// 请根据业务，实际压测一下试试，找到最佳的数量
 	// 请注意worker默认已经开启了一条协程来处理本business的请求，所以该值只有在大于1的时候才会开启更多协程
 	ProcessCmdGoroutineNum uint32 `protobuf:"varint,2,opt,name=processCmdGoroutineNum,proto3" json:"processCmdGoroutineNum,omitempty"`
-	// 网关服务唯一编号，如果该值不对，则网关会拒绝business的注册请求，并断开连接
+	// 网关服务唯一编号，如果该值与网关配置的值对不上号，网关会返回失败的信息
 	ServerId uint32 `protobuf:"varint,3,opt,name=serverId,proto3" json:"serverId,omitempty"`
 }
 
-func (x *Register) Reset() {
-	*x = Register{}
+func (x *RegisterReq) Reset() {
+	*x = RegisterReq{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_register_proto_msgTypes[0]
+		mi := &file_registerReq_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *Register) String() string {
+func (x *RegisterReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Register) ProtoMessage() {}
+func (*RegisterReq) ProtoMessage() {}
 
-func (x *Register) ProtoReflect() protoreflect.Message {
-	mi := &file_register_proto_msgTypes[0]
+func (x *RegisterReq) ProtoReflect() protoreflect.Message {
+	mi := &file_registerReq_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -82,67 +83,68 @@ func (x *Register) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Register.ProtoReflect.Descriptor instead.
-func (*Register) Descriptor() ([]byte, []int) {
-	return file_register_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use RegisterReq.ProtoReflect.Descriptor instead.
+func (*RegisterReq) Descriptor() ([]byte, []int) {
+	return file_registerReq_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Register) GetWorkerId() int32 {
+func (x *RegisterReq) GetWorkerId() int32 {
 	if x != nil {
 		return x.WorkerId
 	}
 	return 0
 }
 
-func (x *Register) GetProcessCmdGoroutineNum() uint32 {
+func (x *RegisterReq) GetProcessCmdGoroutineNum() uint32 {
 	if x != nil {
 		return x.ProcessCmdGoroutineNum
 	}
 	return 0
 }
 
-func (x *Register) GetServerId() uint32 {
+func (x *RegisterReq) GetServerId() uint32 {
 	if x != nil {
 		return x.ServerId
 	}
 	return 0
 }
 
-var File_register_proto protoreflect.FileDescriptor
+var File_registerReq_proto protoreflect.FileDescriptor
 
-var file_register_proto_rawDesc = []byte{
-	0x0a, 0x0e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x12, 0x0f, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65,
-	0x72, 0x22, 0x7a, 0x0a, 0x08, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1a, 0x0a,
-	0x08, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52,
-	0x08, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x49, 0x64, 0x12, 0x36, 0x0a, 0x16, 0x70, 0x72, 0x6f,
-	0x63, 0x65, 0x73, 0x73, 0x43, 0x6d, 0x64, 0x47, 0x6f, 0x72, 0x6f, 0x75, 0x74, 0x69, 0x6e, 0x65,
-	0x4e, 0x75, 0x6d, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x16, 0x70, 0x72, 0x6f, 0x63, 0x65,
-	0x73, 0x73, 0x43, 0x6d, 0x64, 0x47, 0x6f, 0x72, 0x6f, 0x75, 0x74, 0x69, 0x6e, 0x65, 0x4e, 0x75,
-	0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x64, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x0d, 0x52, 0x08, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x64, 0x42, 0x27, 0x5a,
-	0x07, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2f, 0xca, 0x02, 0x06, 0x4e, 0x65, 0x74, 0x73, 0x76,
-	0x72, 0xe2, 0x02, 0x12, 0x4e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65,
-	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+var file_registerReq_proto_rawDesc = []byte{
+	0x0a, 0x11, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x2e, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x12, 0x12, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x72, 0x65, 0x67, 0x69,
+	0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x22, 0x7d, 0x0a, 0x0b, 0x52, 0x65, 0x67, 0x69, 0x73,
+	0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x12, 0x1a, 0x0a, 0x08, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72,
+	0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72,
+	0x49, 0x64, 0x12, 0x36, 0x0a, 0x16, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6d, 0x64,
+	0x47, 0x6f, 0x72, 0x6f, 0x75, 0x74, 0x69, 0x6e, 0x65, 0x4e, 0x75, 0x6d, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x16, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6d, 0x64, 0x47, 0x6f,
+	0x72, 0x6f, 0x75, 0x74, 0x69, 0x6e, 0x65, 0x4e, 0x75, 0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x49, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x49, 0x64, 0x42, 0x27, 0x5a, 0x07, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72,
+	0x2f, 0xca, 0x02, 0x06, 0x4e, 0x65, 0x74, 0x73, 0x76, 0x72, 0xe2, 0x02, 0x12, 0x4e, 0x65, 0x74,
+	0x73, 0x76, 0x72, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_register_proto_rawDescOnce sync.Once
-	file_register_proto_rawDescData = file_register_proto_rawDesc
+	file_registerReq_proto_rawDescOnce sync.Once
+	file_registerReq_proto_rawDescData = file_registerReq_proto_rawDesc
 )
 
-func file_register_proto_rawDescGZIP() []byte {
-	file_register_proto_rawDescOnce.Do(func() {
-		file_register_proto_rawDescData = protoimpl.X.CompressGZIP(file_register_proto_rawDescData)
+func file_registerReq_proto_rawDescGZIP() []byte {
+	file_registerReq_proto_rawDescOnce.Do(func() {
+		file_registerReq_proto_rawDescData = protoimpl.X.CompressGZIP(file_registerReq_proto_rawDescData)
 	})
-	return file_register_proto_rawDescData
+	return file_registerReq_proto_rawDescData
 }
 
-var file_register_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_register_proto_goTypes = []interface{}{
-	(*Register)(nil), // 0: netsvr.register.Register
+var file_registerReq_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_registerReq_proto_goTypes = []interface{}{
+	(*RegisterReq)(nil), // 0: netsvr.registerReq.RegisterReq
 }
-var file_register_proto_depIdxs = []int32{
+var file_registerReq_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -150,14 +152,14 @@ var file_register_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_register_proto_init() }
-func file_register_proto_init() {
-	if File_register_proto != nil {
+func init() { file_registerReq_proto_init() }
+func file_registerReq_proto_init() {
+	if File_registerReq_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_register_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Register); i {
+		file_registerReq_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RegisterReq); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -173,18 +175,18 @@ func file_register_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_register_proto_rawDesc,
+			RawDescriptor: file_registerReq_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_register_proto_goTypes,
-		DependencyIndexes: file_register_proto_depIdxs,
-		MessageInfos:      file_register_proto_msgTypes,
+		GoTypes:           file_registerReq_proto_goTypes,
+		DependencyIndexes: file_registerReq_proto_depIdxs,
+		MessageInfos:      file_registerReq_proto_msgTypes,
 	}.Build()
-	File_register_proto = out.File
-	file_register_proto_rawDesc = nil
-	file_register_proto_goTypes = nil
-	file_register_proto_depIdxs = nil
+	File_registerReq_proto = out.File
+	file_registerReq_proto_rawDesc = nil
+	file_registerReq_proto_goTypes = nil
+	file_registerReq_proto_depIdxs = nil
 }
