@@ -111,15 +111,14 @@ func (r *Info) GetToProtocolTransfer(tf *netsvrProtocol.Transfer) {
 	tf.UniqId = r.uniqId
 }
 
-func (r *Info) GetToProtocolInfoResp(infoResp *netsvrProtocol.InfoResp) {
+func (r *Info) GetToProtocolInfoResp(infoRespConnInfoRespItem *netsvrProtocol.ConnInfoRespItem) {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
-	infoResp.UniqId = r.uniqId
-	infoResp.Session = r.session
+	infoRespConnInfoRespItem.Session = r.session
 	if len(r.topics) > 0 {
-		infoResp.Topics = make([]string, 0, len(r.topics))
+		infoRespConnInfoRespItem.Topics = make([]string, 0, len(r.topics))
 		for topic := range r.topics {
-			infoResp.Topics = append(infoResp.Topics, topic)
+			infoRespConnInfoRespItem.Topics = append(infoRespConnInfoRespItem.Topics, topic)
 		}
 	}
 }

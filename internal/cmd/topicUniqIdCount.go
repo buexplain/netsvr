@@ -19,6 +19,7 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -31,11 +32,8 @@ func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUniqIdCountReq failed")
 		return
 	}
-	if len(payload.Topics) == 0 && payload.CountAll == false {
-		return
-	}
 	ret := &netsvrProtocol.TopicUniqIdCountResp{}
-	ret.CtxData = payload.CtxData
+	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Items = map[string]int32{}
 	if payload.CountAll == true {
 		topic.Topic.CountAll(ret.Items)
@@ -43,7 +41,7 @@ func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 		topic.Topic.Count(payload.Topics, ret.Items)
 	}
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_TopicUniqIdCount
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

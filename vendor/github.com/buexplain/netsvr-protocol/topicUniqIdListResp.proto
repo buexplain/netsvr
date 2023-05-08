@@ -24,10 +24,14 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关中某个主题包含的uniqId
 message TopicUniqIdListResp {
-  //worker原样回传给business
-  bytes ctxData = 1;
-  //当前主题
-  string topic = 2;
+  //网关唯一编号
+  int32 serverId = 1;
+  //key是topic，value是该主题包含的uniqId
+  //如果请求的topic没找到，则items中不会有该topic
+  map<string, TopicUniqIdListRespItem> items = 2;
+}
+
+message TopicUniqIdListRespItem {
   //当前主题包含的uniqId
-  repeated string uniqIds = 3;
+  repeated string uniqIds = 1;
 }

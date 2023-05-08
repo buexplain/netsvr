@@ -16,6 +16,8 @@ github.com/buexplain/netsvr-protocol v0.0.0-20230421052527-957a50173a32 h1:cl7vl
 github.com/buexplain/netsvr-protocol v0.0.0-20230421052527-957a50173a32/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
 github.com/buexplain/netsvr-protocol v0.0.0-20230421063344-01360aeef213 h1:ohEKsChYHly/5flsYD1cvMK+6dpQtjYjoVQ4QiDNk2E=
 github.com/buexplain/netsvr-protocol v0.0.0-20230421063344-01360aeef213/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
+github.com/buexplain/netsvr-protocol v0.0.0-20230430064928-643985dc9651 h1:LW8pc7RmTIV9SPCnOaBTEzfaOqZ9fJTwF1Krpz44Uhw=
+github.com/buexplain/netsvr-protocol v0.0.0-20230430064928-643985dc9651/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230325054344-6e38ec2fe5f8 h1:uIZonHFL7RDQyYF06s0RAav9tGAFEjJuYP42KuTMu9E=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230325054344-6e38ec2fe5f8/go.mod h1:2WL9kleQ40a8Y2jQdBBitaoH2um8/Q0pbtPHdc0s+H0=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230418060001-96a2e7d926d5 h1:auLVXAcG0IMPWtFV8R0fF71Q62+2IBTXJ+l7OC4cOvg=
@@ -28,6 +30,8 @@ github.com/buexplain/netsvr-protocol-go v0.0.0-20230421053115-ba46f2006319 h1:DX
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230421053115-ba46f2006319/go.mod h1:yJvPCjhzw1WVClL4bAbb+WeADBjb7nXAdJr26yjQFI0=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230421065419-37b33182943a h1:dhKVi7xNVv5BcNeO24snP0+i06K6OcqOlti//1weCPA=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230421065419-37b33182943a/go.mod h1:9ugMJAdVMC9UdNXjPu0Ng2eEWbkS8tzTcC7bAJD7Jkw=
+github.com/buexplain/netsvr-protocol-go v0.0.0-20230430084333-b50b13a5c362 h1:omc0p5PdcO7nfKKRkc1CcVRC6XVDORxXl0MdoxAYrF8=
+github.com/buexplain/netsvr-protocol-go v0.0.0-20230430084333-b50b13a5c362/go.mod h1:eyAq5OMBMRoushIJ5pOYdE8tl47e7NiYq0x+F+cwiH8=
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -45,6 +49,8 @@ github.com/lesismal/nbio v1.3.10 h1:kxz17Y3b4c/WaZQbWg4fTh7HmTJhcOdniJ6pAevpbq8=
 github.com/lesismal/nbio v1.3.10/go.mod h1:cBAu/+XwOfgzhuvl0KA953ZgLx9SxBZPLrp2mMX+Yxk=
 github.com/lesismal/nbio v1.3.11 h1:jNpBSsnGhfzvZHdreKBkaf+ifDeidS99Ty/rO4NKbnI=
 github.com/lesismal/nbio v1.3.11/go.mod h1:tqxheJo/2endB+7KUtUAMrgnESoWSfJJ4AaJmTKLUxQ=
+github.com/lesismal/nbio v1.3.12 h1:E8j+9uFGM2YnAsejKFo12K+Fx0Uo8zivHT6v+8ZbA0A=
+github.com/lesismal/nbio v1.3.12/go.mod h1:tqxheJo/2endB+7KUtUAMrgnESoWSfJJ4AaJmTKLUxQ=
 github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=

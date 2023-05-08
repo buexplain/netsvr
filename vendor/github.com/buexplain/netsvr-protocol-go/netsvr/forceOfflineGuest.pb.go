@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，将某个没有session值的连接强制关闭
+// business向worker请求，将某几个没有session值的连接强制关闭
 type ForceOfflineGuest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -43,7 +43,7 @@ type ForceOfflineGuest struct {
 
 	// 目标uniqId
 	UniqIds []string `protobuf:"bytes,1,rep,name=uniqIds,proto3" json:"uniqIds,omitempty"`
-	// 延迟多少秒执行，如果是0，立刻执行，否则就等待该秒数后，再根据uniqId获取连接，并判断连接是否存在session，没有就关闭连接
+	// 延迟多少秒执行，如果是0，立刻执行，否则就等待该秒数后，再根据uniqId获取连接，并判断连接是否存在session，没有就关闭连接，有就忽略
 	Delay int32 `protobuf:"varint,2,opt,name=delay,proto3" json:"delay,omitempty"`
 	// 需要发给客户的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
 	Data []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`

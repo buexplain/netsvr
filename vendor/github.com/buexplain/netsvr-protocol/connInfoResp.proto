@@ -16,24 +16,21 @@
 
 syntax = "proto3";
 
-package netsvr.infoUpdate;
+package netsvr.connInfoResp;
 
 option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//更新连接的info信息
-message InfoUpdate {
-  //目标uniqId
-  string uniqId = 1;
-  //最新的uniqId，传递了则覆盖
-  string newUniqId = 2;
-  //最新的uniqId冲突的时候，需要转发给已经存在的连接的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
-  bytes dataAsNewUniqIdExisted = 3;
-  //最新的session，传递了则覆盖
-  string newSession = 4;
-  //最新的主题，传递了则覆盖
-  repeated string newTopics = 5;
-  //需要发给客户的数据，传递了则转发给客户
-  bytes data = 6;
+//worker响应business，返回网关中的info
+message ConnInfoResp {
+  //key是uniqId,value是其在网关中存储的数据
+  map<string, ConnInfoRespItem> items = 1;
+}
+
+message ConnInfoRespItem {
+  //当前连接的session
+  string session = 1;
+  //当前连接订阅的主题
+  repeated string topics = 2;
 }

@@ -19,27 +19,22 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
-	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // UniqIdList 获取网关中全部的uniqId
-func UniqIdList(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.UniqIdListReq{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.UniqIdListReq failed")
-		return
-	}
+func UniqIdList(_ []byte, processor *workerManager.ConnProcessor) {
 	uniqIds := make([]string, 0, customerManager.Manager.Len())
 	for _, c := range customerManager.Manager {
 		c.GetUniqIds(&uniqIds)
 	}
 	ret := &netsvrProtocol.UniqIdListResp{}
-	ret.CtxData = payload.CtxData
+	ret.ServerId = int32(configs.Config.ServerId)
 	ret.UniqIds = uniqIds
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_UniqIdList
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

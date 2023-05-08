@@ -24,8 +24,8 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关中的主题
 message TopicListResp {
-  //worker原样回传给business
-  bytes ctxData = 1;
+  //网关唯一编号
+  int32 serverId = 1;
   //网关中现存的主题
   repeated string topics = 2;
 }

@@ -24,7 +24,8 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关中uniqId的数量
 message UniqIdCountResp {
-  //worker原样回传给business
-  bytes ctxData = 1;
+  //网关唯一编号
+  int32 serverId = 1;
+  //网关中uniqId的数量
   int32 count = 2;
 }

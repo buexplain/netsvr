@@ -24,12 +24,8 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //business向worker请求，获取网关中的主题包含的连接数
 message TopicUniqIdCountReq {
-  //worker会将该值赋给router.Cmd
-  int32  routerCmd = 1;
-  //worker会原样回传给business
-  bytes ctxData = 2;
   //目标主题
-  repeated string topics = 3;
-  //是否返回全部主题的连接数，如果设置为true，则网关会忽略topics字段的值
-  bool countAll = 4;
+  repeated string topics = 1;
+  //是否返回全部主题的连接数，如果设置为true，则网关会忽略topics字段的值，直接统计网关中每个主题的连接数
+  bool countAll = 2;
 }

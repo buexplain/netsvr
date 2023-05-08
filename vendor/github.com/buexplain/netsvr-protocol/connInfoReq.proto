@@ -16,16 +16,14 @@
 
 syntax = "proto3";
 
-package netsvr.topicListReq;
+package netsvr.connInfoReq;
 
 option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//business向worker请求，获取网关中的主题
-message TopicListReq {
-  //worker会将该值赋给router.Cmd
-  int32  routerCmd = 1;
-  //worker会原样回传给business
-  bytes ctxData = 2;
+//business向worker请求，获取目标uniqId在网关中存储的信息
+message ConnInfoReq {
+  //目标uniqId
+  repeated string uniqIds = 1;
 }

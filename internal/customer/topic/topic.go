@@ -18,6 +18,7 @@
 package topic
 
 import (
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"sync"
 )
 
@@ -125,6 +126,23 @@ func (r *collect) GetUniqIds(topic string) (uniqIds []string) {
 		uniqIds = append(uniqIds, uniqId)
 	}
 	return uniqIds
+}
+
+func (r *collect) GetToProtocolTopicUniqIdListResp(topicUniqIdListResp *netsvrProtocol.TopicUniqIdListResp, topics []string) {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	for _, topic := range topics {
+		c, ok := r.topics[topic]
+		if !ok {
+			continue
+		}
+		item := &netsvrProtocol.TopicUniqIdListRespItem{}
+		item.UniqIds = make([]string, 0, len(c))
+		for uniqId := range c {
+			item.UniqIds = append(item.UniqIds, uniqId)
+		}
+		topicUniqIdListResp.Items[topic] = item
+	}
 }
 
 // Get 获取所有的主题

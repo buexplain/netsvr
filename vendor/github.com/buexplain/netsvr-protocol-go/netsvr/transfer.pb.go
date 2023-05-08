@@ -41,9 +41,9 @@ type Transfer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 当前客户的uniqId
+	// 当前发消息的客户的uniqId
 	UniqId string `protobuf:"bytes,1,opt,name=uniqId,proto3" json:"uniqId,omitempty"`
-	// 当前客户的session
+	// 当前发消息的客户的session
 	Session string `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
 	// 客户发送的信息
 	Data []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`

@@ -32,7 +32,6 @@ func CheckOnline(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &netsvrProtocol.CheckOnlineResp{}
-	ret.CtxData = payload.CtxData
 	uniqIds := make([]string, 0, len(payload.UniqIds))
 	for _, uniqId := range payload.UniqIds {
 		if customerManager.Manager.Has(uniqId) {
@@ -41,7 +40,7 @@ func CheckOnline(param []byte, processor *workerManager.ConnProcessor) {
 	}
 	ret.UniqIds = uniqIds
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_CheckOnline
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

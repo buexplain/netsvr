@@ -1,7 +1,6 @@
 # 日志级别 debug、info、warn、error
 LogLevel = "debug"
-# 网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀
-# 如果网关服务编号配置的不唯一，则多个网关机器可能生成相同的uniqId，但是，如果业务层不关心这个uniqId，比如根据uniqId前缀判断在哪个网关机器，则不必考虑网关服务编号唯一性
+# 网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀，16进制表示，占两个字符
 ServerId = 0
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 ShutdownWaitTime = "3s"

@@ -47,7 +47,7 @@ type ConnOpen struct {
 	RawQuery string `protobuf:"bytes,2,opt,name=rawQuery,proto3" json:"rawQuery,omitempty"`
 	// 连接的websocket子协议信息
 	SubProtocol []string `protobuf:"bytes,3,rep,name=subProtocol,proto3" json:"subProtocol,omitempty"`
-	// X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的ip
+	// X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的客户端ip
 	XForwardedFor string `protobuf:"bytes,4,opt,name=xForwardedFor,proto3" json:"xForwardedFor,omitempty"`
 }
 

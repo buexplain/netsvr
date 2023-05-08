@@ -629,7 +629,11 @@
                         return;
                     }
                     print(resp.data.message);
-                    resp.data.data && print(resp.data.data.join('\n'));
+                    if (resp.data.data) {
+                        for (let i in resp.data.data) {
+                            resp.data.data[i]['uniqIds'] && print(i+ '-->' +resp.data.data[i]['uniqIds'].join('\n'));
+                        }
+                    }
                     return;
                 }
 

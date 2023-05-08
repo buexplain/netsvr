@@ -19,28 +19,23 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
-	"netsvr/internal/log"
+	"netsvr/configs"
 	"netsvr/internal/metrics"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // Metrics 返回网关统计的服务状态
-func Metrics(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.MetricsReq{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.MetricsReq failed")
-		return
-	}
+func Metrics(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.MetricsResp{}
-	ret.CtxData = payload.CtxData
-	ret.Items = map[int32]*netsvrProtocol.MetricsStatusResp{}
+	ret.ServerId = int32(configs.Config.ServerId)
+	ret.Items = map[int32]*netsvrProtocol.MetricsRespItem{}
 	for _, v := range metrics.Registry {
 		if tmp := v.ToStatusResp(); tmp != nil {
 			ret.Items[int32(v.Item)] = tmp
 		}
 	}
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_Metrics
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

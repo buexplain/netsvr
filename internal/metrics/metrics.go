@@ -23,14 +23,16 @@ import (
 	"time"
 )
 
+type Item int
+
 // 支持统计的服务状态
 const (
-	ItemCustomerConnOpen       = iota //统计客户连接的打开情况
-	ItemCustomerConnClose             //统计客户连接的关闭情况
-	ItemCustomerHeartbeat             //统计客户连接的心跳情况
-	ItemCustomerTransferNumber        //统计客户数据转发到worker的次数情况
-	ItemCustomerTransferByte          //统计客户数据转发到worker的字节数情况
-	itemLen                           //结束符
+	ItemCustomerConnOpen       Item = iota //统计客户连接的打开情况
+	ItemCustomerConnClose                  //统计客户连接的关闭情况
+	ItemCustomerHeartbeat                  //统计客户连接的心跳情况
+	ItemCustomerTransferNumber             //统计客户数据转发到worker的次数情况
+	ItemCustomerTransferByte               //统计客户数据转发到worker的字节数情况
+	itemLen                                //结束符
 )
 
 var Registry = make([]*Status, itemLen)
@@ -50,7 +52,7 @@ func init() {
 		return false
 	}
 	for item := 0; item < len(Registry); item++ {
-		s := Status{Item: item}
+		s := Status{Item: Item(item)}
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
 			ok = true

@@ -49,7 +49,7 @@ type SignInParam struct {
 var forgeSession = strings.Repeat("s", 1024)
 
 func (sign) SignInForForge(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
-	ret := &netsvrProtocol.InfoUpdate{}
+	ret := &netsvrProtocol.ConnInfoUpdate{}
 	ret.UniqId = tf.UniqId
 	//伪造uniqId
 	if len(tf.UniqId) >= 18 {
@@ -66,7 +66,7 @@ func (sign) SignInForForge(tf *netsvrProtocol.Transfer, _ string, processor *con
 	ret.NewSession = forgeSession
 	ret.Data = testUtils.NewResponse(protocol.RouterSignInForForge, map[string]interface{}{"code": 0, "message": "登录成功", "data": userDb.ClientInfo{UniqId: ret.NewUniqId}})
 	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_InfoUpdate
+	router.Cmd = netsvrProtocol.Cmd_ConnInfoUpdate
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)
@@ -74,14 +74,14 @@ func (sign) SignInForForge(tf *netsvrProtocol.Transfer, _ string, processor *con
 
 func (sign) SignOutForForge(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	//删除网关信息
-	ret := &netsvrProtocol.InfoDelete{}
+	ret := &netsvrProtocol.ConnInfoDelete{}
 	ret.UniqId = tf.UniqId
 	ret.DelUniqId = true
 	ret.DelSession = true
 	ret.DelTopic = true
 	ret.Data = testUtils.NewResponse(protocol.RouterSignOutForForge, map[string]interface{}{"code": 0, "message": "退出登录成功"})
 	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_InfoDelete
+	router.Cmd = netsvrProtocol.Cmd_ConnInfoDelete
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)
@@ -97,7 +97,7 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string, processor *connPro
 	if login.Username == "" && login.Password == "" {
 		return
 	}
-	ret := &netsvrProtocol.InfoUpdate{}
+	ret := &netsvrProtocol.ConnInfoUpdate{}
 	ret.UniqId = tf.UniqId
 	//查找用户
 	user := userDb.Collect.GetUser(login.Username)
@@ -119,7 +119,7 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string, processor *connPro
 	}
 	//回写给网关服务器
 	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_InfoUpdate
+	router.Cmd = netsvrProtocol.Cmd_ConnInfoUpdate
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)
@@ -134,13 +134,13 @@ func (sign) SignOut(tf *netsvrProtocol.Transfer, _ string, processor *connProces
 		if user != nil {
 			userDb.Collect.SetOnline(user.Id, false)
 			//删除网关信息
-			ret := &netsvrProtocol.InfoDelete{}
+			ret := &netsvrProtocol.ConnInfoDelete{}
 			ret.UniqId = tf.UniqId
 			ret.DelUniqId = true
 			ret.DelSession = true
 			ret.DelTopic = true
 			ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 0, "message": "退出登录成功"})
-			router.Cmd = netsvrProtocol.Cmd_InfoDelete
+			router.Cmd = netsvrProtocol.Cmd_ConnInfoDelete
 			router.Data, _ = proto.Marshal(ret)
 			pt, _ := proto.Marshal(router)
 			processor.Send(pt)

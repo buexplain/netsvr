@@ -24,9 +24,9 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关中的主题包含的连接数
 message TopicUniqIdCountResp {
-  //worker原样回传给business
-  bytes ctxData = 1;
+  //网关唯一编号
+  int32 serverId = 1;
   //key是topic，value是该主题的连接数
-  //如果topic没找到，则items中不会有该topic
+  //如果请求的topic没找到，则items中不会有该topic
   map<string, int32> items = 2;
 }

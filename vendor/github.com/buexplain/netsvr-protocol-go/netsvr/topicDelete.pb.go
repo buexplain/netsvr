@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，进行删除操作
+// business向worker请求，进行删除主题操作
 type TopicDelete struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

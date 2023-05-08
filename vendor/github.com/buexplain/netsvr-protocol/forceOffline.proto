@@ -22,7 +22,7 @@ option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//business向worker请求，将某个连接强制关闭
+//business向worker请求，将某几个连接强制关闭
 message ForceOffline {
   //目标uniqId
   repeated string uniqIds = 1;

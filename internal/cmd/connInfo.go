@@ -25,29 +25,29 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// Info 获取连接的信息
-func Info(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.InfoReq{}
+// ConnInfo 获取连接的信息
+func ConnInfo(param []byte, processor *workerManager.ConnProcessor) {
+	payload := netsvrProtocol.ConnInfoReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.InfoReq failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ConnInfoReq failed")
 		return
 	}
-	if payload.UniqId == "" {
-		return
+	ret := &netsvrProtocol.ConnInfoResp{Items: map[string]*netsvrProtocol.ConnInfoRespItem{}}
+	for _, uniqId := range payload.UniqIds {
+		conn := customerManager.Manager.Get(uniqId)
+		if conn == nil {
+			continue
+		}
+		session, ok := conn.Session().(*info.Info)
+		if !ok {
+			continue
+		}
+		item := &netsvrProtocol.ConnInfoRespItem{}
+		session.GetToProtocolInfoResp(item)
+		ret.Items[uniqId] = item
 	}
-	conn := customerManager.Manager.Get(payload.UniqId)
-	if conn == nil {
-		return
-	}
-	session, ok := conn.Session().(*info.Info)
-	if !ok {
-		return
-	}
-	ret := &netsvrProtocol.InfoResp{}
-	ret.CtxData = payload.CtxData
-	session.GetToProtocolInfoResp(ret)
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_ConnInfo
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

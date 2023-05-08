@@ -28,11 +28,11 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// InfoDelete 删除连接的info信息
-func InfoDelete(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.InfoDelete{}
+// ConnInfoDelete 删除连接的info信息
+func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
+	payload := &netsvrProtocol.ConnInfoDelete{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.InfoDelete failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ConnInfoDelete failed")
 		return
 	}
 	if payload.UniqId == "" {

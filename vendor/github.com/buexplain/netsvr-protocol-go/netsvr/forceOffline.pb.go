@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，将某个连接强制关闭
+// business向worker请求，将某几个连接强制关闭
 type ForceOffline struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

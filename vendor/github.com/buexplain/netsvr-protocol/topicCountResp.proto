@@ -24,7 +24,9 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关中的主题数量
 message TopicCountResp {
-  //worker原样回传给business
-  bytes ctxData = 1;
+  //网关唯一编号
+  int32 serverId = 1;
+  //网关包含的主题数量
+  //注意，如果你有多个网关机器，网关之间的主题数量是无法去重后统计的，这个统计只能是当前serverId的网关主题去重后的数量
   int32 count = 2;
 }

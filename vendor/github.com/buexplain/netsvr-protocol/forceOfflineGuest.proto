@@ -22,11 +22,11 @@ option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//business向worker请求，将某个没有session值的连接强制关闭
+//business向worker请求，将某几个没有session值的连接强制关闭
 message ForceOfflineGuest {
   //目标uniqId
   repeated string uniqIds = 1;
-  //延迟多少秒执行，如果是0，立刻执行，否则就等待该秒数后，再根据uniqId获取连接，并判断连接是否存在session，没有就关闭连接
+  //延迟多少秒执行，如果是0，立刻执行，否则就等待该秒数后，再根据uniqId获取连接，并判断连接是否存在session，没有就关闭连接，有就忽略
   int32 delay = 2;
   //需要发给客户的数据，有这个数据，则转发给该连接，并在3秒倒计时后强制关闭连接，反之，立马关闭连接
   bytes data = 3;

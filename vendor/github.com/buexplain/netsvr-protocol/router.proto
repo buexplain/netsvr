@@ -33,8 +33,8 @@ enum Cmd {
   //--------------------------------worker单向转发给business的指令 结束--------------------------------
 
   //--------------------------------business单向请求worker的指令，worker不会响应business 开始--------------------------------
-  InfoUpdate = 90002001;//更新连接的info信息
-  InfoDelete = 90002002;//删除连接的info信息
+  ConnInfoUpdate = 90002001;//更新连接的info信息
+  ConnInfoDelete = 90002002;//删除连接的info信息
   Broadcast = 90002003; //广播
   Multicast = 90002004; //组播
   SingleCast = 90002005;//单播
@@ -46,7 +46,7 @@ enum Cmd {
   ForceOfflineGuest = 90002011;//强制关闭某个空session值的连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
-  //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 开始--------------------------------
+  //--------------------------------business请求worker的指令，worker会响应business 开始--------------------------------
   Register = 90003001; //注册business到worker，注册后，business会收到worker转发的客户信息
   Unregister = 90003002; //取消注册，取消后不会再收到客户信息
   CheckOnline = 90003003; //判断uniqId是否在网关中
@@ -56,10 +56,10 @@ enum Cmd {
   TopicList = 90003007; //获取网关中的主题
   TopicUniqIdList = 90003008; //获取网关中某个主题包含的uniqId
   TopicUniqIdCount = 90003009; //获取网关中的主题包含的连接数
-  Info = 90003010; //获取连接的信息
+  ConnInfo = 90003010; //获取连接的信息
   Metrics = 900030011; //获取网关统计的服务状态
   Limit = 90003012; //更新限流配置、获取网关中的限流配置的真实情况
-  //--------------------------------business请求worker的指令，worker会响应business，响应的指令是worker通过routerCmd自定义的 结束--------------------------------
+  //--------------------------------business请求worker的指令，worker会响应business 结束--------------------------------
 }
 
 //路由

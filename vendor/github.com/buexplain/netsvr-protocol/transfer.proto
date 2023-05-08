@@ -24,9 +24,9 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker转发客户发送的信息到business
 message Transfer {
-  //当前客户的uniqId
+  //当前发消息的客户的uniqId
   string uniqId = 1;
-  //当前客户的session
+  //当前发消息的客户的session
   string session = 2;
   //客户发送的信息
   bytes data = 3;

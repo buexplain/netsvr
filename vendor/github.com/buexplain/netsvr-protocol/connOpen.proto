@@ -30,6 +30,6 @@ message ConnOpen {
   string rawQuery = 2;
   //连接的websocket子协议信息
   repeated string subProtocol = 3;
-  //X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的ip
+  //X-Forwarded-For，如果网关没有从header中拿到X-Forwarded-For的数据，则会赋值与本网关进程直连的客户端ip
   string xForwardedFor = 4;
 }

@@ -22,12 +22,8 @@ option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//business向worker请求，获取网关中某个主题包含的uniqId
+//business向worker请求，获取网关中某几个主题包含的uniqId
 message TopicUniqIdListReq {
-  //worker会将该值赋给router.Cmd
-  int32  routerCmd = 1;
-  //worker会原样回传给business
-  bytes ctxData = 2;
   //目标主题
-  string topic = 3;
+  repeated string topics = 1;
 }

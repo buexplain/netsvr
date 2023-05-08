@@ -19,6 +19,7 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -31,15 +32,11 @@ func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUniqIdListReq failed")
 		return
 	}
-	if payload.Topic == "" {
-		return
-	}
-	ret := &netsvrProtocol.TopicUniqIdListResp{}
-	ret.CtxData = payload.CtxData
-	ret.Topic = payload.Topic
-	ret.UniqIds = topic.Topic.GetUniqIds(payload.Topic)
+	ret := &netsvrProtocol.TopicUniqIdListResp{Items: map[string]*netsvrProtocol.TopicUniqIdListRespItem{}}
+	ret.ServerId = int32(configs.Config.ServerId)
+	topic.Topic.GetToProtocolTopicUniqIdListResp(ret, payload.Topics)
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_TopicUniqIdList
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

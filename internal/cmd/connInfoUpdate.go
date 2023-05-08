@@ -29,11 +29,11 @@ import (
 	"time"
 )
 
-// InfoUpdate 更新连接的info信息
-func InfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.InfoUpdate{}
+// ConnInfoUpdate 更新连接的info信息
+func ConnInfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
+	payload := &netsvrProtocol.ConnInfoUpdate{}
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.InfoUpdate failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ConnInfoUpdate failed")
 		return
 	}
 	if payload.UniqId == "" {

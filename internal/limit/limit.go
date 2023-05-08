@@ -81,8 +81,8 @@ func (r manager) SetLimits(num int32, workerIds []int32) {
 	}
 }
 
-func (r manager) Count() []*netsvrProtocol.LimitCountItem {
-	notes := map[*rate.Limiter]*netsvrProtocol.LimitCountItem{}
+func (r manager) Count() []*netsvrProtocol.LimitRespItem {
+	notes := map[*rate.Limiter]*netsvrProtocol.LimitRespItem{}
 	for workerId, l := range r {
 		//是个空壳子限流器，不予处理
 		if _, ok := l.(nilLimit); ok {
@@ -94,11 +94,11 @@ func (r manager) Count() []*netsvrProtocol.LimitCountItem {
 			continue
 		}
 		if _, ok = notes[rl]; !ok {
-			notes[rl] = &netsvrProtocol.LimitCountItem{Num: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
+			notes[rl] = &netsvrProtocol.LimitRespItem{Num: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
 		}
 		notes[rl].WorkerIds = append(notes[rl].WorkerIds, int32(workerId))
 	}
-	items := make([]*netsvrProtocol.LimitCountItem, 0, len(notes))
+	items := make([]*netsvrProtocol.LimitRespItem, 0, len(notes))
 	for _, v := range notes {
 		items = append(items, v)
 	}

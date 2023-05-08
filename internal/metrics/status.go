@@ -22,7 +22,8 @@ import (
 )
 
 type Status struct {
-	Item        int
+	//统计项
+	Item        Item
 	Meter       gMetrics.Meter
 	MeanRateMax gMetrics.Gauge
 	Rate1Max    gMetrics.Gauge
@@ -30,11 +31,11 @@ type Status struct {
 	Rate15Max   gMetrics.Gauge
 }
 
-func (r *Status) ToStatusResp() *netsvrProtocol.MetricsStatusResp {
+func (r *Status) ToStatusResp() *netsvrProtocol.MetricsRespItem {
 	if _, ok := r.Meter.(gMetrics.NilMeter); ok {
 		return nil
 	}
-	ret := netsvrProtocol.MetricsStatusResp{}
+	ret := netsvrProtocol.MetricsRespItem{}
 	r.recordMax()
 	ret.Count = r.Meter.Count()
 	sp := r.Meter.Snapshot()

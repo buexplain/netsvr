@@ -66,8 +66,8 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_Register, cmd.Register)
 			c.RegisterCmd(netsvrProtocol.Cmd_Unregister, cmd.Unregister)
 			c.RegisterCmd(netsvrProtocol.Cmd_Broadcast, cmd.Broadcast)
-			c.RegisterCmd(netsvrProtocol.Cmd_InfoUpdate, cmd.InfoUpdate)
-			c.RegisterCmd(netsvrProtocol.Cmd_InfoDelete, cmd.InfoDelete)
+			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfoUpdate, cmd.ConnInfoUpdate)
+			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfoDelete, cmd.ConnInfoDelete)
 			c.RegisterCmd(netsvrProtocol.Cmd_ForceOffline, cmd.ForceOffline)
 			c.RegisterCmd(netsvrProtocol.Cmd_ForceOfflineGuest, cmd.ForceOfflineGuest)
 			c.RegisterCmd(netsvrProtocol.Cmd_Multicast, cmd.Multicast)
@@ -82,7 +82,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicUniqIdCount, cmd.TopicUniqIdCount)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicCount, cmd.TopicCount)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicList, cmd.TopicList)
-			c.RegisterCmd(netsvrProtocol.Cmd_Info, cmd.Info)
+			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfo, cmd.ConnInfo)
 			c.RegisterCmd(netsvrProtocol.Cmd_Metrics, cmd.Metrics)
 			c.RegisterCmd(netsvrProtocol.Cmd_CheckOnline, cmd.CheckOnline)
 			c.RegisterCmd(netsvrProtocol.Cmd_Limit, cmd.Limit)
@@ -94,6 +94,7 @@ func (r *Server) Start() {
 			go func() {
 				defer func() {
 					_ = recover()
+					log.Logger.Debug().Int32("workerId", c.GetWorkerId()).Msg("Worker signal coroutine is closed")
 					quit.Wg.Done()
 				}()
 				select {

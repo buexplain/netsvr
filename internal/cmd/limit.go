@@ -19,6 +19,7 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -39,10 +40,10 @@ func Limit(param []byte, processor *workerManager.ConnProcessor) {
 	}
 	//返回网关中的限流配置的真实情况
 	ret := &netsvrProtocol.LimitResp{}
-	ret.CtxData = payload.CtxData
+	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Items = limit.Manager.Count()
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_Limit
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)

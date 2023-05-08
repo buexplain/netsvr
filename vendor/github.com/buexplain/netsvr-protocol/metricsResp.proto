@@ -24,12 +24,13 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
 //worker响应business，返回网关统计的服务状态
 message MetricsResp {
-  //worker会原样回传给business
-  bytes ctxData = 1;
-  map<int32, MetricsStatusResp> items = 2;
+  //网关唯一编号
+  int32 serverId = 1;
+  //key是统计的项，value是统计结果
+  map<int32, MetricsRespItem> items = 2;
 }
 
-message MetricsStatusResp {
+message MetricsRespItem {
   //总数
   int64 count = 1;
   //每秒速率

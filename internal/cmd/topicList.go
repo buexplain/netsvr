@@ -19,23 +19,18 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/topic"
-	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // TopicList 获取网关中的主题
 func TopicList(param []byte, processor *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.TopicListReq{}
-	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicListReq failed")
-		return
-	}
 	ret := &netsvrProtocol.TopicListResp{}
-	ret.CtxData = payload.CtxData
+	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Topics = topic.Topic.Get()
 	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd(payload.RouterCmd)
+	route.Cmd = netsvrProtocol.Cmd_TopicList
 	route.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(route)
 	processor.Send(pt)
