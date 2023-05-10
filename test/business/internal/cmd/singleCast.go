@@ -49,7 +49,7 @@ func (singleCast) ForUserId(tf *netsvrProtocol.Transfer, param string, processor
 	//解析客户端发来的数据
 	payload := SingleCastForUserIdParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse SingleCastForUserIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastForUserIdParam failed")
 		return
 	}
 	var fromUser string
@@ -88,7 +88,7 @@ type SingleCastForUniqIdParam struct {
 func (singleCast) ForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := SingleCastForUniqIdParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse SingleCastForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastForUniqIdParam failed")
 		return
 	}
 	var fromUser string

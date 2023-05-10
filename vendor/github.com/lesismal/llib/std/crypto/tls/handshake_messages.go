@@ -94,6 +94,10 @@ type clientHelloMsg struct {
 	pskBinders                       [][]byte
 }
 
+func (m *clientHelloMsg) Marshal() []byte {
+	return m.marshal()
+}
+
 func (m *clientHelloMsg) marshal() []byte {
 	if m.raw != nil {
 		return m.raw
@@ -300,6 +304,10 @@ func (m *clientHelloMsg) marshal() []byte {
 	return m.raw
 }
 
+func (m *clientHelloMsg) MarshalWithoutBinders() []byte {
+	return m.marshalWithoutBinders()
+}
+
 // marshalWithoutBinders returns the ClientHello through the
 // PreSharedKeyExtension.identities field, according to RFC 8446, Section
 // 4.2.11.2. Note that m.pskBinders must be set to slices of the correct length.
@@ -342,6 +350,10 @@ func (m *clientHelloMsg) updateBinders(pskBinders [][]byte) {
 			panic("tls: internal error: failed to update binders")
 		}
 	}
+}
+
+func (m *clientHelloMsg) Unmarshal(data []byte) bool {
+	return m.unmarshal(data)
 }
 
 func (m *clientHelloMsg) unmarshal(data []byte) bool {
@@ -613,6 +625,10 @@ type serverHelloMsg struct {
 	selectedGroup CurveID
 }
 
+func (m *serverHelloMsg) Marshal() []byte {
+	return m.marshal()
+}
+
 func (m *serverHelloMsg) marshal() []byte {
 	if m.raw != nil {
 		return m.raw
@@ -727,6 +743,10 @@ func (m *serverHelloMsg) marshal() []byte {
 
 	m.raw = b.BytesOrPanic()
 	return m.raw
+}
+
+func (m *serverHelloMsg) Unmarshal(data []byte) bool {
+	return m.unmarshal(data)
 }
 
 func (m *serverHelloMsg) unmarshal(data []byte) bool {

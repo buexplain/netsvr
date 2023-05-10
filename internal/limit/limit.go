@@ -43,47 +43,37 @@ func (nilLimit) Allow() bool {
 func (nilLimit) SetLimit(_ rate.Limit) {
 }
 
-type manager [netsvrProtocol.WorkerIdMax + 1]limiter
+type collect [netsvrProtocol.WorkerIdMax + 1]limiter
+
+type manager struct {
+	collect   collect
+	nameIndex map[string]limiter
+}
 
 func (r manager) Allow(workerId int) bool {
 	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
 		return false
 	}
-	return r[workerId].Allow()
+	return r.collect[workerId].Allow()
 }
 
-// SetLimits 给一批worker id设置新的限流值
-func (r manager) SetLimits(num int32, workerIds []int32) {
-	if num <= 0 {
-		//无效参数，不予处理
+// Update 更新限流器的并发设定
+func (r manager) Update(concurrency int32, name string) {
+	//无效参数，不予处理
+	if concurrency <= 0 {
 		return
 	}
-	notes := map[*rate.Limiter]struct{}{}
-	for _, workerId := range workerIds {
-		//无效参数，不予处理
-		if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-			continue
-		}
-		l := r[workerId]
-		//是个空壳子限流器，不予处理
-		if _, ok := l.(nilLimit); ok {
-			continue
-		}
-		if rl, ok := l.(*rate.Limiter); ok {
-			//跳过已经设置过的限流器
-			if _, ok = notes[rl]; ok {
-				continue
-			}
-			//设置新地限流值
-			rl.SetLimit(rate.Limit(num))
-			notes[rl] = struct{}{}
-		}
+	//未找到限流器，不予处理
+	l, ok := r.nameIndex[name]
+	if !ok {
+		return
 	}
+	l.SetLimit(rate.Limit(concurrency))
 }
 
 func (r manager) Count() []*netsvrProtocol.LimitRespItem {
 	notes := map[*rate.Limiter]*netsvrProtocol.LimitRespItem{}
-	for workerId, l := range r {
+	for workerId, l := range r.collect {
 		//是个空壳子限流器，不予处理
 		if _, ok := l.(nilLimit); ok {
 			continue
@@ -94,7 +84,13 @@ func (r manager) Count() []*netsvrProtocol.LimitRespItem {
 			continue
 		}
 		if _, ok = notes[rl]; !ok {
-			notes[rl] = &netsvrProtocol.LimitRespItem{Num: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
+			notes[rl] = &netsvrProtocol.LimitRespItem{Concurrency: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
+			for name, l := range r.nameIndex {
+				if l == rl {
+					notes[rl].Name = name
+					break
+				}
+			}
 		}
 		notes[rl].WorkerIds = append(notes[rl].WorkerIds, int32(workerId))
 	}
@@ -108,39 +104,40 @@ func (r manager) Count() []*netsvrProtocol.LimitRespItem {
 var Manager manager
 
 func init() {
-	Manager = manager{}
+	Manager = manager{collect: collect{}, nameIndex: map[string]limiter{}}
 	//循环处理每一个限流配置
 	for _, v := range configs.Config.Limit {
-		var l limiter
-		for workerId := v.Min; workerId <= v.Max; workerId++ {
-			if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("Limit workerId range overflow")
-				os.Exit(1)
-			}
-			if v.Num <= 0 {
-				continue
-			}
-			//如果这个workerId已经被初始化过，则说明配置的限流范围冲突了
-			if Manager[workerId] != nil {
-				log.Logger.Error().Str("conflictConfig", v.String()).Msg("Limit workerId range coincidence")
-				os.Exit(1)
-			}
-			if l == nil {
-				l = rate.NewLimiter(rate.Limit(v.Num), v.Num)
-			}
-			//同一个范围的workerId使用同一个限流器
-			Manager[workerId] = l
+		//忽略无效的配置
+		if v.Concurrency <= 0 || len(v.WorkerIds) == 0 {
+			continue
 		}
-		l = nil
+		l := rate.NewLimiter(rate.Limit(v.Concurrency), v.Concurrency)
+		if Manager.nameIndex[v.Name] != nil {
+			log.Logger.Error().Str("name", v.Name).Msg("Name is configured multiple times of limiter")
+			os.Exit(1)
+		}
+		for _, workerId := range v.WorkerIds {
+			if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
+				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow of limiter")
+				os.Exit(1)
+			}
+			//如果这个workerId已经被初始化过，则说明配置的限流范围冲突了，每个workerId只允许配置一次
+			if Manager.collect[workerId] != nil {
+				log.Logger.Error().Int("workerId", workerId).Msg("WorkerId is configured multiple times of limiter")
+				os.Exit(1)
+			}
+			Manager.collect[workerId] = l
+		}
+		Manager.nameIndex[v.Name] = l
 	}
 	//填充满整个数组
 	l := nilLimit{}
 	for i := netsvrProtocol.WorkerIdMin; i <= netsvrProtocol.WorkerIdMax; i++ {
-		if Manager[i] == nil {
-			Manager[i] = l
+		if Manager.collect[i] == nil {
+			Manager.collect[i] = l
 		}
 	}
 	for _, v := range Manager.Count() {
-		log.Logger.Debug().Ints32("workerIds", v.WorkerIds).Int32("limit", v.Num).Msg("limit config")
+		log.Logger.Debug().Str("name", v.Name).Int32("concurrency", v.Concurrency).Ints32("workerIds", v.WorkerIds).Msg("limit config")
 	}
 }

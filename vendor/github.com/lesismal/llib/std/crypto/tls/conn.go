@@ -34,15 +34,20 @@ type Allocator interface {
 	Free(buf []byte)
 }
 
-type NativeAllocator struct{}
+type PoolAllocator struct{}
 
 // Malloc .
-func (a *NativeAllocator) Malloc(size int) []byte {
-	return make([]byte, size)
+func (a *PoolAllocator) Malloc(size int) []byte {
+	bufPtr := bufferPool.Get().(*[]byte)
+	buf := *bufPtr
+	if cap(buf) < size {
+		buf = append(buf[:cap(buf)], make([]byte, size-cap(buf))...)
+	}
+	return buf[:size]
 }
 
 // Realloc .
-func (a *NativeAllocator) Realloc(buf []byte, size int) []byte {
+func (a *PoolAllocator) Realloc(buf []byte, size int) []byte {
 	if size <= cap(buf) {
 		return buf[:size]
 	}
@@ -50,17 +55,18 @@ func (a *NativeAllocator) Realloc(buf []byte, size int) []byte {
 }
 
 // Append .
-func (a *NativeAllocator) Append(buf []byte, more ...byte) []byte {
+func (a *PoolAllocator) Append(buf []byte, more ...byte) []byte {
 	return append(buf, more...)
 }
 
 // AppendString .
-func (a *NativeAllocator) AppendString(buf []byte, more string) []byte {
+func (a *PoolAllocator) AppendString(buf []byte, more string) []byte {
 	return append(buf, more...)
 }
 
 // Free .
-func (a *NativeAllocator) Free(buf []byte) {
+func (a *PoolAllocator) Free(buf []byte) {
+	bufferPool.Put(&buf)
 }
 
 // A Conn represents a secured connection.
@@ -198,7 +204,7 @@ func (c *Conn) ResetConn(conn net.Conn, nonBlock bool, v ...interface{}) {
 		}
 	}
 	if c.allocator == nil {
-		c.allocator = &NativeAllocator{}
+		c.allocator = &PoolAllocator{}
 	}
 }
 
@@ -230,6 +236,14 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 // After a Write has timed out, the TLS state is corrupt and all future writes will return the same error.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return c.conn.SetWriteDeadline(t)
+}
+
+func (c *Conn) ClientHello() *clientHelloMsg {
+	return c.clientHello
+}
+
+func (c *Conn) ServerHello() *serverHelloMsg {
+	return c.serverHello
 }
 
 // A halfConn represents one direction of the record layer
@@ -663,6 +677,19 @@ func (c *Conn) readChangeCipherSpec() error {
 	return c.readRecordOrCCS(true)
 }
 
+func (c *Conn) ResetRawInput() {
+	c.closeMux.Lock()
+	defer c.closeMux.Unlock()
+	if c.closed {
+		return
+	}
+
+	if c.rawInput != nil {
+		c.rawInput = c.rawInput[0:0]
+	}
+	c.rawInputOff = 0
+}
+
 func (c *Conn) ResetOrFreeBuffer() {
 	c.closeMux.Lock()
 	defer c.closeMux.Unlock()
@@ -1081,17 +1108,18 @@ func (c *Conn) flush() (int, error) {
 	return n, err
 }
 
-// outBufPool pools the record-sized scratch buffers used by writeRecordLocked.
-var outBufPool = sync.Pool{
+// bufferPool pools the record-sized scratch buffers used by writeRecordLocked.
+var bufferPool = sync.Pool{
 	New: func() interface{} {
-		return new([]byte)
+		buf := make([]byte, 512)
+		return &buf
 	},
 }
 
 // writeRecordLocked writes a TLS record with the given type and payload to the
 // connection and updates the record layer state.
 func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
-	outBufPtr := outBufPool.Get().(*[]byte)
+	outBufPtr := bufferPool.Get().(*[]byte)
 	outBuf := *outBufPtr
 	defer func() {
 		// You might be tempted to simplify this by just passing &outBuf to Put,
@@ -1100,7 +1128,7 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 		// pointer to the slice header returned by Get, which is already on the
 		// heap, and overwrite and return that.
 		*outBufPtr = outBuf
-		outBufPool.Put(outBufPtr)
+		bufferPool.Put(outBufPtr)
 	}()
 
 	var n int

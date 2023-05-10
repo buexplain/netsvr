@@ -17,7 +17,6 @@
 package configs
 
 import (
-	"encoding/json"
 	"flag"
 	"github.com/BurntSushi/toml"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
@@ -38,8 +37,15 @@ type config struct {
 	ShutdownWaitTime time.Duration
 	//pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
 	PprofListenAddress string
-	//business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
-	Limit    []Limit
+	//business的限流器
+	Limit []struct {
+		//需要被限制的workerId集合，每个workerId只允许配置一次
+		WorkerIds []int
+		//每秒的并发数
+		Concurrency int
+		//限流器名字，这个名字必须是唯一的
+		Name string
+	}
 	Customer struct {
 		//客户服务器监听的地址，ip:port，这个地址一般是外网地址
 		ListenAddress string
@@ -77,17 +83,6 @@ type config struct {
 		//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
 		MaxRecordInterval time.Duration
 	}
-}
-
-type Limit struct {
-	Min int
-	Max int
-	Num int
-}
-
-func (r Limit) String() string {
-	b, _ := json.Marshal(r)
-	return string(b)
 }
 
 func (r *config) GetLogLevel() zerolog.Level {

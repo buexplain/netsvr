@@ -46,7 +46,7 @@ type ForceOfflineForUserIdParam struct {
 func (forceOffline) ForUserId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(ForceOfflineForUserIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse ForceOfflineForUserIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineForUserIdParam failed")
 		return
 	}
 	user := userDb.Collect.GetUserById(payload.UserId)
@@ -72,7 +72,7 @@ type ForceOfflineForUniqIdParam struct {
 func (forceOffline) ForUniqId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(ForceOfflineForUniqIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse ForceOfflineForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineForUniqIdParam failed")
 		return
 	}
 	ret := &netsvrProtocol.ForceOffline{}

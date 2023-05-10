@@ -48,7 +48,7 @@ type MulticastForUserIdParam struct {
 func (multicast) ForUserId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(MulticastForUserIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse MulticastForUserIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse MulticastForUserIdParam failed")
 		return
 	}
 	var fromUser string
@@ -95,7 +95,7 @@ type MulticastForUniqIdParam struct {
 func (multicast) ForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(MulticastForUniqIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse MulticastForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse MulticastForUniqIdParam failed")
 		return
 	}
 	var fromUser string

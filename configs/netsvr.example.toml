@@ -6,15 +6,14 @@ ServerId = 0
 ShutdownWaitTime = "3s"
 # pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
 PprofListenAddress = "127.0.0.1:6062"
-
-# business的限流设置，min、max的取值范围是1~999,表示的就是business的workerId
+# business的限流器
 Limit = [
-    # 表示注册worker id为1的business每秒最多能接收到1000个网关转发数据，num为0，则会构造nilLimit对象，是个空壳子，不会生效，不影响性能
-    { min = 1, max = 1, num = 1000 },
-    # 表示注册worker id为2、3、4、5的business每秒累计最多能接收到1000个网关转发数据
-    { min = 2, max = 5, num = 1000 },
+    # 表示网关每秒最多向workerId为1的business转发1000次客户发送的数据或连接打开的数据
+    {workerIds = [1], concurrency = 1000, name="1"},
+    # 表示网关每秒最多向workerId为{2,3,4,5}的这批business转发1000次客户发送的数据或连接打开的数据
+    # 注意不是每个workerId都1000，而是这批workerId加起来才1000，因为这批workerId共用一个限流器
+    {workerIds = [2,3,4,5], concurrency = 1000, name="2-5"}
 ]
-
 # 客户服务器配置
 [Customer]
 # 监听的地址，ip:port，这个地址一般是外网地址

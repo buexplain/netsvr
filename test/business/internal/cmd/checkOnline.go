@@ -44,7 +44,7 @@ type CheckOnlineForUniqIdParam struct {
 func (checkOnline) RequestForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := CheckOnlineForUniqIdParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse CheckOnlineForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse CheckOnlineForUniqIdParam failed")
 		return
 	}
 	req := &netsvrProtocol.CheckOnlineReq{}

@@ -37,22 +37,22 @@ func (r limit) Init(processor *connProcessor.ConnProcessor) {
 
 // LimitUpdateParam 更新网关中限流配置
 type LimitUpdateParam struct {
-	WorkerIds []int32 `json:"workerIds"`
-	Num       int32   `json:"num"`
+	Concurrency int32  `json:"concurrency"`
+	Name        string `json:"name"`
 }
 
 // Request 更新限流配置、获取网关中的限流配置的真实情况
 func (limit) Request(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(LimitUpdateParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse LimitUpdateParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse LimitUpdateParam failed")
 		return
 	}
 	req := &netsvrProtocol.LimitReq{}
 	req.Items = []*netsvrProtocol.LimitReqItem{
 		{
-			Num:       payload.Num,
-			WorkerIds: payload.WorkerIds,
+			Name:        payload.Name,
+			Concurrency: payload.Concurrency,
 		},
 	}
 	resp := &netsvrProtocol.LimitResp{}

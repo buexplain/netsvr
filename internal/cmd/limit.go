@@ -35,7 +35,7 @@ func Limit(param []byte, processor *workerManager.ConnProcessor) {
 	//更新限流配置
 	if len(payload.Items) > 0 {
 		for _, item := range payload.Items {
-			limit.Manager.SetLimits(item.Num, item.WorkerIds)
+			limit.Manager.Update(item.Concurrency, item.Name)
 		}
 	}
 	//返回网关中的限流配置的真实情况

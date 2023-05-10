@@ -44,7 +44,7 @@ type ForceOfflineGuestForUniqIdParam struct {
 func (forceOfflineGuest) ForUniqId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := new(ForceOfflineGuestForUniqIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse ForceOfflineGuestForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineGuestForUniqIdParam failed")
 		return
 	}
 	ret := &netsvrProtocol.ForceOfflineGuest{}

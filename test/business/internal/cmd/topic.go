@@ -90,7 +90,7 @@ type TopicUniqIdCountParam struct {
 func (topic) RequestTopicUniqIdCount(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	payload := TopicUniqIdCountParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicUniqIdCountParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicUniqIdCountParam failed")
 		return
 	}
 	req := &netsvrProtocol.TopicUniqIdCountReq{}
@@ -118,7 +118,7 @@ func (topic) RequestTopicUniqIdList(tf *netsvrProtocol.Transfer, param string, p
 	//解析客户端发来的数据
 	payload := new(TopicUniqIdListParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicUniqIdListParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicUniqIdListParam failed")
 		return
 	}
 	req := &netsvrProtocol.TopicUniqIdListReq{}
@@ -165,7 +165,7 @@ func (topic) RequestTopicSubscribe(tf *netsvrProtocol.Transfer, param string, pr
 	//解析客户端发来的数据
 	payload := new(TopicSubscribeParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicSubscribeParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicSubscribeParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {
@@ -193,7 +193,7 @@ func (topic) RequestTopicUnsubscribe(tf *netsvrProtocol.Transfer, param string, 
 	//解析客户端发来的数据
 	payload := new(TopicUnsubscribeParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicUnsubscribeParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicUnsubscribeParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {
@@ -221,7 +221,7 @@ func (topic) RequestTopicPublish(tf *netsvrProtocol.Transfer, param string, proc
 	//解析客户端发来的数据
 	target := new(TopicPublishParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), target); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicPublishParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicPublishParam failed")
 		return
 	}
 	var fromUser string
@@ -252,7 +252,7 @@ func (topic) RequestTopicDelete(_ *netsvrProtocol.Transfer, param string, proces
 	//解析客户端发来的数据
 	payload := new(TopicDeleteParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse TopicDeleteParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicDeleteParam failed")
 		return
 	}
 	if len(payload.Topics) == 0 {

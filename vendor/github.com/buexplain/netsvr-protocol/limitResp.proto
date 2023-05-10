@@ -26,13 +26,15 @@ option php_metadata_namespace = "Netsvr\\GPBMetadata";
 message LimitResp {
   //网关唯一编号
   int32 serverId = 1;
-  //每个worker的配置情况
+  //网关服务中的限流器列表
   repeated LimitRespItem items = 2;
 }
 
 message LimitRespItem {
+  //限流器的名字
+  string name = 1;
+  //限流器的并发设定
+  int32 concurrency = 2;
   //workerId集合
-  repeated int32 workerIds = 1;
-  //限流大小
-  int32 num = 2;
+  repeated int32 workerIds = 3;
 }

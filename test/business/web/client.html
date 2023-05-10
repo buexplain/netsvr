@@ -129,12 +129,12 @@
 
         <div class="case">
             <label>
-                <input type="text" name="workerIds" data-processor="processorToIntArr"
-                       placeholder="请输入目标workerId，多个用逗号分割"
+                <input type="text" name="name" data-processor="processorToString"
+                       placeholder="请输入目标限流器"
                        value="">
             </label>
             <label>
-                <input type="number" name="num" data-processor="processorToInt"
+                <input type="number" name="concurrency" data-processor="processorToInt"
                        placeholder="请输入每秒允许的请求数量"
                        value="" autocomplete="off">
             </label>
@@ -513,10 +513,10 @@
                     }
                     for (let i in resp.data.data) {
                         /**
-                         * @type {{workerIds: number[],num:number}}
+                         * @type {{workerIds: number[],concurrency:number,name:string}}
                          */
                         let item = resp.data.data[i];
-                        print("workerId --> " + item.workerIds.join('、') + '允许每秒处理' + item.num + '个用户请求')
+                        print("限流器 "+item.name+" 允许网关向 workerId：" + item.workerIds.join('、') + ' 每秒最多转发' + item.concurrency + '次客户数据')
                     }
                     return;
                 }

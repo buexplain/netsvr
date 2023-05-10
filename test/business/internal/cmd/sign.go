@@ -91,7 +91,7 @@ func (sign) SignOutForForge(tf *netsvrProtocol.Transfer, _ string, processor *co
 func (sign) SignIn(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	login := new(SignInParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), login); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse SignInParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SignInParam failed")
 		return
 	}
 	if login.Username == "" && login.Password == "" {

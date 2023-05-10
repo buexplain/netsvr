@@ -45,7 +45,7 @@ type BroadcastParam struct {
 func (broadcast) Request(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
 	target := new(BroadcastParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), target); err != nil {
-		log.Logger.Error().Err(err).Msg("Parse BroadcastParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse BroadcastParam failed")
 		return
 	}
 	var fromUser string
