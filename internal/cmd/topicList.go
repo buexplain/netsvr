@@ -25,7 +25,7 @@ import (
 )
 
 // TopicList 获取网关中的主题
-func TopicList(param []byte, processor *workerManager.ConnProcessor) {
+func TopicList(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.TopicListResp{}
 	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Topics = topic.Topic.Get()
