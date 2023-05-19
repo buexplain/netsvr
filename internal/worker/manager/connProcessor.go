@@ -212,7 +212,7 @@ func (r *ConnProcessor) LoopReceive() {
 		//判断装载数据的缓存区是否足够
 		if dataLen > dataBufCap {
 			//分配一块更大的，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
-			dataBufCap = dataLen
+			dataBufCap = 1024 * ((dataLen-1)/1024 + 1)
 			dataBuf = make([]byte, dataBufCap)
 		} else {
 			//清空当前的
