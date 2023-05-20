@@ -63,10 +63,6 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	}
 }
 
-func (r *ConnProcessor) GetCloseCh() <-chan struct{} {
-	return r.closeCh
-}
-
 // ForceClose 优雅的强制关闭，发给business的数据会被丢弃，business发来的数据会被处理
 func (r *ConnProcessor) ForceClose() {
 	defer func() {
@@ -78,6 +74,8 @@ func (r *ConnProcessor) ForceClose() {
 	default:
 		//通知所有生产者，不再生产数据
 		close(r.closeCh)
+		//从关闭管理器中移除掉自己
+		Shutter.Del(r)
 		//因为生产者协程(r.sendCh <- data)可能被阻塞，而没有收到关闭信号，所以要丢弃数据，直到所有生产者不再阻塞
 		//因为r.sendCh是空的，所以消费者协程可能阻塞，所以要丢弃数据，直到判断出管子是空的，再关闭管子，让消费者协程感知管子已经关闭，可以退出协程
 		//这里丢弃的数据有可能是客户发的，也有可能是只给business的

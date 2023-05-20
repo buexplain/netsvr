@@ -86,25 +86,12 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_Metrics, cmd.Metrics)
 			c.RegisterCmd(netsvrProtocol.Cmd_CheckOnline, cmd.CheckOnline)
 			c.RegisterCmd(netsvrProtocol.Cmd_Limit, cmd.Limit)
+			//将该连接添加到关闭管理器中
+			manager.Shutter.Add(c)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启
 			go c.LoopCmd()
 			go c.LoopReceive()
 			go c.LoopSend()
-			quit.Wg.Add(1)
-			go func() {
-				defer func() {
-					_ = recover()
-					log.Logger.Debug().Int32("workerId", c.GetWorkerId()).Msg("Worker signal coroutine is closed")
-					quit.Wg.Done()
-				}()
-				select {
-				case <-quit.Ctx.Done():
-					c.ForceClose()
-					return
-				case <-c.GetCloseCh():
-					return
-				}
-			}()
 		}
 	}
 }
