@@ -28,7 +28,7 @@ import (
 // Register 注册business进程
 func Register(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.RegisterReq{}
-	var ret netsvrProtocol.RegisterResp
+	ret := &netsvrProtocol.RegisterResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		ret.Code = netsvrProtocol.RegisterRespCode_UnmarshalError
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.RegisterReq failed")
@@ -67,9 +67,5 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 	ret.Code = netsvrProtocol.RegisterRespCode_Success
 RESPONSE:
 	ret.Message = ret.Code.String()
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_Register
-	route.Data, _ = proto.Marshal(&ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_Register)
 }

@@ -75,6 +75,8 @@ type config struct {
 		ReadDeadline time.Duration
 		//worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 		SendDeadline time.Duration
+		//business发送数据的大小限制（单位：字节）
+		ReceivePackLimit uint32
 	}
 
 	Metrics struct {

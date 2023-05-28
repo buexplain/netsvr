@@ -46,9 +46,5 @@ func ConnInfo(param []byte, processor *workerManager.ConnProcessor) {
 		session.GetToProtocolInfoResp(item)
 		ret.Items[uniqId] = item
 	}
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_ConnInfo
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ConnInfo)
 }

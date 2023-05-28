@@ -18,7 +18,6 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	workerManager "netsvr/internal/worker/manager"
@@ -29,9 +28,5 @@ func TopicList(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.TopicListResp{}
 	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Topics = topic.Topic.Get()
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_TopicList
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_TopicList)
 }

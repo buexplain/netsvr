@@ -1,19 +1,20 @@
 package websocket
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio"
@@ -26,10 +27,12 @@ var (
 	// DefaultBlockingReadBufferSize .
 	DefaultBlockingReadBufferSize = 1024 * 4
 
-	// DefaultBlockingModAsyncWrite represents whether create a goroutine to handle writing:
-	// true : create a goroutine to recv buffers and write to conn, default is true;
-	// false: write buffer to the conn directely.
-	DefaultBlockingModAsyncWrite = false
+	// DefaultBlockingModAsyncWrite .
+	DefaultBlockingModAsyncWrite = true
+
+	DefaultBlockingModSendQueueInitSize = 4
+
+	DefaultBlockingModSendQueueMaxSize = 0
 
 	// DefaultEngine will be set to a Upgrader.Engine to handle details such as buffers.
 	DefaultEngine = nbhttp.NewEngine(nbhttp.Config{
@@ -37,35 +40,13 @@ var (
 	})
 )
 
-// Upgrader .
-type Upgrader = WebsocketReader
-
-type WebsocketReader struct {
-	ReadLimit int64
-	// MessageLengthLimit is the maximum length of websocket message. 0 for unlimited.
-	MessageLengthLimit int64
-	HandshakeTimeout   time.Duration
+type commonFields struct {
+	Engine             *nbhttp.Engine
 	KeepaliveTime      time.Duration
+	MessageLengthLimit int
 
-	compressionLevel int
-	Subprotocols     []string
-
-	CheckOrigin func(r *http.Request) bool
-
-	Engine *nbhttp.Engine
-
-	BlockingModReadBufferSize int
-	BlockingModAsyncWrite     bool
-	isBlockingMod             bool
-	enableCompression         bool
-	enableWriteCompression    bool
-	expectingFragments        bool
-	compress                  bool
-	opcode                    MessageType
-	buffer                    []byte
-	message                   []byte
-
-	conn *Conn
+	enableCompression bool
+	compressionLevel  int
 
 	pingMessageHandler  func(c *Conn, appData string)
 	pongMessageHandler  func(c *Conn, appData string)
@@ -77,24 +58,49 @@ type WebsocketReader struct {
 	onClose          func(c *Conn, err error)
 }
 
-// CompressionEnabled .
-func (wr *WebsocketReader) CompressionEnabled() bool {
-	return wr.compress
+// Upgrader .
+type Upgrader struct {
+	commonFields
+
+	// Subprotocols .
+	Subprotocols []string
+
+	// CheckOrigin .
+	CheckOrigin func(r *http.Request) bool
+
+	// HandshakeTimeout represents the timeout duration during websocket handshake.
+	HandshakeTimeout time.Duration
+
+	// BlockingModReadBufferSize represents the read buffer size of a Conn if it's in blocking mod.
+	BlockingModReadBufferSize int
+
+	// BlockingModAsyncWrite represents whether use a goroutine to handle writing:
+	// true: use dynamic goroutine to handle writing.
+	// false: write buffer to the conn directely.
+	BlockingModAsyncWrite bool
+
+	// BlockingModSendQueueInitSize represents the init size of a Conn's send queue,
+	// only takes effect when `BlockingModAsyncWrite` is true.
+	BlockingModSendQueueInitSize int
+
+	// BlockingModSendQueueInitSize represents the max size of a Conn's send queue,
+	// only takes effect when `BlockingModAsyncWrite` is true.
+	BlockingModSendQueueMaxSize int
 }
 
 // NewUpgrader .
 func NewUpgrader() *Upgrader {
-	return NewWebsocketReader()
-}
-
-// NewWebsocketReader .
-func NewWebsocketReader() *WebsocketReader {
-	wr := &WebsocketReader{
-		Engine: DefaultEngine,
-		// BlockingModReadBufferSize: DefaultBlockingReadBufferSize,
-		// BlockingModAsyncWrite:     false,
+	u := &Upgrader{
+		commonFields: commonFields{
+			Engine:           DefaultEngine,
+			compressionLevel: defaultCompressionLevel,
+		},
+		BlockingModReadBufferSize:    DefaultBlockingReadBufferSize,
+		BlockingModAsyncWrite:        DefaultBlockingModAsyncWrite,
+		BlockingModSendQueueInitSize: DefaultBlockingModSendQueueInitSize,
+		BlockingModSendQueueMaxSize:  DefaultBlockingModSendQueueMaxSize,
 	}
-	wr.pingMessageHandler = func(c *Conn, data string) {
+	u.pingMessageHandler = func(c *Conn, data string) {
 		if len(data) > 125 {
 			c.Close()
 			return
@@ -106,8 +112,8 @@ func NewWebsocketReader() *WebsocketReader {
 			return
 		}
 	}
-	wr.pongMessageHandler = func(*Conn, string) {}
-	wr.closeMessageHandler = func(c *Conn, code int, text string) {
+	u.pongMessageHandler = func(*Conn, string) {}
+	u.closeMessageHandler = func(c *Conn, code int, text string) {
 		if len(text)+2 > maxControlFramePayloadSize {
 			return //ErrInvalidControlFrame
 		}
@@ -117,39 +123,54 @@ func NewWebsocketReader() *WebsocketReader {
 		c.WriteMessage(CloseMessage, buf)
 		mempool.Free(buf)
 	}
-	return wr
+
+	return u
+}
+
+// EnableCompression .
+func (u *Upgrader) EnableCompression(enable bool) {
+	u.enableCompression = enable
+}
+
+// SetCompressionLevel .
+func (u *Upgrader) SetCompressionLevel(level int) error {
+	if !isValidCompressionLevel(level) {
+		return errors.New("websocket: invalid compression level")
+	}
+	u.compressionLevel = level
+	return nil
 }
 
 // SetCloseHandler .
-func (wr *WebsocketReader) SetCloseHandler(h func(*Conn, int, string)) {
+func (u *Upgrader) SetCloseHandler(h func(*Conn, int, string)) {
 	if h != nil {
-		wr.closeMessageHandler = h
+		u.closeMessageHandler = h
 	}
 }
 
 // SetPingHandler .
-func (wr *WebsocketReader) SetPingHandler(h func(*Conn, string)) {
+func (u *Upgrader) SetPingHandler(h func(*Conn, string)) {
 	if h != nil {
-		wr.pingMessageHandler = h
+		u.pingMessageHandler = h
 	}
 }
 
 // SetPongHandler .
-func (wr *WebsocketReader) SetPongHandler(h func(*Conn, string)) {
+func (u *Upgrader) SetPongHandler(h func(*Conn, string)) {
 	if h != nil {
-		wr.pongMessageHandler = h
+		u.pongMessageHandler = h
 	}
 }
 
 // OnOpen .
-func (wr *WebsocketReader) OnOpen(h func(*Conn)) {
-	wr.openHandler = h
+func (u *Upgrader) OnOpen(h func(*Conn)) {
+	u.openHandler = h
 }
 
 // OnMessage .
-func (wr *WebsocketReader) OnMessage(h func(*Conn, MessageType, []byte)) {
+func (u *Upgrader) OnMessage(h func(*Conn, MessageType, []byte)) {
 	if h != nil {
-		wr.messageHandler = func(c *Conn, messageType MessageType, data []byte) {
+		u.messageHandler = func(c *Conn, messageType MessageType, data []byte) {
 			if c.Engine.ReleaseWebsocketPayload && len(data) > 0 {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
@@ -159,9 +180,9 @@ func (wr *WebsocketReader) OnMessage(h func(*Conn, MessageType, []byte)) {
 }
 
 // OnDataFrame .
-func (wr *WebsocketReader) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
+func (u *Upgrader) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
 	if h != nil {
-		wr.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, data []byte) {
+		u.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, data []byte) {
 			if c.Engine.ReleaseWebsocketPayload {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
@@ -171,66 +192,242 @@ func (wr *WebsocketReader) OnDataFrame(h func(*Conn, MessageType, bool, []byte))
 }
 
 // OnClose .
-func (wr *WebsocketReader) OnClose(h func(*Conn, error)) {
-	wr.onClose = h
-}
-
-// EnableCompression .
-func (wr *WebsocketReader) EnableCompression(enable bool) {
-	wr.enableCompression = enable
-}
-
-// EnableWriteCompression .
-func (wr *WebsocketReader) EnableWriteCompression(enable bool) {
-	wr.enableWriteCompression = enable
-}
-
-// SetCompressionLevel .
-func (wr *WebsocketReader) SetCompressionLevel(level int) error {
-	wr.compressionLevel = level
-	return nil
+func (u *Upgrader) OnClose(h func(*Conn, error)) {
+	u.onClose = h
 }
 
 // Upgrade .
-func (wr *WebsocketReader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (net.Conn, error) {
+func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header, args ...interface{}) (*Conn, error) {
+	challengeKey, subprotocol, compress, err := u.commCheck(w, r, responseHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	h, ok := w.(http.Hijacker)
+	if !ok {
+		return nil, u.returnError(w, r, http.StatusInternalServerError, ErrUpgradeNotHijacker)
+	}
+	conn, _, err := h.Hijack()
+	if err != nil {
+		return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+	}
+
+	var wsc *Conn
+	var nbc *nbio.Conn
+	var engine = u.Engine
+	var parser *nbhttp.Parser
+	var transferConn bool
+	if len(args) > 0 {
+		var b bool
+		b, ok = args[0].(bool)
+		transferConn = ok && b
+	}
+
+	getParser := func() {
+		var nbResonse *nbhttp.Response
+		nbResonse, ok = w.(*nbhttp.Response)
+		if ok {
+			parser = nbResonse.Parser
+			parser.Reader = wsc
+		}
+	}
+
+	switch vt := conn.(type) {
+	case *nbio.Conn:
+		// Scenario 1: *nbio.Conn, handled by nbhttp.Engine.
+		parser, ok = vt.Session().(*nbhttp.Parser)
+		if !ok {
+			return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+		}
+		wsc = NewConn(u, conn, subprotocol, compress, false)
+		wsc.Engine = parser.Engine
+		parser.Reader = wsc
+	case *tls.Conn:
+		// Scenario 2: llib's *tls.Conn.
+		nbc, ok = vt.Conn().(*nbio.Conn)
+		if !ok {
+			// 2.1 The conn may be from std's http.Server.Serve(llib's tls.Listener),
+			//     or from nbhttp.Engine's IOModBlocking/Mixed(blocking part).
+			if transferConn {
+				// 2.1.1 Transfer the conn to poller.
+				nbc, err = nbio.NBConn(vt.Conn())
+				if err != nil {
+					return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+				}
+				vt.ResetRawInput()
+				parser = &nbhttp.Parser{Execute: nbc.Execute}
+				if engine.EpollMod == nbio.EPOLLET && engine.EPOLLONESHOT == nbio.EPOLLONESHOT {
+					parser.Execute = nbhttp.SyncExecutor
+				}
+				wsc = NewConn(u, vt, subprotocol, compress, false)
+				nbc.SetSession(wsc)
+				nbc.OnData(func(c *nbio.Conn, data []byte) {
+					defer func() {
+						if err := recover(); err != nil {
+							const size = 64 << 10
+							buf := make([]byte, size)
+							buf = buf[:runtime.Stack(buf, false)]
+							logging.Error("execute failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+						}
+					}()
+					defer vt.ResetOrFreeBuffer()
+
+					var nread int
+					var readed = data
+					var buffer = data
+					var errRead error
+					for {
+						_, nread, errRead = vt.AppendAndRead(readed, buffer)
+						readed = nil
+						if errRead != nil {
+							c.CloseWithError(err)
+							return
+						}
+						if nread > 0 {
+							errRead = wsc.Read(parser, buffer[:nread])
+							if err != nil {
+								logging.Debug("websocket Conn Read failed: %v", errRead)
+								c.CloseWithError(errRead)
+								return
+							}
+						}
+						if nread == 0 {
+							return
+						}
+					}
+				})
+				nonblock := true
+				vt.ResetConn(nbc, nonblock)
+				err = engine.AddTransferredConn(nbc)
+				if err != nil {
+					return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+				}
+			} else {
+				// 2.1.2 Don't transfer the conn to poller.
+				wsc = NewConn(u, conn, subprotocol, compress, u.BlockingModAsyncWrite)
+				wsc.isBlockingMod = true
+				getParser()
+			}
+		} else {
+			// 2.2 The conn is from nbio poller.
+			parser, ok = nbc.Session().(*nbhttp.Parser)
+			if !ok {
+				return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+			}
+			wsc = NewConn(u, conn, subprotocol, compress, false)
+			wsc.Engine = parser.Engine
+			parser.Reader = wsc
+		}
+	case *net.TCPConn:
+		// Scenario 3: std's *net.TCPConn.
+		if transferConn {
+			// 3.1 Transfer the conn to poller.
+			nbc, err = nbio.NBConn(vt)
+			if err != nil {
+				return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+			}
+			parser = &nbhttp.Parser{Execute: nbc.Execute}
+			if engine.EpollMod == nbio.EPOLLET && engine.EPOLLONESHOT == nbio.EPOLLONESHOT {
+				parser.Execute = nbhttp.SyncExecutor
+			}
+			wsc = NewConn(u, nbc, subprotocol, compress, false)
+			nbc.SetSession(wsc)
+			nbc.OnData(func(c *nbio.Conn, data []byte) {
+				defer func() {
+					if err := recover(); err != nil {
+						const size = 64 << 10
+						buf := make([]byte, size)
+						buf = buf[:runtime.Stack(buf, false)]
+						logging.Error("execute failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+					}
+				}()
+
+				errRead := wsc.Read(parser, data)
+				if errRead != nil {
+					logging.Debug("websocket Conn Read failed: %v", errRead)
+					c.CloseWithError(errRead)
+					return
+				}
+			})
+			err = engine.AddTransferredConn(nbc)
+			if err != nil {
+				return nil, u.returnError(w, r, http.StatusInternalServerError, err)
+			}
+		} else {
+			// 3.2 Don't transfer the conn to poller.
+			wsc = NewConn(u, conn, subprotocol, compress, u.BlockingModAsyncWrite)
+			wsc.isBlockingMod = true
+			getParser()
+		}
+	default:
+		// Scenario 4: Unknown conn type, mostly is std's *tls.Conn, from std's http.Server.
+		wsc = NewConn(u, conn, subprotocol, compress, u.BlockingModAsyncWrite)
+		wsc.isBlockingMod = true
+		getParser()
+	}
+
+	err = u.commResponse(wsc.Conn, responseHeader, challengeKey, subprotocol, compress)
+	if err != nil {
+		return nil, err
+	}
+
+	if wsc.openHandler != nil {
+		wsc.openHandler(wsc)
+	}
+
+	if wsc.isBlockingMod {
+		if parser == nil {
+			go wsc.BlockingModReadLoop(u.BlockingModReadBufferSize)
+		}
+	}
+
+	return wsc, nil
+}
+
+func (u *Upgrader) UpgradeAndTransferConnToPoller(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (*Conn, error) {
+	const trasferConn = true
+	return u.Upgrade(w, r, responseHeader, trasferConn)
+}
+
+func (u *Upgrader) commCheck(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (string, string, bool, error) {
 	if !headerContains(r.Header, "Connection", "upgrade") {
-		return nil, wr.returnError(w, r, http.StatusBadRequest, ErrUpgradeTokenNotFound)
+		return "", "", false, u.returnError(w, r, http.StatusBadRequest, ErrUpgradeTokenNotFound)
 	}
 
 	if !headerContains(r.Header, "Upgrade", "websocket") {
-		return nil, wr.returnError(w, r, http.StatusBadRequest, ErrUpgradeTokenNotFound)
+		return "", "", false, u.returnError(w, r, http.StatusBadRequest, ErrUpgradeTokenNotFound)
 	}
 
 	if r.Method != "GET" {
-		return nil, wr.returnError(w, r, http.StatusMethodNotAllowed, ErrUpgradeMethodIsGet)
+		return "", "", false, u.returnError(w, r, http.StatusMethodNotAllowed, ErrUpgradeMethodIsGet)
 	}
 
 	if !headerContains(r.Header, "Sec-Websocket-Version", "13") {
-		return nil, wr.returnError(w, r, http.StatusBadRequest, ErrUpgradeInvalidWebsocketVersion)
+		return "", "", false, u.returnError(w, r, http.StatusBadRequest, ErrUpgradeInvalidWebsocketVersion)
 	}
 
 	if _, ok := responseHeader["Sec-Websocket-Extensions"]; ok {
-		return nil, wr.returnError(w, r, http.StatusInternalServerError, ErrUpgradeUnsupportedExtensions)
+		return "", "", false, u.returnError(w, r, http.StatusInternalServerError, ErrUpgradeUnsupportedExtensions)
 	}
 
-	checkOrigin := wr.CheckOrigin
+	checkOrigin := u.CheckOrigin
 	if checkOrigin == nil {
 		checkOrigin = checkSameOrigin
 	}
 	if !checkOrigin(r) {
-		return nil, wr.returnError(w, r, http.StatusForbidden, ErrUpgradeOriginNotAllowed)
+		return "", "", false, u.returnError(w, r, http.StatusForbidden, ErrUpgradeOriginNotAllowed)
 	}
 
 	challengeKey := r.Header.Get("Sec-Websocket-Key")
 	if challengeKey == "" {
-		return nil, wr.returnError(w, r, http.StatusBadRequest, ErrUpgradeMissingWebsocketKey)
+		return "", "", false, u.returnError(w, r, http.StatusBadRequest, ErrUpgradeMissingWebsocketKey)
 	}
 
-	subprotocol := wr.selectSubprotocol(r, responseHeader)
+	subprotocol := u.selectSubprotocol(r, responseHeader)
 
 	// Negotiate PMCE
 	var compress bool
-	if wr.enableCompression {
+	if u.enableCompression {
 		for _, ext := range parseExtensions(r.Header) {
 			if ext[""] != "permessage-deflate" {
 				continue
@@ -239,57 +436,10 @@ func (wr *WebsocketReader) Upgrade(w http.ResponseWriter, r *http.Request, respo
 			break
 		}
 	}
+	return challengeKey, subprotocol, compress, nil
+}
 
-	h, ok := w.(http.Hijacker)
-	if !ok {
-		return nil, wr.returnError(w, r, http.StatusInternalServerError, ErrUpgradeNotHijacker)
-	}
-	conn, _, err := h.Hijack()
-	if err != nil {
-		return nil, wr.returnError(w, r, http.StatusInternalServerError, err)
-	}
-
-	var parser *nbhttp.Parser
-	switch vt := conn.(type) {
-	case *nbio.Conn:
-		parser, ok = vt.Session().(*nbhttp.Parser)
-		if !ok {
-			return nil, wr.returnError(w, r, http.StatusInternalServerError, err)
-		}
-		parser.Reader = wr
-		wr.conn = NewConn(wr, conn, subprotocol, compress, false)
-		wr.conn.Engine = parser.Engine
-		wr.Engine = parser.Engine
-	case *tls.Conn:
-		nbc, ok := vt.Conn().(*nbio.Conn)
-		if !ok {
-			parser, ok = vt.Session().(*nbhttp.Parser)
-			if !ok {
-				return nil, wr.returnError(w, r, http.StatusInternalServerError, err)
-			}
-			parser.Reader = wr
-			wr.conn = NewConn(wr, conn, subprotocol, compress, wr.BlockingModAsyncWrite)
-			wr.isBlockingMod = true
-		} else {
-			parser, ok = nbc.Session().(*nbhttp.Parser)
-			if !ok {
-				return nil, wr.returnError(w, r, http.StatusInternalServerError, err)
-			}
-			parser.Reader = wr
-			wr.conn = NewConn(wr, conn, subprotocol, compress, false)
-			wr.conn.Engine = parser.Engine
-			wr.Engine = parser.Engine
-		}
-	default:
-		nbResonse, ok := w.(*nbhttp.Response)
-		if ok {
-			parser = nbResonse.Parser
-			parser.Reader = wr
-		}
-		wr.conn = NewConn(wr, conn, subprotocol, compress, wr.BlockingModAsyncWrite)
-		wr.isBlockingMod = true
-	}
-
+func (u *Upgrader) commResponse(conn net.Conn, responseHeader http.Header, challengeKey, subprotocol string, compress bool) error {
 	buf := mempool.Malloc(1024)[0:0]
 	buf = mempool.AppendString(buf, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ")
 	buf = mempool.Append(buf, acceptKeyBytes(challengeKey)...)
@@ -322,414 +472,36 @@ func (wr *WebsocketReader) Upgrade(w http.ResponseWriter, r *http.Request, respo
 	}
 	buf = mempool.AppendString(buf, "\r\n")
 
-	if wr.HandshakeTimeout > 0 {
-		conn.SetWriteDeadline(time.Now().Add(wr.HandshakeTimeout))
+	if u.HandshakeTimeout > 0 {
+		conn.SetWriteDeadline(time.Now().Add(u.HandshakeTimeout))
 	}
 
-	_, err = conn.Write(buf)
+	_, err := conn.Write(buf)
 	mempool.Free(buf)
 	if err != nil {
 		conn.Close()
-		return nil, err
+		return err
 	}
 
-	if wr.KeepaliveTime <= 0 {
+	if u.KeepaliveTime <= 0 {
 		conn.SetReadDeadline(time.Now().Add(nbhttp.DefaultKeepaliveTime))
 	} else {
-		conn.SetReadDeadline(time.Now().Add(wr.KeepaliveTime))
+		conn.SetReadDeadline(time.Now().Add(u.KeepaliveTime))
 	}
 
-	if wr.openHandler != nil {
-		wr.openHandler(wr.conn)
-	}
-
-	wr.conn.OnClose(wr.onClose)
-
-	if wr.isBlockingMod {
-		if wr.BlockingModAsyncWrite {
-			go wr.BlockingModWriteLoop()
-		}
-		if parser == nil {
-			go wr.BlockingModReadLoop()
-		}
-	}
-
-	return wr.conn, nil
-}
-
-// SetConn .
-func (wr *WebsocketReader) SetConn(conn *Conn) {
-	wr.conn = conn
-}
-
-// SetBlockingMod .
-func (wr *WebsocketReader) SetBlockingMod(blocking bool) {
-	wr.isBlockingMod = blocking
-}
-
-// BlockingModReadLoop .
-func (wr *WebsocketReader) BlockingModReadLoop() {
-	var (
-		n       int
-		err     error
-		buf     []byte
-		conn    = wr.conn
-		bufSize = wr.BlockingModReadBufferSize
-	)
-
-	if bufSize <= 0 {
-		bufSize = DefaultBlockingReadBufferSize
-	}
-	buf = make([]byte, bufSize)
-
-	defer func() {
-		wr.Close(nil, err)
-	}()
-
-	for {
-		n, err = conn.Read(buf)
-		if err != nil {
-			break
-		}
-		err = wr.Read(nil, buf[:n])
-		if err != nil {
-			break
-		}
-	}
-}
-
-// BlockingModWriteLoop .
-func (wr *WebsocketReader) BlockingModWriteLoop() {
-	conn := wr.conn
-	defer conn.Close()
-
-	for data := range conn.chAsyncWrite {
-		_, err := conn.Conn.Write(data)
-		mempool.Free(data)
-		if err != nil {
-			break
-		}
-	}
-}
-
-func (wr *WebsocketReader) validFrame(opcode MessageType, fin, res1, res2, res3, expectingFragments bool) error {
-	if res1 && !wr.enableCompression {
-		return ErrReserveBitSet
-	}
-	if res2 || res3 {
-		return ErrReserveBitSet
-	}
-	if opcode > BinaryMessage && opcode < CloseMessage {
-		return fmt.Errorf("%w: opcode=%d", ErrReservedOpcodeSet, opcode)
-	}
-	if !fin && (opcode != FragmentMessage && opcode != TextMessage && opcode != BinaryMessage) {
-		return fmt.Errorf("%w: opcode=%d", ErrControlMessageFragmented, opcode)
-	}
-	if expectingFragments && (opcode == TextMessage || opcode == BinaryMessage) {
-		return ErrFragmentsShouldNotHaveBinaryOrTextOpcode
-	}
 	return nil
 }
 
-// return false if length is ok.
-func (wr *WebsocketReader) isMessageTooLarge(len int) bool {
-	if wr.MessageLengthLimit == 0 {
-		// 0 means unlimitted size
-		return false
-	}
-	return len > int(wr.MessageLengthLimit)
-}
-
-// Read .
-func (wr *WebsocketReader) Read(p *nbhttp.Parser, data []byte) error {
-	oldLen := len(wr.buffer)
-	if wr.ReadLimit > 0 && (int64(oldLen+len(data)) > wr.ReadLimit || int64(oldLen+len(wr.message)) > wr.ReadLimit) {
-		return nbhttp.ErrTooLong
-	}
-
-	var oldBuffer []byte
-	if oldLen == 0 {
-		wr.buffer = data
-	} else {
-		wr.buffer = mempool.Append(wr.buffer, data...)
-		oldBuffer = wr.buffer
-	}
-
-	var err error
-	for i := 0; true; i++ {
-		opcode, body, ok, fin, res1, res2, res3 := wr.nextFrame()
-		if !ok {
-			break
-		}
-		if err = wr.validFrame(opcode, fin, res1, res2, res3, wr.expectingFragments); err != nil {
-			break
-		}
-		if opcode == FragmentMessage || opcode == TextMessage || opcode == BinaryMessage {
-			if wr.opcode == 0 {
-				wr.opcode = opcode
-				wr.compress = res1
-			}
-			bl := len(body)
-			if wr.dataFrameHandler != nil {
-				var frame []byte
-				if bl > 0 {
-					if wr.isMessageTooLarge(bl) {
-						err = ErrMessageTooLarge
-						break
-					}
-					frame = wr.Engine.BodyAllocator.Malloc(bl)
-					copy(frame, body)
-				}
-				if wr.opcode == TextMessage && len(frame) > 0 && !wr.Engine.CheckUtf8(frame) {
-					wr.conn.Close()
-				} else {
-					wr.handleDataFrame(p, wr.conn, wr.opcode, fin, frame)
-				}
-			}
-			if bl > 0 && wr.messageHandler != nil {
-				if wr.message == nil {
-					if wr.isMessageTooLarge(len(body)) {
-						err = ErrMessageTooLarge
-						break
-					}
-					wr.message = wr.Engine.BodyAllocator.Malloc(len(body))
-					copy(wr.message, body)
-				} else {
-					if wr.isMessageTooLarge(len(wr.message) + len(body)) {
-						err = ErrMessageTooLarge
-						break
-					}
-					wr.message = wr.Engine.BodyAllocator.Append(wr.message, body...)
-				}
-			}
-			if fin {
-				if wr.messageHandler != nil {
-					if wr.compress {
-						var b []byte
-						rc := decompressReader(io.MultiReader(bytes.NewBuffer(wr.message), strings.NewReader(flateReaderTail)))
-						b, err = wr.readAll(rc, len(wr.message)*2)
-						wr.Engine.BodyAllocator.Free(wr.message)
-						wr.message = b
-						rc.Close()
-						if err != nil {
-							break
-						}
-					}
-					wr.handleMessage(p, wr.opcode, wr.message)
-				}
-				wr.compress = false
-				wr.expectingFragments = false
-				wr.message = nil
-				wr.opcode = 0
-			} else {
-				wr.expectingFragments = true
-			}
-		} else {
-			var frame []byte
-			if len(body) > 0 {
-				if wr.isMessageTooLarge(len(body)) {
-					err = ErrMessageTooLarge
-					break
-				}
-				frame = wr.Engine.BodyAllocator.Malloc(len(body))
-				copy(frame, body)
-			}
-			wr.handleProtocolMessage(p, opcode, frame)
-		}
-
-		if len(wr.buffer) == 0 {
-			break
-		}
-	}
-
-	if oldLen == 0 {
-		if len(wr.buffer) > 0 {
-			tmp := wr.buffer
-			wr.buffer = mempool.Malloc(len(tmp))
-			copy(wr.buffer, tmp)
-		} else {
-			wr.buffer = nil
-		}
-	} else {
-		if len(wr.buffer) == 0 {
-			mempool.Free(oldBuffer)
-			wr.buffer = nil
-		} else if len(wr.buffer) < len(oldBuffer) {
-			tmp := mempool.Malloc(len(wr.buffer))
-			copy(tmp, wr.buffer)
-			wr.buffer = tmp
-			mempool.Free(oldBuffer)
-		}
-	}
-
-	return err
-}
-
-// Close .
-func (wr *WebsocketReader) Close(p *nbhttp.Parser, err error) {
-	if wr.conn != nil {
-		wr.conn.Close()
-		wr.conn.onClose(wr.conn, err)
-	}
-	if wr.buffer != nil {
-		mempool.Free(wr.buffer)
-		wr.buffer = nil
-	}
-	if wr.message != nil {
-		mempool.Free(wr.message)
-		wr.message = nil
-	}
-}
-
-func (wr *WebsocketReader) handleDataFrame(p *nbhttp.Parser, c *Conn, opcode MessageType, fin bool, data []byte) {
-	h := wr.dataFrameHandler
-	if wr.isBlockingMod {
-		h(c, opcode, fin, data)
-	} else {
-		p.Execute(func() {
-			h(c, opcode, fin, data)
-		})
-	}
-}
-
-func (wr *WebsocketReader) handleMessage(p *nbhttp.Parser, opcode MessageType, body []byte) {
-	if wr.isBlockingMod {
-		wr.handleWsMessage(wr.conn, opcode, body)
-	} else {
-		if !p.Execute(func() {
-			wr.handleWsMessage(wr.conn, opcode, body)
-		}) {
-			if len(body) > 0 {
-				wr.Engine.BodyAllocator.Free(body)
-			}
-		}
-	}
-}
-
-func (wr *WebsocketReader) handleProtocolMessage(p *nbhttp.Parser, opcode MessageType, body []byte) {
-	if wr.isBlockingMod {
-		wr.handleWsMessage(wr.conn, opcode, body)
-		if len(body) > 0 && wr.Engine.ReleaseWebsocketPayload {
-			wr.Engine.BodyAllocator.Free(body)
-		}
-	} else {
-		if !p.Execute(func() {
-			wr.handleWsMessage(wr.conn, opcode, body)
-			if len(body) > 0 && wr.Engine.ReleaseWebsocketPayload {
-				wr.Engine.BodyAllocator.Free(body)
-			}
-		}) {
-			if len(body) > 0 {
-				wr.Engine.BodyAllocator.Free(body)
-			}
-		}
-	}
-}
-
-func (wr *WebsocketReader) handleWsMessage(c *Conn, opcode MessageType, data []byte) {
-	if wr.KeepaliveTime > 0 {
-		defer c.SetReadDeadline(time.Now().Add(wr.KeepaliveTime))
-	}
-	switch opcode {
-	case BinaryMessage:
-		wr.messageHandler(c, opcode, data)
-	case TextMessage:
-		if !c.Engine.CheckUtf8(data) {
-			const errText = "Invalid UTF-8 bytes"
-			protoErrorData := make([]byte, 2+len(errText))
-			binary.BigEndian.PutUint16(protoErrorData, 1002)
-			copy(protoErrorData[2:], errText)
-			c.WriteMessage(CloseMessage, protoErrorData)
-			return
-		}
-		wr.messageHandler(c, opcode, data)
-	case CloseMessage:
-		if len(data) >= 2 {
-			code := int(binary.BigEndian.Uint16(data[:2]))
-			if !validCloseCode(code) || !c.Engine.CheckUtf8(data[2:]) {
-				protoErrorCode := make([]byte, 2)
-				binary.BigEndian.PutUint16(protoErrorCode, 1002)
-				c.WriteMessage(CloseMessage, protoErrorCode)
-			} else {
-				wr.closeMessageHandler(c, code, string(data[2:]))
-			}
-		} else {
-			c.WriteMessage(CloseMessage, nil)
-		}
-		// close immediately, no need to wait for data flushed on a blocked conn
-		c.Close()
-	case PingMessage:
-		wr.pingMessageHandler(c, string(data))
-	case PongMessage:
-		wr.pongMessageHandler(c, string(data))
-	case FragmentMessage:
-		logging.Debug("invalid fragment message")
-		c.Close()
-	default:
-		c.Close()
-	}
-}
-
-func (wr *WebsocketReader) nextFrame() (opcode MessageType, body []byte, ok, fin, res1, res2, res3 bool) {
-	l := int64(len(wr.buffer))
-	headLen := int64(2)
-	if l >= 2 {
-		opcode = MessageType(wr.buffer[0] & 0xF)
-		res1 = int8(wr.buffer[0]&0x40) != 0
-		res2 = int8(wr.buffer[0]&0x20) != 0
-		res3 = int8(wr.buffer[0]&0x10) != 0
-		fin = ((wr.buffer[0] & 0x80) != 0)
-		payloadLen := wr.buffer[1] & 0x7F
-		bodyLen := int64(-1)
-
-		switch payloadLen {
-		case 126:
-			if l >= 4 {
-				bodyLen = int64(binary.BigEndian.Uint16(wr.buffer[2:4]))
-				headLen = 4
-			}
-		case 127:
-			if len(wr.buffer) >= 10 {
-				bodyLen = int64(binary.BigEndian.Uint64(wr.buffer[2:10]))
-				headLen = 10
-			}
-		default:
-			bodyLen = int64(payloadLen)
-		}
-		if bodyLen >= 0 {
-			masked := (wr.buffer[1] & 0x80) != 0
-			if masked {
-				headLen += 4
-			}
-			total := headLen + bodyLen
-			if l >= total {
-				body = wr.buffer[headLen:total]
-				if masked {
-					maskKey := wr.buffer[headLen-4 : headLen]
-					for i := 0; i < len(body); i++ {
-						body[i] ^= maskKey[i%4]
-					}
-				}
-
-				ok = true
-				wr.buffer = wr.buffer[total:l]
-			}
-		}
-	}
-
-	return opcode, body, ok, fin, res1, res2, res3
-}
-
-func (wr *WebsocketReader) returnError(w http.ResponseWriter, _ *http.Request, status int, err error) error {
+func (u *Upgrader) returnError(w http.ResponseWriter, _ *http.Request, status int, err error) error {
 	w.Header().Set("Sec-Websocket-Version", "13")
 	http.Error(w, http.StatusText(status), status)
 	return err
 }
 
-func (wr *WebsocketReader) selectSubprotocol(r *http.Request, responseHeader http.Header) string {
-	if wr.Subprotocols != nil {
+func (u *Upgrader) selectSubprotocol(r *http.Request, responseHeader http.Header) string {
+	if u.Subprotocols != nil {
 		clientProtocols := subprotocols(r)
-		for _, serverProtocol := range wr.Subprotocols {
+		for _, serverProtocol := range u.Subprotocols {
 			for _, clientProtocol := range clientProtocols {
 				if clientProtocol == serverProtocol {
 					return clientProtocol
@@ -1019,29 +791,4 @@ func nextTokenOrQuoted(s string) (value string, rest string) {
 		}
 	}
 	return "", ""
-}
-
-func (wr *WebsocketReader) readAll(r io.Reader, size int) ([]byte, error) {
-	const maxAppendSize = 1024 * 1024 * 4
-	buf := wr.Engine.BodyAllocator.Malloc(size)[0:0]
-	for {
-		n, err := r.Read(buf[len(buf):cap(buf)])
-		if n > 0 {
-			buf = buf[:len(buf)+n]
-		}
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return buf, err
-		}
-		if len(buf) == cap(buf) {
-			l := len(buf)
-			al := l
-			if al > maxAppendSize {
-				al = maxAppendSize
-			}
-			buf = wr.Engine.BodyAllocator.Append(buf, make([]byte, al)...)[:l]
-		}
-	}
 }

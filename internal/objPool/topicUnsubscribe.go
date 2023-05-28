@@ -14,23 +14,36 @@
 * limitations under the License.
  */
 
-package cmd
+package objPool
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"netsvr/configs"
-	customerManager "netsvr/internal/customer/manager"
-	workerManager "netsvr/internal/worker/manager"
+	"sync"
 )
 
-// UniqIdList 获取网关中全部的uniqId
-func UniqIdList(_ []byte, processor *workerManager.ConnProcessor) {
-	uniqIds := make([]string, 0, customerManager.Manager.Len())
-	for _, c := range customerManager.Manager {
-		c.GetUniqIds(&uniqIds)
+type topicUnsubscribe struct {
+	pool *sync.Pool
+}
+
+var TopicUnsubscribe *topicUnsubscribe
+
+func (r *topicUnsubscribe) Get() *netsvrProtocol.TopicUnsubscribe {
+	return r.pool.Get().(*netsvrProtocol.TopicUnsubscribe)
+}
+
+func (r *topicUnsubscribe) Put(topicUnsubscribe *netsvrProtocol.TopicUnsubscribe) {
+	topicUnsubscribe.Data = nil
+	topicUnsubscribe.Topics = nil
+	topicUnsubscribe.UniqId = ""
+	r.pool.Put(topicUnsubscribe)
+}
+
+func init() {
+	TopicUnsubscribe = &topicUnsubscribe{
+		pool: &sync.Pool{
+			New: func() any {
+				return &netsvrProtocol.TopicUnsubscribe{}
+			},
+		},
 	}
-	ret := &netsvrProtocol.UniqIdListResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
-	ret.UniqIds = uniqIds
-	processor.Send(ret, netsvrProtocol.Cmd_UniqIdList)
 }

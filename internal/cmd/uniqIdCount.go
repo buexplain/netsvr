@@ -18,20 +18,17 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // UniqIdCount 获取网关中uniqId的数量
 func UniqIdCount(_ []byte, processor *workerManager.ConnProcessor) {
-	ret := &netsvrProtocol.UniqIdCountResp{}
+	ret := objPool.UniqIdCountResp.Get()
+	defer objPool.UniqIdCountResp.Put(ret)
 	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Count = int32(customerManager.Manager.Len())
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_UniqIdCount
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_UniqIdCount)
 }

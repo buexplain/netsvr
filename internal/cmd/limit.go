@@ -40,9 +40,5 @@ func Limit(param []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.LimitResp{}
 	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Items = limit.Manager.Count()
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_Limit
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_Limit)
 }

@@ -17,32 +17,36 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // TopicSubscribe 订阅
 func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.TopicSubscribe{}
+	payload := objPool.TopicSubscribe.Get()
 	if err := proto.Unmarshal(param, payload); err != nil {
+		objPool.TopicSubscribe.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicSubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {
+		objPool.TopicSubscribe.Put(payload)
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
 	if conn == nil {
+		objPool.TopicSubscribe.Put(payload)
 		return
 	}
 	session, ok := conn.Session().(*info.Info)
 	if !ok {
+		objPool.TopicSubscribe.Put(payload)
 		return
 	}
 	session.MuxLock()
@@ -55,4 +59,5 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		}
 	}
+	objPool.TopicSubscribe.Put(payload)
 }

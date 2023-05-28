@@ -9,15 +9,15 @@ Heartbeat = 30
 # 是否并发初始化
 Concurrent = true
 # 当所有连接建立完毕后的持续时间，单位秒
-Suspend = 300
-# 沉默的连接，除了发心跳，其它啥也不发
+Suspend = 180
+# 沉默的连接
 [Silent]
 Enable = true
 Step = [
     #每个阶段初始化的连接数、每秒初始化的连接数、本阶段初始化完毕后的暂停秒数
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 300, ConnectNum = 10, Suspend = 20 },
+    { ConnNum = 300, ConnectNum = 10, Suspend = 20 },
+    { ConnNum = 400, ConnectNum = 10, Suspend = 20 },
 ]
 
 # 疯狂登录登出的连接
@@ -26,55 +26,55 @@ Enable = true
 # 间隔多少秒进行一次所有连接的登录登出操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂单播的连接
 [SingleCast]
 Enable = true
 # 单播时发送的消息大小
-MessageLen = 0
+MessageLen = 128
 # 间隔多少秒进行一次所有连接的单播
-MessageInterval = 6
+MessageInterval = 8
 Step = [
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂组播的连接
 [Multicast]
 Enable = true
-MessageLen = 0
+MessageLen = 256
 # 一组包含的uniqId数量
-UniqIdNum = 10
-MessageInterval = 7
+UniqIdNum = 15
+MessageInterval = 11
 Step = [
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂订阅、取消订阅、发布
 [Topic]
 Enable = true
-MessageInterval = 8
-MessageLen = 0
+MessageInterval = 14
+MessageLen = 512
 Step = [
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 180 },
+    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂广播的连接
 [Broadcast]
 Enable = true
-MessageLen = 0
-MessageInterval = 9
+MessageLen = 1024
+MessageInterval = 17
 Step = [
-    { ConnNum = 1, ConnectNum = 1, Suspend = 180 },
-    { ConnNum = 2, ConnectNum = 1, Suspend = 180 },
-    { ConnNum = 3, ConnectNum = 1, Suspend = 180 },
+    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
 ]

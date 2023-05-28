@@ -40,9 +40,5 @@ func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 	} else {
 		topic.Topic.Count(payload.Topics, ret.Items)
 	}
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_TopicUniqIdCount
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_TopicUniqIdCount)
 }

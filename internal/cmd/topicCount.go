@@ -18,7 +18,6 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	workerManager "netsvr/internal/worker/manager"
@@ -29,9 +28,5 @@ func TopicCount(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.TopicCountResp{}
 	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Count = int32(topic.Topic.Len())
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_TopicCount
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_TopicCount)
 }

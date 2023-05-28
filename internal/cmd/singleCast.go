@@ -17,29 +17,33 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
+	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // SingleCast 单播
 func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.SingleCast{}
+	payload := objPool.SingleCast.Get()
 	if err := proto.Unmarshal(param, payload); err != nil {
+		objPool.SingleCast.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCast failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Data) == 0 {
+		objPool.SingleCast.Put(payload)
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
 	if conn == nil {
+		objPool.SingleCast.Put(payload)
 		return
 	}
 	if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
 		_ = conn.Close()
 	}
+	objPool.SingleCast.Put(payload)
 }

@@ -18,7 +18,6 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/metrics"
 	workerManager "netsvr/internal/worker/manager"
@@ -34,9 +33,5 @@ func Metrics(_ []byte, processor *workerManager.ConnProcessor) {
 			ret.Items[int32(v.Item)] = tmp
 		}
 	}
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_Metrics
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_Metrics)
 }

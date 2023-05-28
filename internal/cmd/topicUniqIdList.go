@@ -35,9 +35,5 @@ func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.TopicUniqIdListResp{Items: map[string]*netsvrProtocol.TopicUniqIdListRespItem{}}
 	ret.ServerId = int32(configs.Config.ServerId)
 	topic.Topic.GetToProtocolTopicUniqIdListResp(ret, payload.Topics)
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_TopicUniqIdList
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_TopicUniqIdList)
 }

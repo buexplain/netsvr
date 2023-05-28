@@ -17,22 +17,24 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
+	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // Multicast 组播
 func Multicast(param []byte, _ *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.Multicast{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := objPool.Multicast.Get()
+	if err := proto.Unmarshal(param, payload); err != nil {
+		objPool.Multicast.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Multicast failed")
 		return
 	}
 	if len(payload.Data) == 0 {
+		objPool.Multicast.Put(payload)
 		return
 	}
 	for _, uniqId := range payload.UniqIds {
@@ -44,4 +46,5 @@ func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		}
 	}
+	objPool.Multicast.Put(payload)
 }

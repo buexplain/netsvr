@@ -25,6 +25,7 @@ import (
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	"netsvr/internal/objPool"
 	"netsvr/pkg/quit"
 	"sync/atomic"
 	"time"
@@ -157,14 +158,27 @@ func (r *ConnProcessor) send(data []byte) {
 	r.sendBuf.Reset()
 }
 
-func (r *ConnProcessor) Send(data []byte) {
+func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	select {
 	case <-r.closeCh:
 		//收到关闭信号，不再生产数据
-		return
+		return 0
 	default:
 		//可能有大量的协程阻塞在这里
-		r.sendCh <- data
+		data, err := proto.Marshal(message)
+		if err != nil {
+			return 0
+		}
+		router := objPool.Router.Get()
+		router.Cmd = cmd
+		router.Data = data
+		data, err = proto.Marshal(router)
+		objPool.Router.Put(router)
+		if err == nil {
+			r.sendCh <- data
+			return len(data)
+		}
+		return 0
 	}
 }
 
@@ -184,14 +198,13 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 	}()
 	//包头专用
-	dataLenBuf := make([]byte, 4)
+	dataLenBuf := make([]byte, 0, 4)
 	//包体专用
 	var dataBufCap uint32 = 0
 	var dataBuf []byte
 	var err error
+	var dataLen uint32
 	for {
-		dataLenBuf = dataLenBuf[:0]
-		dataLenBuf = dataLenBuf[0:4]
 		//设置读超时时间，再这个时间之内，business没有发数据过来，则会发生超时错误，导致连接被关闭
 		if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
 			r.ForceClose()
@@ -199,42 +212,49 @@ func (r *ConnProcessor) LoopReceive() {
 			break
 		}
 		//获取前4个字节，确定数据包长度
-		if _, err = io.ReadFull(r.conn, dataLenBuf); err != nil {
+		dataLenBuf = dataLenBuf[:4]
+		if _, err = io.ReadAtLeast(r.conn, dataLenBuf, 4); err != nil {
 			//读失败了，直接干掉这个连接，让business端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
 			//关掉重来，是最好的办法
 			r.ForceClose()
 			break
 		}
 		//这里采用大端序
-		dataLen := binary.BigEndian.Uint32(dataLenBuf)
+		dataLen = binary.BigEndian.Uint32(dataLenBuf)
 		//判断装载数据的缓存区是否足够
 		if dataLen > dataBufCap {
-			//分配一块更大的，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
-			dataBufCap = 1024 * ((dataLen-1)/1024 + 1)
-			dataBuf = make([]byte, dataBufCap)
-		} else {
-			//清空当前的
-			dataBuf = dataBuf[:0]
-			dataBuf = dataBuf[0:dataLen]
+			//发送是数据包太大，直接关闭business，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
+			if dataLen > configs.Config.Worker.ReceivePackLimit-4 {
+				log.Logger.Error().Uint32("dataLen", dataLen).Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack size overflow")
+				r.ForceClose()
+				break
+			}
+			if r.workerId > 0 {
+				dataBufCap = 64 * ((dataLen-1)/64 + 1)
+			} else {
+				dataBufCap = dataLen
+			}
+			dataBuf = make([]byte, 0, dataBufCap)
 		}
 		//获取数据包，这里不必设置读取超时，因为接下来大大概率是有数据的，除非business不按包头包体的协议格式发送
-		if _, err = io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
+		dataBuf = dataBuf[0:dataLen]
+		if _, err = io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Worker receive failed")
+			log.Logger.Error().Err(err).Msg("Worker receive body failed")
 			break
 		}
 		//business发来心跳
-		if bytes.Equal(netsvrProtocol.PingMessage, dataBuf[0:dataLen]) {
+		if bytes.Equal(netsvrProtocol.PingMessage, dataBuf) {
 			//响应business的心跳
-			r.Send(netsvrProtocol.PongMessage)
+			r.sendCh <- netsvrProtocol.PongMessage
 			continue
 		}
-		router := &netsvrProtocol.Router{}
-		if err = proto.Unmarshal(dataBuf[0:dataLen], router); err != nil {
+		router := objPool.Router.Get()
+		if err = proto.Unmarshal(dataBuf, router); err != nil {
+			objPool.Router.Put(router)
 			log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Router failed")
 			continue
 		}
-		log.Logger.Debug().Stringer("cmd", router.Cmd).Msg("Worker receive business command")
 		r.receiveCh <- router
 	}
 }
@@ -261,11 +281,13 @@ func (r *ConnProcessor) LoopCmd() {
 func (r *ConnProcessor) cmd(router *netsvrProtocol.Router) {
 	if callback, ok := r.cmdCallback[router.Cmd]; ok {
 		callback(router.Data, r)
+		objPool.Router.Put(router)
 		return
 	}
 	//business搞错了指令，直接关闭连接，让business明白，不能瞎传，代码一定要通过测试
 	r.ForceClose()
 	log.Logger.Error().Interface("cmd", router.Cmd).Msg("Unknown protocol.router.Cmd")
+	objPool.Router.Put(router)
 }
 
 // RegisterCmd 注册各种命令

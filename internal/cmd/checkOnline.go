@@ -39,9 +39,5 @@ func CheckOnline(param []byte, processor *workerManager.ConnProcessor) {
 		}
 	}
 	ret.UniqIds = uniqIds
-	route := &netsvrProtocol.Router{}
-	route.Cmd = netsvrProtocol.Cmd_CheckOnline
-	route.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(route)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_CheckOnline)
 }

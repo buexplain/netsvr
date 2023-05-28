@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 清空编译缓存
+go clean -cache
+
 # 编译Windows版本
 echo build Windows version
 mkdir -p ./../build/win

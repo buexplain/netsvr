@@ -18,7 +18,6 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -27,10 +26,7 @@ import (
 func Unregister(_ []byte, processor *workerManager.ConnProcessor) {
 	workerId := processor.GetWorkerId()
 	if netsvrProtocol.WorkerIdMin <= workerId && workerId <= netsvrProtocol.WorkerIdMax && workerManager.Manager.Del(workerId, processor) {
-		route := &netsvrProtocol.Router{}
-		route.Cmd = netsvrProtocol.Cmd_Unregister
-		pt, _ := proto.Marshal(route)
-		processor.Send(pt)
+		processor.Send(nil, netsvrProtocol.Cmd_Unregister)
 		log.Logger.Info().Int32("workerId", workerId).Msg("Unregister a business")
 	}
 }

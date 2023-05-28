@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 	"unsafe"
@@ -159,7 +160,7 @@ type Config struct {
 	// Handler sets HTTP handler for Engine.
 	Handler http.Handler
 
-	// ServerExecutor sets the executor for server callbacks.
+	// ServerExecutor sets the executor for data reading callbacks.
 	ServerExecutor func(f func())
 
 	// ClientExecutor sets the executor for client callbacks.
@@ -189,6 +190,25 @@ type Config struct {
 	MaxBlockingOnline int
 	// BlockingReadBufferSize represents read buffer size of blocking mod.
 	BlockingReadBufferSize int
+
+	// EpollMod .
+	EpollMod uint32
+	// EPOLLONESHOT .
+	EPOLLONESHOT uint32
+
+	// ReadBufferPool .
+	ReadBufferPool mempool.Allocator
+
+	// WebsocketCompressor .
+	WebsocketCompressor func() interface {
+		Compress([]byte) []byte
+		Close()
+	}
+	// WebsocketDecompressor .
+	WebsocketDecompressor func() interface {
+		Decompress([]byte) ([]byte, error)
+		Close()
+	}
 }
 
 // Engine .
@@ -208,7 +228,7 @@ type Engine struct {
 	_onStop  func()
 
 	mux   sync.Mutex
-	conns map[net.Conn]struct{}
+	conns map[connValue]struct{}
 
 	// tlsBuffers [][]byte
 	// getTLSBuffer func(c *nbio.Conn) []byte
@@ -218,6 +238,8 @@ type Engine struct {
 	Cancel       func()
 
 	ExecuteClient func(f func())
+
+	isOneshot bool
 }
 
 // OnOpen registers callback for new connection.
@@ -243,8 +265,10 @@ func (e *Engine) Online() int {
 func (e *Engine) closeAllConns() {
 	e.mux.Lock()
 	defer e.mux.Unlock()
-	for c := range e.conns {
-		c.Close()
+	for key := range e.conns {
+		if c, err := array2Conn(key); err == nil {
+			c.Close()
+		}
 	}
 }
 
@@ -440,36 +464,6 @@ Exit:
 	return err
 }
 
-// InitTLSBuffers .
-// func (e *Engine) InitTLSBuffers() {
-// 	if e.tlsBuffers != nil {
-// 		return
-// 	}
-// 	e.tlsBuffers = make([][]byte, e.NParser)
-// 	for i := 0; i < e.NParser; i++ {
-// 		e.tlsBuffers[i] = make([]byte, e.ReadBufferSize)
-// 	}
-
-// 	e.getTLSBuffer = func(c *nbio.Conn) []byte {
-// 		return e.tlsBuffers[uint64(c.Hash())%uint64(e.NParser)]
-// 	}
-
-// 	if runtime.GOOS == "windows" {
-// 		bufferMux := sync.Mutex{}
-// 		buffers := map[*nbio.Conn][]byte{}
-// 		e.getTLSBuffer = func(c *nbio.Conn) []byte {
-// 			bufferMux.Lock()
-// 			defer bufferMux.Unlock()
-// 			buf, ok := buffers[c]
-// 			if !ok {
-// 				buf = make([]byte, 4096)
-// 				buffers[c] = buf
-// 			}
-// 			return buf
-// 		}
-// 	}
-// }
-
 // DataHandler .
 func (e *Engine) DataHandler(c *nbio.Conn, data []byte) {
 	defer func() {
@@ -536,6 +530,27 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 	}
 }
 
+// AddConnTLSNonBlocking .
+func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
+	key, err := conn2Array(nbc)
+	if err != nil {
+		nbc.Close()
+		return err
+	}
+
+	engine.mux.Lock()
+	if len(engine.conns) >= engine.MaxLoad {
+		engine.mux.Unlock()
+		nbc.Close()
+		return ErrServiceOverload
+	}
+	engine.conns[key] = struct{}{}
+	engine.mux.Unlock()
+	engine._onOpen(nbc)
+	engine.AddConn(nbc)
+	return nil
+}
+
 // AddConnNonTLSNonBlocking .
 func (engine *Engine) AddConnNonTLSNonBlocking(c net.Conn, tlsConfig *tls.Config, decrease func()) {
 	nbc, err := nbio.NBConn(c)
@@ -544,19 +559,29 @@ func (engine *Engine) AddConnNonTLSNonBlocking(c net.Conn, tlsConfig *tls.Config
 		return
 	}
 	if nbc.Session() != nil {
+		nbc.Close()
 		return
 	}
+	key, err := conn2Array(nbc)
+	if err != nil {
+		nbc.Close()
+		return
+	}
+
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		c.Close()
+		nbc.Close()
 		return
 	}
-	engine.conns[nbc] = struct{}{}
+	engine.conns[key] = struct{}{}
 	engine.mux.Unlock()
 	engine._onOpen(nbc)
 	processor := NewServerProcessor(nbc, engine.Handler, engine.KeepaliveTime, !engine.DisableSendfile)
 	parser := NewParser(processor, false, engine.ReadLimit, nbc.Execute)
+	if engine.isOneshot {
+		parser.Execute = SyncExecutor
+	}
 	parser.Engine = engine
 	processor.(*ServerProcessor).parser = parser
 	nbc.SetSession(parser)
@@ -575,8 +600,15 @@ func (engine *Engine) AddConnNonTLSBlocking(conn net.Conn, tlsConfig *tls.Config
 		return
 	}
 	switch vt := conn.(type) {
-	case *net.TCPConn:
-		engine.conns[vt] = struct{}{}
+	case *net.TCPConn, *net.UnixConn:
+		key, err := conn2Array(vt)
+		if err != nil {
+			engine.mux.Unlock()
+			conn.Close()
+			decrease()
+			return
+		}
+		engine.conns[key] = struct{}{}
 	default:
 		engine.mux.Unlock()
 		conn.Close()
@@ -586,18 +618,7 @@ func (engine *Engine) AddConnNonTLSBlocking(conn net.Conn, tlsConfig *tls.Config
 	engine.mux.Unlock()
 	engine._onOpen(conn)
 	processor := NewServerProcessor(conn, engine.Handler, engine.KeepaliveTime, !engine.DisableSendfile)
-	parser := NewParser(processor, false, engine.ReadLimit, func(f func()) bool {
-		defer func() {
-			if err := recover(); err != nil {
-				const size = 64 << 10
-				buf := make([]byte, size)
-				buf = buf[:runtime.Stack(buf, false)]
-				logging.Error("execute failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
-			}
-		}()
-		f()
-		return true
-	})
+	parser := NewParser(processor, false, engine.ReadLimit, SyncExecutor)
 	parser.Engine = engine
 	processor.(*ServerProcessor).parser = parser
 	conn.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
@@ -612,15 +633,23 @@ func (engine *Engine) AddConnTLSNonBlocking(conn net.Conn, tlsConfig *tls.Config
 		return
 	}
 	if nbc.Session() != nil {
+		nbc.Close()
 		return
 	}
+	key, err := conn2Array(nbc)
+	if err != nil {
+		nbc.Close()
+		return
+	}
+
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
 		nbc.Close()
 		return
 	}
-	engine.conns[nbc] = struct{}{}
+
+	engine.conns[key] = struct{}{}
 	engine.mux.Unlock()
 	engine._onOpen(nbc)
 
@@ -629,6 +658,9 @@ func (engine *Engine) AddConnTLSNonBlocking(conn net.Conn, tlsConfig *tls.Config
 	tlsConn := tls.NewConn(nbc, tlsConfig, isClient, isNonBlock, engine.TLSAllocator)
 	processor := NewServerProcessor(tlsConn, engine.Handler, engine.KeepaliveTime, !engine.DisableSendfile)
 	parser := NewParser(processor, false, engine.ReadLimit, nbc.Execute)
+	if engine.isOneshot {
+		parser.Execute = SyncExecutor
+	}
 	parser.Conn = tlsConn
 	parser.Engine = engine
 	processor.(*ServerProcessor).parser = parser
@@ -650,8 +682,15 @@ func (engine *Engine) AddConnTLSBlocking(conn net.Conn, tlsConfig *tls.Config, d
 	}
 
 	switch vt := conn.(type) {
-	case *net.TCPConn:
-		engine.conns[vt] = struct{}{}
+	case *net.TCPConn, *net.UnixConn:
+		key, err := conn2Array(vt)
+		if err != nil {
+			engine.mux.Unlock()
+			conn.Close()
+			decrease()
+			return
+		}
+		engine.conns[key] = struct{}{}
 	default:
 		engine.mux.Unlock()
 		conn.Close()
@@ -665,18 +704,7 @@ func (engine *Engine) AddConnTLSBlocking(conn net.Conn, tlsConfig *tls.Config, d
 	isNonBlock := true
 	tlsConn := tls.NewConn(conn, tlsConfig, isClient, isNonBlock, engine.TLSAllocator)
 	processor := NewServerProcessor(tlsConn, engine.Handler, engine.KeepaliveTime, !engine.DisableSendfile)
-	parser := NewParser(processor, false, engine.ReadLimit, func(f func()) bool {
-		defer func() {
-			if err := recover(); err != nil {
-				const size = 64 << 10
-				buf := make([]byte, size)
-				buf = buf[:runtime.Stack(buf, false)]
-				logging.Error("execute failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
-			}
-		}()
-		f()
-		return true
-	})
+	parser := NewParser(processor, false, engine.ReadLimit, SyncExecutor)
 	parser.Conn = tlsConn
 	parser.Engine = engine
 	processor.(*ServerProcessor).parser = parser
@@ -689,16 +717,24 @@ func (engine *Engine) readConnBlocking(conn net.Conn, parser *Parser, decrease f
 	var (
 		n   int
 		err error
-		buf = make([]byte, engine.BlockingReadBufferSize)
 	)
+
+	readBufferPool := engine.ReadBufferPool
+	if readBufferPool == nil {
+		readBufferPool = getReadBufferPool(engine.BlockingReadBufferSize)
+	}
+
+	buf := readBufferPool.Malloc(engine.BlockingReadBufferSize)
+	defer readBufferPool.Free(buf)
 
 	defer func() {
 		// go func() {
 		parser.Close(err)
 		engine.mux.Lock()
 		switch vt := conn.(type) {
-		case *net.TCPConn:
-			delete(engine.conns, vt)
+		case *net.TCPConn, *net.UnixConn:
+			key, _ := conn2Array(vt)
+			delete(engine.conns, key)
 		}
 		engine.mux.Unlock()
 		engine._onClose(conn, err)
@@ -717,24 +753,29 @@ func (engine *Engine) readConnBlocking(conn net.Conn, parser *Parser, decrease f
 
 func (engine *Engine) readTLSConnBlocking(conn net.Conn, tlsConn *tls.Conn, parser *Parser, decrease func()) {
 	var (
-		err    error
-		nread  int
-		buffer = make([]byte, engine.BlockingReadBufferSize)
+		err   error
+		nread int
 	)
 
+	readBufferPool := engine.ReadBufferPool
+	if readBufferPool == nil {
+		readBufferPool = getReadBufferPool(engine.BlockingReadBufferSize)
+	}
+
+	buffer := readBufferPool.Malloc(engine.BlockingReadBufferSize)
 	defer func() {
-		// go func() {
+		readBufferPool.Free(buffer)
 		parser.Close(err)
 		tlsConn.Close()
 		engine.mux.Lock()
 		switch vt := conn.(type) {
-		case *net.TCPConn:
-			delete(engine.conns, vt)
+		case *net.TCPConn, *net.UnixConn:
+			key, _ := conn2Array(vt)
+			delete(engine.conns, key)
 		}
 		engine.mux.Unlock()
 		engine._onClose(conn, err)
 		decrease()
-		// }()
 	}()
 
 	for {
@@ -838,7 +879,7 @@ func NewEngine(conf Config) *Engine {
 					const size = 64 << 10
 					buf := make([]byte, size)
 					buf = buf[:runtime.Stack(buf, false)]
-					logging.Error("clientExecutor call failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+					logging.Error("ClientExecutor call failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
 				}
 			}()
 			f()
@@ -868,6 +909,8 @@ func NewEngine(conf Config) *Engine {
 		LockPoller:                   conf.LockPoller,
 		LockListener:                 conf.LockListener,
 		TimerExecute:                 conf.TimerExecutor,
+		EpollMod:                     conf.EpollMod,
+		EPOLLONESHOT:                 conf.EPOLLONESHOT,
 	}
 	g := nbio.NewEngine(gopherConf)
 	g.Execute = serverExecutor
@@ -899,7 +942,7 @@ func NewEngine(conf Config) *Engine {
 		_onClose:      func(c net.Conn, err error) {},
 		_onStop:       func() {},
 		CheckUtf8:     utf8.Valid,
-		conns:         map[net.Conn]struct{}{},
+		conns:         map[connValue]struct{}{},
 		ExecuteClient: clientExecutor,
 
 		emptyRequest: (&http.Request{}).WithContext(baseCtx),
@@ -915,24 +958,63 @@ func NewEngine(conf Config) *Engine {
 	// g.OnOpen(engine.ServerOnOpen)
 	g.OnClose(func(c *nbio.Conn, err error) {
 		c.MustExecute(func() {
-			parser, ok := c.Session().(*Parser)
-			if ok && parser != nil {
-				parser.Close(err)
+			switch vt := c.Session().(type) {
+			case *Parser:
+				vt.Close(err)
+			case interface {
+				CloseAndClean(error)
+			}:
+				vt.CloseAndClean(err)
+			default:
 			}
 			engine._onClose(c, err)
 			engine.mux.Lock()
-			delete(engine.conns, c)
+			key, _ := conn2Array(c)
+			delete(engine.conns, key)
 			engine.mux.Unlock()
 		})
 	})
+
 	g.OnData(func(c *nbio.Conn, data []byte) {
-		if c.DataHandler != nil {
-			c.DataHandler(c, data)
-		}
+		c.DataHandler(c, data)
 	})
-	// g.OnWriteBufferRelease(func(c *nbio.Conn, buffer []byte) {
-	// 	mempool.Free(buffer)
-	// })
+
+	engine.isOneshot = (conf.EpollMod == nbio.EPOLLET && conf.EPOLLONESHOT == nbio.EPOLLONESHOT && runtime.GOOS == "linux")
+	if engine.isOneshot {
+		readBufferPool := conf.ReadBufferPool
+		if readBufferPool == nil {
+			readBufferPool = getReadBufferPool(conf.ReadBufferSize)
+		}
+
+		g.OnRead(func(c *nbio.Conn) {
+			serverExecutor(func() {
+				buf := readBufferPool.Malloc(conf.ReadBufferSize)
+				defer func() {
+					readBufferPool.Free(buf)
+					c.ResetPollerEvent()
+				}()
+				for {
+					n, err := c.Read(buf)
+					if n > 0 && c.DataHandler != nil {
+						c.DataHandler(c, buf[:n])
+					}
+					if errors.Is(err, syscall.EINTR) {
+						continue
+					}
+					if errors.Is(err, syscall.EAGAIN) {
+						break
+					}
+					if err != nil {
+						c.CloseWithError(err)
+					}
+					if n < len(buf) {
+						return
+					}
+				}
+			})
+		})
+	}
+
 	g.OnStop(func() {
 		engine._onStop()
 		g.Execute = func(f func()) {}
@@ -945,4 +1027,32 @@ func NewEngine(conf Config) *Engine {
 		}
 	})
 	return engine
+}
+
+var ReadBufferPools = &sync.Map{}
+
+func getReadBufferPool(size int) mempool.Allocator {
+	pool, ok := ReadBufferPools.Load(size)
+	if ok {
+		readBufferPool, ok := pool.(mempool.Allocator)
+		if ok {
+			return readBufferPool
+		}
+	}
+	readBufferPool := mempool.New(size, size*2)
+	ReadBufferPools.Store(size, readBufferPool)
+	return readBufferPool
+}
+
+func SyncExecutor(f func()) bool {
+	defer func() {
+		if err := recover(); err != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			logging.Error("ProtocolExecutor call failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+		}
+	}()
+	f()
+	return true
 }

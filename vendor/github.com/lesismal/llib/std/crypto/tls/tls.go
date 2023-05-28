@@ -49,9 +49,9 @@ func NewConn(conn net.Conn, config *Config, isClient bool, isNonBlock bool, v ..
 	// 	}
 	// }
 	// if c.allocator == nil {
-	// 	c.allocator = &PoolAllocator{}
+	// 	c.allocator = &NativeAllocator{}
 	// }
-	c.allocator = &PoolAllocator{}
+	c.allocator = &NativeAllocator{}
 	return c
 }
 
@@ -207,7 +207,7 @@ func dial(ctx context.Context, netDialer *net.Dialer, network, addr string, conf
 		}
 	}
 	if conn.allocator == nil {
-		conn.allocator = &PoolAllocator{}
+		conn.allocator = &NativeAllocator{}
 	}
 	if hsErrCh == nil {
 		err = conn.Handshake()

@@ -9,7 +9,37 @@ import (
 	"net"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/utils/connPool"
+	"time"
 )
+
+var pool *connPool.ConnPool
+
+func init() {
+	pool = connPool.NewConnPool(50, func() net.Conn {
+		conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
+		if err != nil {
+			log.Logger.Error().Err(err).Type("errorType", err).Msg("Business client connect worker service failed")
+			return nil
+		}
+		return conn
+	}, func(conn net.Conn) bool {
+		bf := make([]byte, 4+len(netsvrProtocol.PingMessage))
+		binary.BigEndian.PutUint32(bf, uint32(len(netsvrProtocol.PingMessage)))
+		copy(bf[4:], netsvrProtocol.PingMessage)
+		_, err := conn.Write(bf)
+		if err != nil {
+			log.Logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker failed")
+			return false
+		}
+		data := make([]byte, 4+len(netsvrProtocol.PongMessage))
+		if _, err = io.ReadFull(conn, data); err != nil {
+			log.Logger.Error().Err(err).Type("errorType", err).Msg("Business read from worker failed")
+			return false
+		}
+		return true
+	}, time.Second*45)
+}
 
 func RequestNetSvr(req proto.Message, cmd netsvrProtocol.Cmd, resp proto.Message) {
 	router := &netsvrProtocol.Router{}
@@ -18,14 +48,6 @@ func RequestNetSvr(req proto.Message, cmd netsvrProtocol.Cmd, resp proto.Message
 		router.Data, _ = proto.Marshal(req)
 	}
 	pt, _ := proto.Marshal(router)
-	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
-	if err != nil {
-		log.Logger.Error().Err(err).Type("errorType", err).Msg("Business client connect worker service failed")
-		return
-	}
-	defer func() {
-		_ = conn.Close()
-	}()
 	//写数据
 	bf := &bytes.Buffer{}
 	length := len(pt)
@@ -33,10 +55,13 @@ func RequestNetSvr(req proto.Message, cmd netsvrProtocol.Cmd, resp proto.Message
 	bf.WriteByte(byte(length >> 16))
 	bf.WriteByte(byte(length >> 8))
 	bf.WriteByte(byte(length))
+	var err error
 	if _, err = bf.Write(pt); err != nil {
 		log.Logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker buffer failed")
 		return
 	}
+	conn := pool.Get()
+	defer pool.Put(conn)
 	_, err = bf.WriteTo(conn)
 	if err != nil {
 		log.Logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker failed")

@@ -217,16 +217,15 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 	}()
 	//包头专用
-	dataLenBuf := make([]byte, 4)
+	dataLenBuf := make([]byte, 0, 4)
 	//包体专用
 	var dataBufCap uint32 = 0
 	var dataBuf []byte
 	var err error
 	for {
-		dataLenBuf = dataLenBuf[:0]
-		dataLenBuf = dataLenBuf[0:4]
 		//获取前4个字节，确定数据包长度
-		if _, err = io.ReadFull(r.conn, dataLenBuf); err != nil {
+		dataLenBuf = dataLenBuf[:4]
+		if _, err = io.ReadAtLeast(r.conn, dataLenBuf, 4); err != nil {
 			//读失败了，直接干掉这个连接，让business重新连接，因为缓冲区的tcp流已经脏了，程序无法拆包
 			r.ForceClose()
 			break
@@ -236,17 +235,14 @@ func (r *ConnProcessor) LoopReceive() {
 		//判断装载数据的缓存区是否足够
 		if dataLen > dataBufCap {
 			//分配一块更大的，如果dataLen非常的大，则有可能导致内存分配失败
-			dataBufCap = dataLen
-			dataBuf = make([]byte, dataBufCap)
-		} else {
-			//清空当前的
-			dataBuf = dataBuf[:0]
-			dataBuf = dataBuf[0:dataLen]
+			dataBufCap = 64 * ((dataLen-1)/64 + 1)
+			dataBuf = make([]byte, 0, dataBufCap)
 		}
 		//获取数据包
-		if _, err = io.ReadAtLeast(r.conn, dataBuf, int(dataLen)); err != nil {
+		dataBuf = dataBuf[0:dataLen]
+		if _, err = io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Business receive failed")
+			log.Logger.Error().Err(err).Msg("Business receive body failed")
 			break
 		}
 		//worker响应心跳
@@ -254,7 +250,7 @@ func (r *ConnProcessor) LoopReceive() {
 			continue
 		}
 		router := &netsvrProtocol.Router{}
-		if err := proto.Unmarshal(dataBuf[0:dataLen], router); err != nil {
+		if err = proto.Unmarshal(dataBuf[0:dataLen], router); err != nil {
 			log.Logger.Error().Err(err).Msg("Proto unmarshal internalProtocol.Router failed")
 			continue
 		}

@@ -17,20 +17,21 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+	"netsvr/internal/objPool"
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
 )
 
 // ConnInfoDelete 删除连接的info信息
 func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
-	payload := &netsvrProtocol.ConnInfoDelete{}
+	payload := objPool.ConnInfoDelete.Get()
+	defer objPool.ConnInfoDelete.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ConnInfoDelete failed")
 		return

@@ -22,8 +22,7 @@ import (
 )
 
 var (
-	defaultReadBufferSize = 4096
-	errDataNotEnough      = errors.New("data not enough")
+	errDataNotEnough = errors.New("data not enough")
 )
 
 type Allocator interface {
@@ -34,39 +33,33 @@ type Allocator interface {
 	Free(buf []byte)
 }
 
-type PoolAllocator struct{}
+type NativeAllocator struct{}
 
 // Malloc .
-func (a *PoolAllocator) Malloc(size int) []byte {
-	bufPtr := bufferPool.Get().(*[]byte)
-	buf := *bufPtr
-	if cap(buf) < size {
-		buf = append(buf[:cap(buf)], make([]byte, size-cap(buf))...)
-	}
-	return buf[:size]
+func (a *NativeAllocator) Malloc(size int) []byte {
+	return make([]byte, size)
 }
 
 // Realloc .
-func (a *PoolAllocator) Realloc(buf []byte, size int) []byte {
+func (a *NativeAllocator) Realloc(buf []byte, size int) []byte {
 	if size <= cap(buf) {
 		return buf[:size]
 	}
-	return append(buf, make([]byte, size)...)
+	return append(buf[:cap(buf)], make([]byte, size-cap(buf))...)
 }
 
 // Append .
-func (a *PoolAllocator) Append(buf []byte, more ...byte) []byte {
+func (a *NativeAllocator) Append(buf []byte, more ...byte) []byte {
 	return append(buf, more...)
 }
 
 // AppendString .
-func (a *PoolAllocator) AppendString(buf []byte, more string) []byte {
+func (a *NativeAllocator) AppendString(buf []byte, more string) []byte {
 	return append(buf, more...)
 }
 
 // Free .
-func (a *PoolAllocator) Free(buf []byte) {
-	bufferPool.Put(&buf)
+func (a *NativeAllocator) Free(buf []byte) {
 }
 
 // A Conn represents a secured connection.
@@ -194,6 +187,11 @@ func (c *Conn) Conn() net.Conn {
 	return c.conn
 }
 
+// IsNonblock.
+func (c *Conn) IsNonBlock() bool {
+	return c.isNonBlock
+}
+
 // ResetConn resets conn
 func (c *Conn) ResetConn(conn net.Conn, nonBlock bool, v ...interface{}) {
 	c.conn = conn
@@ -204,7 +202,7 @@ func (c *Conn) ResetConn(conn net.Conn, nonBlock bool, v ...interface{}) {
 		}
 	}
 	if c.allocator == nil {
-		c.allocator = &PoolAllocator{}
+		c.allocator = &NativeAllocator{}
 	}
 }
 
@@ -249,7 +247,7 @@ func (c *Conn) ServerHello() *serverHelloMsg {
 // A halfConn represents one direction of the record layer
 // connection, either sending or receiving.
 type halfConn struct {
-	// sync.Mutex
+	sync.Mutex
 
 	err     error       // first permanent error
 	version uint16      // protocol version
@@ -1108,18 +1106,17 @@ func (c *Conn) flush() (int, error) {
 	return n, err
 }
 
-// bufferPool pools the record-sized scratch buffers used by writeRecordLocked.
-var bufferPool = sync.Pool{
+// outBufPool pools the record-sized scratch buffers used by writeRecordLocked.
+var outBufPool = sync.Pool{
 	New: func() interface{} {
-		buf := make([]byte, 512)
-		return &buf
+		return new([]byte)
 	},
 }
 
 // writeRecordLocked writes a TLS record with the given type and payload to the
 // connection and updates the record layer state.
 func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
-	outBufPtr := bufferPool.Get().(*[]byte)
+	outBufPtr := outBufPool.Get().(*[]byte)
 	outBuf := *outBufPtr
 	defer func() {
 		// You might be tempted to simplify this by just passing &outBuf to Put,
@@ -1128,7 +1125,7 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 		// pointer to the slice header returned by Get, which is already on the
 		// heap, and overwrite and return that.
 		*outBufPtr = outBuf
-		bufferPool.Put(outBufPtr)
+		outBufPool.Put(outBufPtr)
 	}()
 
 	var n int
@@ -1305,26 +1302,22 @@ var (
 // has not yet completed. See SetDeadline, SetReadDeadline, and
 // SetWriteDeadline.
 func (c *Conn) Write(b []byte) (int, error) {
-	// defer c.allocator.Free(b)
-
 	if len(b) == 0 {
 		return 0, nil
 	}
-
 	c.closeMux.Lock()
-	defer c.closeMux.Unlock()
-
 	if c.closed {
+		c.closeMux.Unlock()
 		return 0, net.ErrClosed
 	}
+	c.closeMux.Unlock()
 
 	if err := c.Handshake(); err != nil {
 		return 0, err
 	}
 
-	// c.out.Lock()
-	// defer c.out.Unlock()
-
+	c.out.Lock()
+	defer c.out.Unlock()
 	if err := c.out.err; err != nil {
 		return 0, err
 	}
@@ -1332,7 +1325,6 @@ func (c *Conn) Write(b []byte) (int, error) {
 	if !c.handshakeComplete() {
 		return 0, alertInternalError
 	}
-
 	if c.closeNotifySent {
 		return 0, errShutdown
 	}
@@ -1356,8 +1348,8 @@ func (c *Conn) Write(b []byte) (int, error) {
 			m, b = 1, b[1:]
 		}
 	}
-
 	n, err := c.writeRecordLocked(recordTypeApplicationData, b)
+
 	return n + m, c.out.setErrorLocked(err)
 }
 
@@ -1500,10 +1492,11 @@ func (c *Conn) Append(b []byte) (int, error) {
 // SetWriteDeadline.
 func (c *Conn) Read(b []byte) (int, error) {
 	c.closeMux.Lock()
-	defer c.closeMux.Unlock()
 	if c.closed {
+		c.closeMux.Unlock()
 		return 0, net.ErrClosed
 	}
+	c.closeMux.Unlock()
 
 	if err := c.Handshake(); err != nil {
 		if c.isNonBlock && err == errDataNotEnough {
@@ -1517,8 +1510,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
-	// c.in.Lock()
-	// defer c.in.Unlock()
+	c.in.Lock()
+	defer c.in.Unlock()
 
 	for c.input.Len() == 0 {
 		if err := c.readRecord(); err != nil {
@@ -1662,7 +1655,6 @@ func (c *Conn) Close() error {
 	}
 
 	c.release()
-
 	var alertErr error
 	if c.handshakeComplete() {
 		if err := c.closeNotify(); err != nil {

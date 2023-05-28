@@ -25,7 +25,6 @@ import (
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
-	"google.golang.org/protobuf/proto"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/customer/info"
@@ -34,6 +33,7 @@ import (
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
+	"netsvr/internal/objPool"
 	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
@@ -131,13 +131,12 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		responseHeader["Sec-Websocket-Protocol"] = subProtocols[0:1]
 	}
 	//开始升级
-	conn, err := upgrade.Upgrade(w, r, responseHeader)
+	wsConn, err := upgrade.Upgrade(w, r, responseHeader)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Customer websocket upgrade failed")
 		return
 	}
 	//升级成功
-	wsConn := conn.(*websocket.Conn)
 	//统计打开连接次数
 	metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
 	//分配uniqId，并将添加到管理器中
@@ -153,23 +152,21 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//连接打开消息回传给business
-	co := &netsvrProtocol.ConnOpen{}
+	co := objPool.ConnOpen.Get()
 	co.SubProtocol = subProtocols
 	co.XForwardedFor = r.Header.Get("X-Forwarded-For")
 	if co.XForwardedFor == "" {
 		//没有代理信息，则将直接与网关连接的ip转发给business
-		co.XForwardedFor = strings.Split(conn.RemoteAddr().String(), ":")[0]
+		co.XForwardedFor = strings.Split(wsConn.RemoteAddr().String(), ":")[0]
 	}
 	co.RawQuery = r.URL.RawQuery
 	co.UniqId = uniqId
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ConnOpen
-	router.Data, _ = proto.Marshal(co)
-	data, _ := proto.Marshal(router)
-	worker.Send(data)
-	//统计转发到business的次数与字节数
-	metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-	metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
+	if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+	}
+	objPool.ConnOpen.Put(co)
 }
 
 // ping客户端心跳帧
@@ -218,17 +215,15 @@ func onClose(conn *websocket.Conn, _ error) {
 		return
 	}
 	//转发数据到business
-	cl := &netsvrProtocol.ConnClose{}
+	cl := objPool.ConnClose.Get()
 	cl.UniqId = uniqId
 	cl.Session = userSession
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ConnClose
-	router.Data, _ = proto.Marshal(cl)
-	data, _ := proto.Marshal(router)
-	worker.Send(data)
-	//统计转发到business的次数与字节数
-	metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-	metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
+	if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+	}
+	objPool.ConnClose.Put(cl)
 }
 
 func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
@@ -267,18 +262,16 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		return
 	}
 	//编码数据成business需要的格式
-	tf := &netsvrProtocol.Transfer{}
+	tf := objPool.Transfer.Get()
 	tf.Data = data[3:]
 	session.GetToProtocolTransfer(tf)
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_Transfer
-	router.Data, _ = proto.Marshal(tf)
 	//转发数据到business
-	data, _ = proto.Marshal(router)
-	worker.Send(data)
-	//统计转发到business的次数与字节数
-	metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-	metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(len(data) + 4)) //加上4字节，是因为tcp包头的缘故
+	if sendSize := worker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
+		//统计转发到business的次数与字节数
+		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+	}
+	objPool.Transfer.Put(tf)
 }
 
 func checkOrigin(r *http.Request) bool {

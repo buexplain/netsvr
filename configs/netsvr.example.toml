@@ -9,10 +9,10 @@ PprofListenAddress = "127.0.0.1:6062"
 # business的限流器
 Limit = [
     # 表示网关每秒最多向workerId为1的business转发1000次客户发送的数据或连接打开的数据
-    {workerIds = [1], concurrency = 1000, name="1"},
+    { workerIds = [1], concurrency = 1000, name = "1" },
     # 表示网关每秒最多向workerId为{2,3,4,5}的这批business转发1000次客户发送的数据或连接打开的数据
     # 注意不是每个workerId都1000，而是这批workerId加起来才1000，因为这批workerId共用一个限流器
-    {workerIds = [2,3,4,5], concurrency = 1000, name="2-5"}
+    { workerIds = [2, 3, 4, 5], concurrency = 1000, name = "2-5" }
 ]
 # 客户服务器配置
 [Customer]
@@ -44,6 +44,8 @@ ListenAddress = "127.0.0.1:6061"
 ReadDeadline = "120s"
 # worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 SendDeadline = "10s"
+# business发送数据的大小限制（单位：字节）
+ReceivePackLimit = 2097152
 
 # 统计服务
 [Metrics]
