@@ -55,6 +55,8 @@ func init() {
 		}()
 		select {
 		case <-quit.Ctx.Done():
+			wg := &sync.WaitGroup{}
+			concurrency := make(chan struct{}, 20)
 			var p *ConnProcessor
 		loop:
 			Shutter.mux.Lock()
@@ -64,10 +66,19 @@ func init() {
 			}
 			Shutter.mux.Unlock()
 			if p != nil {
-				p.ForceClose()
+				concurrency <- struct{}{}
+				wg.Add(1)
+				go func(p *ConnProcessor) {
+					defer func() {
+						wg.Done()
+						<-concurrency
+					}()
+					p.ForceClose()
+				}(p)
 				p = nil
 				goto loop
 			}
+			wg.Wait()
 		}
 	}()
 }
