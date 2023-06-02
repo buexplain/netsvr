@@ -36,7 +36,7 @@ type Server struct {
 
 func (r *Server) Start() {
 	defer func() {
-		log.Logger.Debug().Msg("Worker tcp stop accept")
+		log.Logger.Debug().Int("pid", os.Getpid()).Msg("Worker tcp stop accept")
 	}()
 	var delay int64 = 0
 	for {
@@ -101,7 +101,7 @@ var server *Server
 func Start() {
 	listen, err := net.Listen("tcp", configs.Config.Worker.ListenAddress)
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Worker tcp start failed")
+		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Worker tcp start failed")
 		time.Sleep(time.Millisecond * 100)
 		os.Exit(1)
 		return
@@ -109,15 +109,15 @@ func Start() {
 	server = &Server{
 		listener: listen,
 	}
-	log.Logger.Info().Msgf("Worker tcp start tcp://%s", configs.Config.Worker.ListenAddress)
+	log.Logger.Info().Int("pid", os.Getpid()).Msgf("Worker tcp start tcp://%s", configs.Config.Worker.ListenAddress)
 	server.Start()
 }
 
 func Shutdown() {
 	err := server.listener.Close()
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Worker tcp grace shutdown failed")
+		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Worker tcp grace shutdown failed")
 		return
 	}
-	log.Logger.Info().Msg("Worker tcp grace shutdown")
+	log.Logger.Info().Int("pid", os.Getpid()).Msg("Worker tcp grace shutdown")
 }

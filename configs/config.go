@@ -25,12 +25,15 @@ import (
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
+	// 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址
+	LogFile string
 	//网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀，16进制表示，占两个字符
 	ServerId uint8
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
@@ -85,6 +88,22 @@ type config struct {
 		//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
 		MaxRecordInterval time.Duration
 	}
+}
+
+func (r *config) GetLogFile() string {
+	if r.LogFile == "" {
+		return ""
+	}
+	if strings.HasPrefix(r.LogFile, "/") {
+		//绝对路径开头
+		return r.LogFile
+	}
+	if r.LogFile[1:2] == ":" {
+		//盘符开头
+		return r.LogFile
+	}
+	//拼接上相对路径
+	return filepath.Join(wd.RootPath, r.LogFile)
 }
 
 func (r *config) GetLogLevel() zerolog.Level {

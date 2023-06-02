@@ -63,7 +63,7 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	log.Logger.Debug().Int32("workerId", payload.WorkerId).Msg("Register a business ok")
+	log.Logger.Info().Int32("workerId", payload.WorkerId).Msg("Register a business")
 	ret.Code = netsvrProtocol.RegisterRespCode_Success
 RESPONSE:
 	ret.Message = ret.Code.String()

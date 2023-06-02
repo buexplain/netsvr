@@ -1,9 +1,11 @@
 # 日志级别 debug、info、warn、error
-LogLevel = "debug"
+LogLevel = "info"
+# 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址
+LogFile = "log/netSvr.log"
 # 网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀，16进制表示，占两个字符
 ServerId = 0
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
-ShutdownWaitTime = "3s"
+ShutdownWaitTime = "5s"
 # pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
 PprofListenAddress = "127.0.0.1:6062"
 # business的限流器

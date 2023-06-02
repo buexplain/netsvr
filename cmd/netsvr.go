@@ -54,7 +54,7 @@ func main() {
 		worker.Shutdown()
 		//关闭customer服务器
 		customer.Shutdown()
-		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("Close the netsvr process successfully")
+		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("Shutdown the netsvr process successfully")
 		os.Exit(0)
 	}
 }
@@ -65,7 +65,7 @@ func pprof() {
 			_ = recover()
 		}()
 		runtime.SetMutexProfileFraction(1)
-		log.Logger.Info().Msg("Pprof http start http" + "://" + configs.Config.PprofListenAddress + "/debug/pprof")
+		log.Logger.Info().Int("pid", os.Getpid()).Msg("Pprof http start http" + "://" + configs.Config.PprofListenAddress + "/debug/pprof")
 		_ = http.ListenAndServe(configs.Config.PprofListenAddress, nil)
 	}()
 }

@@ -10,13 +10,14 @@ import (
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/utils/connPool"
+	"strings"
 	"time"
 )
 
 var pool *connPool.ConnPool
 
 func init() {
-	pool = connPool.NewConnPool(50, func() net.Conn {
+	pool = connPool.NewConnPool(configs.Config.ProcessCmdGoroutineNum, func() net.Conn {
 		conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 		if err != nil {
 			log.Logger.Error().Err(err).Type("errorType", err).Msg("Business client connect worker service failed")
@@ -96,4 +97,13 @@ loop:
 		log.Logger.Error().Err(err).Type("errorType", err).Msgf("Proto unmarshal %T failed", resp)
 		return
 	}
+}
+
+func CheckIsOpen(addr string) bool {
+	c, err := net.Dial("tcp", addr)
+	if e, ok := err.(*net.OpError); ok && strings.Contains(e.Err.Error(), "No connection") {
+		return false
+	}
+	_ = c.Close()
+	return true
 }

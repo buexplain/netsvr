@@ -1,5 +1,7 @@
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
 github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
+github.com/BurntSushi/toml v1.3.0 h1:Ws8e5YmnrGEHzZEzg0YvK/7COGYtTC5PbaH9oSSbgfA=
+github.com/BurntSushi/toml v1.3.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/antlabs/stl v0.0.1 h1:TRD3csCrjREeLhLoQ/supaoCvFhNLBTNIwuRGrDIs6Q=
 github.com/antlabs/stl v0.0.1/go.mod h1:wvVwP1loadLG3cRjxUxK8RL4Co5xujGaZlhbztmUEqQ=
 github.com/antlabs/timer v0.0.10 h1:TSeUdlYHUZOhFzh867G+Z0YIaao1JYPtBO5m9BBRPe4=

@@ -53,7 +53,7 @@ func Start() {
 	if configs.Config.Customer.TLSKey != "" || configs.Config.Customer.TLSCert != "" {
 		cert, err := tls.LoadX509KeyPair(configs.Config.Customer.TLSCert, configs.Config.Customer.TLSKey)
 		if err != nil {
-			log.Logger.Error().Err(err).Msg("Customer websocket tls.LoadX509KeyPair failed")
+			log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Customer websocket tls.LoadX509KeyPair failed")
 			os.Exit(1)
 		}
 		tlsConfig = &tls.Config{
@@ -80,21 +80,21 @@ func Start() {
 	server = nbhttp.NewServer(config)
 	err := server.Start()
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Customer websocket start failed")
+		log.Logger.Error().Err(err).Int("pid", os.Getpid()).Msg("Customer websocket start failed")
 		time.Sleep(time.Millisecond * 100)
 		os.Exit(1)
 		return
 	}
-	log.Logger.Info().Msgf("Customer websocket start %s", connAddr)
+	log.Logger.Info().Int("pid", os.Getpid()).Msgf("Customer websocket start %s", connAddr)
 }
 
 func Shutdown() {
 	err := server.Shutdown(context.Background())
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Customer websocket grace shutdown failed")
+		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Customer websocket grace shutdown failed")
 		return
 	}
-	log.Logger.Info().Msg("Customer websocket grace shutdown")
+	log.Logger.Info().Int("pid", os.Getpid()).Msg("Customer websocket grace shutdown")
 }
 
 func onWebsocket(w http.ResponseWriter, r *http.Request) {

@@ -3,7 +3,7 @@ module netsvr
 go 1.20
 
 require (
-	github.com/BurntSushi/toml v1.2.1
+	github.com/BurntSushi/toml v1.3.0
 	github.com/antlabs/timer v0.0.10
 	github.com/buexplain/netsvr-protocol-go v0.0.0-20230510084614-24cb6879bad8
 	github.com/gorilla/websocket v1.5.0

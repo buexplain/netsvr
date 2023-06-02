@@ -36,7 +36,7 @@ func init() {
 
 func New(lvl zerolog.Level, filename string) zerolog.Logger {
 	var logger zerolog.Logger
-	if lvl == zerolog.DebugLevel || filename == "" {
+	if filename == "" {
 		w := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339Nano}
 		logger = zerolog.New(w).Level(lvl).With().Caller().Timestamp().Logger()
 	} else {

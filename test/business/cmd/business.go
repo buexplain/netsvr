@@ -28,6 +28,7 @@ import (
 	"netsvr/test/business/internal/cmd"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/utils"
 	"netsvr/test/business/web"
 	"netsvr/test/pkg/protocol"
 	"os"
@@ -105,6 +106,13 @@ func main() {
 
 // 输出html客户端
 func clientServer() {
+	if configs.Config.ClientListenAddress == "" {
+		return
+	}
+	if utils.CheckIsOpen(configs.Config.ClientListenAddress) {
+		log.Logger.Info().Msg("地址已被占用: " + configs.Config.ClientListenAddress)
+		return
+	}
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		t, err := template.New("").Delims("{!", "!}").Parse(web.Client)
 		if err != nil {
