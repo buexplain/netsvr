@@ -18,7 +18,6 @@
 package sign
 
 import (
-	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 	"math/rand"
 	"netsvr/pkg/quit"
@@ -26,55 +25,16 @@ import (
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsTimer"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterSignInForForge] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-		ws.OnMessage[protocol.RouterSignOutForForge] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-	})
-}
-
-// In 登录操作
-func (r *pool) In() {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterSignInForForge, nil)
-	}
-}
-
-// Out 退出登录操作
-func (r *pool) Out() {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterSignOutForForge, nil)
-	}
+	Metrics = wsMetrics.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -84,42 +44,56 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Sign.Enable {
 		return
 	}
-	if configs.Config.Sign.MessageInterval > 0 {
-		go func() {
-			tc := time.NewTicker(time.Second * time.Duration(configs.Config.Sign.MessageInterval))
-			defer tc.Stop()
-			for {
-				select {
-				case <-tc.C:
-					Pool.In()
-					if rand.Intn(10) > 5 {
-						time.Sleep(time.Millisecond * 100)
-					}
-					Pool.Out()
-				case <-quit.Ctx.Done():
-					return
-				}
-			}
-		}()
+	if configs.Config.Sign.MessageInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Sign.MessageInterval 必须是个大于0的值")
+		return
 	}
+	messageInterval := configs.Config.Sign.MessageInterval * 1000
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Sign.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				continue
+				return
 			}
-			Pool.AddWebsocket()
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				ws := wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.OnMessage = nil
+				})
+				if ws == nil {
+					continue
+				}
+				if rand.Intn(10) > 5 {
+					//先发登录指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
+						ws.Send(protocol.RouterSignInForForge, nil)
+					})
+					//间隔200毫秒后再发登出指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval+200), func() {
+						ws.Send(protocol.RouterSignOutForForge, nil)
+					})
+				} else {
+					//无缝发送登录登出指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
+						ws.Send(protocol.RouterSignInForForge, nil)
+						ws.Send(protocol.RouterSignOutForForge, nil)
+					})
+				}
+			}
 		}
-		log.Logger.Info().Msgf("current sign online %d", Pool.Len())
-		if key < len(configs.Config.Sign.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.Sign.Step)-1 {
+			log.Logger.Info().Msgf("current sign online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current sign online %d", Metrics.Online.Count())
 }

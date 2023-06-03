@@ -18,7 +18,6 @@
 package topic
 
 import (
-	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 	"math/rand"
 	"netsvr/pkg/quit"
@@ -26,79 +25,17 @@ import (
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsTimer"
 	"strings"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterTopicSubscribe] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-		ws.OnMessage[protocol.RouterTopicUnsubscribe] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-		ws.InitTopic()
-	})
-}
-
-// Subscribe 订阅主题
-func (r *pool) Subscribe() {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic()})
-	}
-}
-
-// WaitPublish 待发布的主题列表
-func (r *pool) waitPublish() []string {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	topics := make([]string, 0, len(r.P))
-	for _, ws = range r.P {
-		topics = append(topics, ws.GetTopic())
-	}
-	return topics
-}
-
-// Unsubscribe 取消订阅主题
-func (r *pool) Unsubscribe() {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic()})
-	}
-}
-
-// Publish 发布主题
-func (r *pool) Publish(message string) {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": []string{ws.GetTopic()}, "message": message})
-	}
+	Metrics = wsMetrics.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -108,46 +45,66 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Topic.Enable {
 		return
 	}
-	go func() {
-		tc := time.NewTicker(time.Second * time.Duration(configs.Config.Topic.MessageInterval))
-		defer tc.Stop()
-		message := "我是一条发布信息"
-		if configs.Config.Topic.MessageLen > 0 {
-			message = strings.Repeat("a", configs.Config.Topic.MessageLen)
-		}
-		for {
-			select {
-			case <-tc.C:
-				Pool.Subscribe()
-				if rand.Intn(10) > 5 {
-					time.Sleep(time.Millisecond * 100)
-				}
-				Pool.Unsubscribe()
-				Pool.Publish(message)
-			case <-quit.Ctx.Done():
-				return
-			}
-		}
-	}()
+	if configs.Config.Topic.MessageInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Topic.MessageInterval 必须是个大于0的值")
+		return
+	}
+	message := "我是一条发布信息"
+	if configs.Config.Topic.MessageLen > 0 {
+		message = strings.Repeat("t", configs.Config.Topic.MessageLen)
+	}
+	messageInterval := configs.Config.Topic.MessageInterval * 1000
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Topic.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				continue
+				return
 			}
-			Pool.AddWebsocket()
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				ws := wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.InitTopic()
+					ws.OnMessage = nil
+				})
+				if ws == nil {
+					continue
+				}
+				if rand.Intn(10) > 5 {
+					//先发订阅指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
+						ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic()})
+					})
+					//间隔200毫秒后再发取消订阅指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval+200), func() {
+						ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic()})
+					})
+					//间隔200毫秒后再发发布指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval+400), func() {
+						ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": []string{ws.GetTopic()}, "message": message})
+					})
+				} else {
+					//无缝发送订阅、取消订阅、发布指令
+					wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
+						ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic()})
+						ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic()})
+						ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": []string{ws.GetTopic()}, "message": message})
+					})
+				}
+			}
 		}
-		log.Logger.Info().Msgf("current topic online %d", Pool.Len())
-		if key < len(configs.Config.Topic.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.Topic.Step)-1 {
+			log.Logger.Info().Msgf("current topic online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	log.Logger.Info().Str("topics", strings.Join(Pool.waitPublish(), ",")).Msg("发布的主题")
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current topic online %d", Metrics.Online.Count())
 }

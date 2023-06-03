@@ -18,50 +18,23 @@
 package broadcast
 
 import (
-	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsTimer"
 	"strings"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterBroadcast] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-	})
-}
-
-// Send 广播一条数据
-func (r *pool) Send(message string) {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	for _, ws = range r.P {
-		ws.Send(protocol.RouterBroadcast, map[string]interface{}{"message": message})
-	}
+	Metrics = wsMetrics.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -71,42 +44,46 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Broadcast.Enable {
 		return
 	}
-	if configs.Config.Broadcast.MessageInterval > 0 {
-		go func() {
-			tc := time.NewTicker(time.Second * time.Duration(configs.Config.Broadcast.MessageInterval))
-			defer tc.Stop()
-			message := "我是一条广播信息"
-			if configs.Config.Broadcast.MessageLen > 0 {
-				message = strings.Repeat("a", configs.Config.Broadcast.MessageLen)
-			}
-			for {
-				select {
-				case <-tc.C:
-					Pool.Send(message)
-				case <-quit.Ctx.Done():
-					return
-				}
-			}
-		}()
+	if configs.Config.Broadcast.MessageInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Broadcast.MessageInterval 必须是个大于0的值")
+		return
 	}
+	message := "我是一条广播信息"
+	if configs.Config.Broadcast.MessageLen > 0 {
+		message = strings.Repeat("b", configs.Config.Broadcast.MessageLen)
+	}
+	data := map[string]interface{}{"message": message}
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Broadcast.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				continue
+				return
 			}
-			Pool.AddWebsocket()
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				ws := wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.OnMessage = nil
+				})
+				if ws != nil {
+					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.MessageInterval), func() {
+						ws.Send(protocol.RouterBroadcast, data)
+					})
+				}
+			}
 		}
-		log.Logger.Info().Msgf("current broadcast online %d", Pool.Len())
-		if key < len(configs.Config.Broadcast.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.Broadcast.Step)-1 {
+			log.Logger.Info().Msgf("current broadcast online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current broadcast online %d", Metrics.Online.Count())
 }

@@ -27,6 +27,9 @@ import (
 	"netsvr/test/pkg/utils"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsShutter"
+	"netsvr/test/stress/internal/wsTimer"
 	"sync"
 	"time"
 )
@@ -57,9 +60,10 @@ type Client struct {
 	sendCh                chan []byte
 	close                 chan struct{}
 	mux                   *sync.RWMutex
+	wsStatus              *wsMetrics.WsStatus
 }
 
-func New(urlStr string) *Client {
+func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
 	c, _, err := websocket.DefaultDialer.Dial(urlStr, nil)
 	if err != nil {
 		log.Logger.Error().Msgf("连接失败" + err.Error())
@@ -114,7 +118,24 @@ func New(urlStr string) *Client {
 		sendCh:      make(chan []byte, 10),
 		close:       make(chan struct{}),
 		mux:         &sync.RWMutex{},
+		wsStatus:    status,
 	}
+	if option != nil {
+		option(client)
+	}
+	//开启读写协程
+	go client.LoopSend()
+	go client.LoopRead()
+	//在线信息加1
+	client.wsStatus.Online.Inc(1)
+	//开启心跳
+	if configs.Config.Heartbeat > 0 {
+		wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Heartbeat), func() {
+			client.Heartbeat()
+		})
+	}
+	//添加到进程结束管理模块
+	wsShutter.WsShutter.Add(client)
 	return client
 }
 
@@ -134,6 +155,9 @@ func (r *Client) Close() {
 	default:
 		close(r.close)
 		_ = r.conn.Close()
+		if r.wsStatus != nil {
+			r.wsStatus.Online.Dec(1)
+		}
 		if r.OnClose != nil {
 			r.OnClose()
 		}
@@ -233,24 +257,35 @@ func (r *Client) LoopRead() {
 		select {
 		case <-quit.Ctx.Done():
 		case <-r.close:
+			r.Close()
 			return
 		default:
 			_, p, err := r.conn.ReadMessage()
 			if err != nil {
-				log.Logger.Debug().Err(err).Msg("读取服务器消息失败")
+				select {
+				case <-quit.Ctx.Done():
+					break
+				default:
+					log.Logger.Debug().Err(err).Msg("读取服务器消息失败")
+				}
 				r.Close()
 				return
 			}
+			if r.wsStatus != nil {
+				r.wsStatus.Receive.Inc(int64(len(p)))
+			}
 			if bytes.Equal(p, netsvrProtocol.PongMessage) {
-				return
+				continue
 			}
 			ret := gjson.GetManyBytes(p, "cmd", "data")
 			if len(ret) == 2 && ret[0].Type == gjson.Number && ret[1].Type == gjson.JSON {
-				cmd := protocol.Cmd(ret[0].Int())
-				if c, ok := r.OnMessage[cmd]; ok {
-					c(ret[1])
-				} else {
-					log.Logger.Debug().Msgf("未找到回调函数 %s", ret[1].Raw)
+				if r.OnMessage != nil {
+					cmd := protocol.Cmd(ret[0].Int())
+					if c, ok := r.OnMessage[cmd]; ok {
+						c(ret[1])
+					} else {
+						log.Logger.Debug().Msgf("未找到回调函数 cmd --> %d data --> %s", cmd, ret[1].Raw)
+					}
 				}
 			} else {
 				log.Logger.Error().Msgf("结构体不合法 %s", p)
@@ -270,9 +305,12 @@ func (r *Client) LoopSend() {
 				r.Close()
 				return
 			}
-			if err := r.conn.WriteMessage(1, p); err != nil {
+			if err := r.conn.WriteMessage(websocket.TextMessage, p); err != nil {
 				r.Close()
 				return
+			}
+			if r.wsStatus != nil {
+				r.wsStatus.Send.Inc(int64(len(p)))
 			}
 		}
 	}

@@ -44,7 +44,7 @@ func main() {
 		if configs.Config.ShutdownWaitTime > 0 {
 			go func() {
 				time.Sleep(configs.Config.ShutdownWaitTime)
-				log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("Forced shutdown of netsvr process succeeded")
+				log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("Forced shutdown of netsvr process successfully")
 				os.Exit(1)
 			}()
 		}

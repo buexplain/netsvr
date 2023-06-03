@@ -18,61 +18,26 @@
 package multicast
 
 import (
-	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsCollect"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsTimer"
 	"strings"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
+var collect *wsCollect.Collect
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterMulticastForUniqId] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-	})
-}
-
-// Send 组播一条数据
-func (r *pool) Send(message string, uniqIdNum int) {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	uniqIds := make([]string, 0, uniqIdNum)
-	replaceIndex := 0
-	for _, ws = range r.P {
-		if len(uniqIds) < uniqIdNum {
-			uniqIds = append(uniqIds, ws.UniqId)
-		} else {
-			uniqIds[replaceIndex] = ws.UniqId
-			replaceIndex++
-			if replaceIndex == uniqIdNum {
-				replaceIndex = 0
-			}
-		}
-		ws.Send(protocol.RouterMulticastForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
-	}
+	Metrics = wsMetrics.New()
+	collect = wsCollect.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -82,42 +47,54 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Multicast.Enable {
 		return
 	}
-	if configs.Config.Multicast.MessageInterval > 0 && configs.Config.Multicast.UniqIdNum > 0 {
-		go func() {
-			tc := time.NewTicker(time.Second * time.Duration(configs.Config.Multicast.MessageInterval))
-			defer tc.Stop()
-			message := "我是一条按uniqId组播的信息"
-			if configs.Config.Multicast.MessageLen > 0 {
-				message = strings.Repeat("a", configs.Config.Multicast.MessageLen)
-			}
-			for {
-				select {
-				case <-tc.C:
-					Pool.Send(message, configs.Config.Multicast.UniqIdNum)
-				case <-quit.Ctx.Done():
-					return
-				}
-			}
-		}()
+	if configs.Config.Multicast.MessageInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Multicast.MessageInterval 必须是个大于0的值")
+		return
 	}
+	if configs.Config.Multicast.UniqIdNum <= 0 {
+		log.Logger.Error().Msg("配置 Config.Multicast.UniqIdNum 必须是个大于0的值")
+		return
+	}
+	message := "我是一条组播信息"
+	if configs.Config.Multicast.MessageLen > 0 {
+		message = strings.Repeat("m", configs.Config.Multicast.MessageLen)
+	}
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Multicast.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				continue
+				return
 			}
-			Pool.AddWebsocket()
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				ws := wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.OnMessage = nil
+				})
+				if ws != nil {
+					collect.Add(ws)
+					uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
+					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.MessageInterval), func() {
+						if len(uniqIds) < configs.Config.Multicast.UniqIdNum {
+							uniqIds = collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
+						}
+						ws.Send(protocol.RouterMulticastForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
+					})
+				}
+			}
 		}
-		log.Logger.Info().Msgf("current multicast online %d", Pool.Len())
-		if key < len(configs.Config.Multicast.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.Multicast.Step)-1 {
+			log.Logger.Info().Msgf("current multicast online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current multicast online %d", Metrics.Online.Count())
 }

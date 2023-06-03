@@ -18,55 +18,23 @@
 package singleCast
 
 import (
-	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsMetrics"
+	"netsvr/test/stress/internal/wsTimer"
 	"strings"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(ws *wsClient.Client) {
-		ws.OnMessage[protocol.RouterSingleCastForUniqId] = func(payload gjson.Result) {
-			log.Logger.Debug().Msg(payload.Raw)
-		}
-	})
-}
-
-// Send 单播一条数据
-func (r *pool) Send(message string) {
-	r.Mux.RLock()
-	defer r.Mux.RUnlock()
-	var ws *wsClient.Client
-	var preWs *wsClient.Client
-	for _, ws = range r.P {
-		if preWs == nil {
-			preWs = ws
-		}
-		ws.Send(protocol.RouterSingleCastForUniqId, map[string]string{"message": message, "uniqId": preWs.UniqId})
-		preWs = ws
-	}
+	Metrics = wsMetrics.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -76,42 +44,45 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.SingleCast.Enable {
 		return
 	}
-	if configs.Config.SingleCast.MessageInterval > 0 {
-		go func() {
-			tc := time.NewTicker(time.Second * time.Duration(configs.Config.SingleCast.MessageInterval))
-			defer tc.Stop()
-			message := "我是一条按uniqId单播的信息"
-			if configs.Config.SingleCast.MessageLen > 0 {
-				message = strings.Repeat("a", configs.Config.SingleCast.MessageLen)
-			}
-			for {
-				select {
-				case <-tc.C:
-					Pool.Send(message)
-				case <-quit.Ctx.Done():
-					return
-				}
-			}
-		}()
+	if configs.Config.SingleCast.MessageInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.SingleCast.MessageInterval 必须是个大于0的值")
+		return
 	}
+	message := "我是一条单播信息"
+	if configs.Config.SingleCast.MessageLen > 0 {
+		message = strings.Repeat("s", configs.Config.SingleCast.MessageLen)
+	}
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.SingleCast.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				continue
+				return
 			}
-			Pool.AddWebsocket()
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				ws := wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.OnMessage = nil
+				})
+				if ws != nil {
+					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCast.MessageInterval), func() {
+						ws.Send(protocol.RouterSingleCastForUniqId, map[string]string{"message": message, "uniqId": ws.UniqId})
+					})
+				}
+			}
 		}
-		log.Logger.Info().Msgf("current singleCast online %d", Pool.Len())
-		if key < len(configs.Config.SingleCast.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.SingleCast.Step)-1 {
+			log.Logger.Info().Msgf("current singleCast online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current singleCast online %d", Metrics.Online.Count())
 }

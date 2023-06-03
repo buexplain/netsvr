@@ -23,29 +23,15 @@ import (
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsClient"
-	"netsvr/test/stress/internal/wsPool"
+	"netsvr/test/stress/internal/wsMetrics"
 	"sync"
 	"time"
 )
 
-var Pool *pool
-
-type pool struct {
-	wsPool.Pool
-}
+var Metrics *wsMetrics.WsStatus
 
 func init() {
-	Pool = &pool{}
-	Pool.P = map[string]*wsClient.Client{}
-	Pool.Mux = &sync.RWMutex{}
-	if configs.Config.Heartbeat > 0 {
-		go Pool.Heartbeat()
-	}
-}
-
-func (r *pool) AddWebsocket() {
-	r.Pool.AddWebsocket(func(_ *wsClient.Client) {
-	})
+	Metrics = wsMetrics.New()
 }
 
 func Run(wg *sync.WaitGroup) {
@@ -55,29 +41,32 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Silent.Enable {
 		return
 	}
+	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Silent.Step {
 		if step.ConnNum <= 0 {
 			continue
 		}
-		l := rate.NewLimiter(rate.Limit(step.ConnectNum), step.ConnectNum)
+		l.SetLimit(rate.Limit(step.ConnectNum))
+		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
-				break
+				return
 			}
 			select {
 			case <-quit.Ctx.Done():
-				break
+				return
 			default:
-				Pool.AddWebsocket()
+				wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+					ws.OnMessage = nil
+				})
 			}
 		}
-		log.Logger.Info().Msgf("current silent online %d", Pool.Len())
-		if key < len(configs.Config.Silent.Step)-1 && step.Suspend > 0 {
-			time.Sleep(time.Duration(step.Suspend) * time.Second)
+		if key < len(configs.Config.Silent.Step)-1 {
+			log.Logger.Info().Msgf("current silent online %d", Metrics.Online.Count())
+			if step.Suspend > 0 {
+				time.Sleep(time.Duration(step.Suspend) * time.Second)
+			}
 		}
 	}
-	go func() {
-		<-quit.Ctx.Done()
-		Pool.Close()
-	}()
+	log.Logger.Info().Msgf("current silent online %d", Metrics.Online.Count())
 }

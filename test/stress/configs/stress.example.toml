@@ -4,9 +4,9 @@ LogLevel = "info"
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
 # 表示消息被哪个workerId的业务进程处理
 WorkerId = 1
-# 心跳间隔秒数
+# 每个连接间隔多少秒进行心跳
 Heartbeat = 30
-# 是否并发初始化
+# 是否并发初始化每个压测模块
 Concurrent = true
 # 当所有连接建立完毕后的持续时间，单位秒
 Suspend = 180
@@ -23,12 +23,12 @@ Step = [
 # 疯狂登录登出的连接
 [Sign]
 Enable = true
-# 间隔多少秒进行一次所有连接的登录登出操作
+# 每个连接间隔多少秒进行一次登录、登出操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂单播的连接
@@ -36,12 +36,12 @@ Step = [
 Enable = true
 # 单播时发送的消息大小
 MessageLen = 128
-# 间隔多少秒进行一次所有连接的单播
-MessageInterval = 8
+# 每个连接间隔多少秒进行一次单播操作
+MessageInterval = 5
 Step = [
-    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂组播的连接
@@ -50,31 +50,34 @@ Enable = true
 MessageLen = 256
 # 一组包含的uniqId数量
 UniqIdNum = 15
-MessageInterval = 11
+# 每个连接间隔多少秒进行一次组播操作
+MessageInterval = 5
 Step = [
-    { ConnNum = 10, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂订阅、取消订阅、发布
 [Topic]
 Enable = true
-MessageInterval = 14
+# 每个连接间隔多少秒进行一次订阅、取消订阅、发布操作
+MessageInterval = 5
 MessageLen = 512
 Step = [
-    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 20, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 30, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
 ]
 
 # 疯狂广播的连接
 [Broadcast]
 Enable = true
 MessageLen = 1024
-MessageInterval = 17
+# 每个连接间隔多少秒进行一次广播操作
+MessageInterval = 5
 Step = [
     { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
-    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
-    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 2, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 3, ConnectNum = 1, Suspend = 60 },
 ]
