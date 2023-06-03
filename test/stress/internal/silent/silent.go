@@ -28,12 +28,6 @@ import (
 	"time"
 )
 
-var Metrics *wsMetrics.WsStatus
-
-func init() {
-	Metrics = wsMetrics.New()
-}
-
 func Run(wg *sync.WaitGroup) {
 	if wg != nil {
 		defer wg.Done()
@@ -43,11 +37,11 @@ func Run(wg *sync.WaitGroup) {
 	}
 	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Silent.Step {
-		if step.ConnNum <= 0 {
-			continue
+		metrics := wsMetrics.New("silent", key+1)
+		if step.ConnNum > 0 && step.ConnectNum > 0 {
+			l.SetLimit(rate.Limit(step.ConnectNum))
+			l.SetBurst(step.ConnectNum)
 		}
-		l.SetLimit(rate.Limit(step.ConnectNum))
-		l.SetBurst(step.ConnectNum)
 		for i := 0; i < step.ConnNum; i++ {
 			if err := l.Wait(quit.Ctx); err != nil {
 				return
@@ -56,17 +50,14 @@ func Run(wg *sync.WaitGroup) {
 			case <-quit.Ctx.Done():
 				return
 			default:
-				wsClient.New(configs.Config.CustomerWsAddress, Metrics, func(ws *wsClient.Client) {
+				wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
 					ws.OnMessage = nil
 				})
 			}
 		}
-		if key < len(configs.Config.Silent.Step)-1 {
-			log.Logger.Info().Msgf("current silent online %d", Metrics.Online.Count())
-			if step.Suspend > 0 {
-				time.Sleep(time.Duration(step.Suspend) * time.Second)
-			}
+		log.Logger.Info().Msgf("current silent step %d online %d", metrics.Step, metrics.Online.Count())
+		if key < len(configs.Config.Silent.Step)-1 && step.Suspend > 0 {
+			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
-	log.Logger.Info().Msgf("current silent online %d", Metrics.Online.Count())
 }
