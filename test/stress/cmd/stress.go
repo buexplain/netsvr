@@ -58,11 +58,14 @@ func main() {
 			broadcast.Run(nil)
 		}
 		wg.Wait()
+		log.Logger.Info().Msgf("all connections established, current online %d", wsMetrics.Collect.Count())
 		go func() {
-			time.Sleep(time.Second * time.Duration(configs.Config.Suspend))
+			if wsMetrics.Collect.Count() > 0 {
+				time.Sleep(time.Second * time.Duration(configs.Config.Suspend))
+			}
 			ret := wsMetrics.Collect.ToTable()
 			_, _ = ret.WriteTo(os.Stdout)
-			quit.Execute("压测完毕")
+			quit.Execute("stress ok")
 		}()
 	}()
 	select {

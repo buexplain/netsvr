@@ -67,6 +67,8 @@ func main() {
 	go processor.LoopHeartbeat()
 	//循环处理worker发来的指令
 	for i := 0; i < configs.Config.ProcessCmdGoroutineNum; i++ {
+		//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
+		quit.Wg.Add(1)
 		go processor.LoopCmd()
 	}
 	//循环写

@@ -100,3 +100,11 @@ func ParseSubProtocols(r *http.Request) []string {
 	}
 	return protocols
 }
+
+// StrToReadOnlyBytes 字符串无损转字节切片，转换后的切片，不能做修改操作，因为go的字符串是不可修改的
+func StrToReadOnlyBytes(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	return unsafe.Slice(unsafe.StringData(s), len(s))
+}

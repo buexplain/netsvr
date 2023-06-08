@@ -116,6 +116,6 @@ var Manager manager
 
 func init() {
 	for i := 0; i < len(Manager); i++ {
-		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 1000), mux: &sync.RWMutex{}}
+		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 4096), mux: &sync.RWMutex{}}
 	}
 }

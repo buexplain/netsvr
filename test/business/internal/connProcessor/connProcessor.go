@@ -261,13 +261,13 @@ func (r *ConnProcessor) LoopReceive() {
 
 // LoopCmd 循环处理worker发来的各种请求命令
 func (r *ConnProcessor) LoopCmd() {
-	//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
-	quit.Wg.Add(1)
 	defer func() {
 		quit.Wg.Done()
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("workerId", r.workerId).Msg("Business cmd coroutine is closed")
 			time.Sleep(5 * time.Second)
+			//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
+			quit.Wg.Add(1)
 			go r.LoopCmd()
 		} else {
 			log.Logger.Debug().Int32("workerId", r.workerId).Msg("Business cmd coroutine is closed")

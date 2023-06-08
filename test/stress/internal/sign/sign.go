@@ -82,9 +82,10 @@ func Run(wg *sync.WaitGroup) {
 				}
 			}
 		}
-		log.Logger.Info().Msgf("current sign step %d online %d", metrics.Step, metrics.Online.Count())
+		log.Logger.Info().Msgf("sign current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Sign.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
+	log.Logger.Info().Msgf("sign current online %d", wsMetrics.Collect.CountByName("sign"))
 }

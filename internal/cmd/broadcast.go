@@ -37,14 +37,16 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	//取出所有的连接
-	connections := make([]*websocket.Conn, 0, customerManager.Manager.Len())
+	//加1024的目的是担心获取连接的过程中又有连接进来，导致slice的底层发生扩容，引起内存拷贝
+	connections := objPool.ConnSlice.Get(customerManager.Manager.Len() + 1024)
 	for _, c := range customerManager.Manager {
-		c.GetConnections(&connections)
+		c.GetConnections(connections)
 	}
 	//循环所有的连接，挨个发送出去
-	for _, conn := range connections {
+	for _, conn := range *connections {
 		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
 			_ = conn.Close()
 		}
 	}
+	objPool.ConnSlice.Put(connections)
 }

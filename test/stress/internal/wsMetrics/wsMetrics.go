@@ -69,6 +69,40 @@ func bytesToNice(s int64) string {
 	return fmt.Sprintf(f, val, suffix)
 }
 
+func (r *collect) CountByName(name string) int64 {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	var targetStatusSlice []*WsStatus
+	for _, statusSlice := range r.c {
+		for _, status := range statusSlice {
+			if status.Name == name {
+				targetStatusSlice = statusSlice
+				break
+			}
+		}
+	}
+	if targetStatusSlice == nil {
+		return 0
+	}
+	var ret int64
+	for _, status := range targetStatusSlice {
+		ret += status.Online.Count()
+	}
+	return ret
+}
+
+func (r *collect) Count() int64 {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	var ret int64
+	for _, statusSlice := range r.c {
+		for _, status := range statusSlice {
+			ret += status.Online.Count()
+		}
+	}
+	return ret
+}
+
 func (r *collect) ToTable() *bytes.Buffer {
 	r.mux.Lock()
 	defer r.mux.Unlock()
@@ -82,7 +116,7 @@ func (r *collect) ToTable() *bytes.Buffer {
 	sort.Strings(moduleSlice)
 	ret := &bytes.Buffer{}
 	table := tablewriter.NewWriter(ret)
-	table.SetHeader([]string{"模块", "阶段", "连接数", "发送字节", "接收字节", "耗时"})
+	table.SetHeader([]string{"模块", "阶段", "连接数", "发送字节", "接收字节", "持续时间"})
 	currentTime := time.Now()
 	var totalOnline int64
 	var totalSend int64
@@ -122,7 +156,7 @@ func (r *collect) ToTable() *bytes.Buffer {
 		}
 		table.Append([]string{
 			moduleName,
-			"-",
+			"小计",
 			fmt.Sprintf("%d", moduleOnline),
 			bytesToNice(moduleSend),
 			bytesToNice(moduleReceive),

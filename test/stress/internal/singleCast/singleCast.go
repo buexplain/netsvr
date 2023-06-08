@@ -71,9 +71,10 @@ func Run(wg *sync.WaitGroup) {
 				}
 			}
 		}
-		log.Logger.Info().Msgf("current singleCast step %d online %d", metrics.Step, metrics.Online.Count())
+		log.Logger.Info().Msgf("singleCast current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.SingleCast.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
+	log.Logger.Info().Msgf("singleCast current online %d", wsMetrics.Collect.CountByName("singleCast"))
 }

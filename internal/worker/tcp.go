@@ -89,6 +89,7 @@ func (r *Server) Start() {
 			//将该连接添加到关闭管理器中
 			manager.Shutter.Add(c)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启
+			quit.Wg.Add(1)
 			go c.LoopCmd()
 			go c.LoopReceive()
 			go c.LoopSend()

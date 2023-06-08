@@ -148,7 +148,12 @@ func (r *Info) SubscribeTopics(topics []string) (currentUniqId string) {
 		r.topics = make(map[string]struct{}, len(topics))
 	}
 	for _, topic := range topics {
-		r.topics[topic] = struct{}{}
+		if topic == "" {
+			continue
+		}
+		if _, ok := r.topics[topic]; !ok {
+			r.topics[topic] = struct{}{}
+		}
 	}
 	return r.uniqId
 }

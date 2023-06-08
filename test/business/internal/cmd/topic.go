@@ -35,15 +35,10 @@ var Topic = topic{}
 
 func (r topic) Init(processor *connProcessor.ConnProcessor) {
 	processor.RegisterBusinessCmd(protocol.RouterTopicCount, r.RequestTopicCount)
-
 	processor.RegisterBusinessCmd(protocol.RouterTopicList, r.RequestTopicList)
-
 	processor.RegisterBusinessCmd(protocol.RouterTopicUniqIdCount, r.RequestTopicUniqIdCount)
-
 	processor.RegisterBusinessCmd(protocol.RouterTopicUniqIdList, r.RequestTopicUniqIdList)
-
 	processor.RegisterBusinessCmd(protocol.RouterTopicMyList, r.RequestTopicMyList)
-
 	processor.RegisterBusinessCmd(protocol.RouterTopicSubscribe, r.RequestTopicSubscribe)
 	processor.RegisterBusinessCmd(protocol.RouterTopicUnsubscribe, r.RequestTopicUnsubscribe)
 	processor.RegisterBusinessCmd(protocol.RouterTopicPublish, r.RequestTopicPublish)

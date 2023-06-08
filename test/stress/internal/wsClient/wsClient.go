@@ -22,6 +22,7 @@ import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
+	"io"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils"
@@ -55,6 +56,7 @@ type Client struct {
 	topics                []string
 	topicSubscribeIndex   int
 	topicUnsubscribeIndex int
+	topicPublishIndex     int
 	OnMessage             map[protocol.Cmd]func(payload gjson.Result)
 	OnClose               func()
 	sendCh                chan []byte
@@ -64,15 +66,21 @@ type Client struct {
 }
 
 func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
-	c, _, err := websocket.DefaultDialer.Dial(urlStr, nil)
+	c, resp, err := websocket.DefaultDialer.DialContext(quit.Ctx, urlStr, nil)
 	if err != nil {
-		log.Logger.Error().Msgf("连接失败" + err.Error())
+		if resp != nil {
+			respByte, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			log.Logger.Error().Err(err).Int("respStatusCode", resp.StatusCode).Str("respBody", string(respByte)).Msg("websocket dial failed")
+		} else {
+			log.Logger.Error().Err(err).Msg("websocket dial failed")
+		}
 		return nil
 	}
-	//接受连接打开的信息
+	//接收连接打开的信息
 	if err = c.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		_ = c.Close()
-		log.Logger.Error().Msgf("连接服务器失败 %v", err)
+		log.Logger.Error().Err(err).Msg("websocket SetReadDeadline failed")
 		return nil
 	}
 	ret := connOpenCmd{}
@@ -81,7 +89,7 @@ func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Cl
 		_, p, err = c.ReadMessage()
 		if err != nil {
 			_ = c.Close()
-			log.Logger.Error().Err(err).Msg("读取服务器消息失败")
+			log.Logger.Error().Err(err).Msg("websocket ReadMessage failed")
 			return nil
 		}
 		//先检查cmd是啥
@@ -89,7 +97,7 @@ func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Cl
 		cm := cmdRet.Int()
 		if cm <= 0 {
 			_ = c.Close()
-			log.Logger.Error().Str("receiveData", string(p)).Msgf("解析服务器消息失败 %v", err)
+			log.Logger.Error().Err(err).Str("receiveData", string(p)).Msgf("websocket parse message failed")
 			return nil
 		}
 		if cm != int64(protocol.RouterRespConnOpen) {
@@ -99,12 +107,12 @@ func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Cl
 		err = json.Unmarshal(p, &ret)
 		if err != nil {
 			_ = c.Close()
-			log.Logger.Error().Str("receiveData", string(p)).Msgf("解析服务器消息失败 %v", err)
+			log.Logger.Error().Err(err).Str("receiveData", string(p)).Msgf("websocket parse message failed")
 			return nil
 		}
 		if ret.Data.Code != 0 {
 			_ = c.Close()
-			log.Logger.Error().Msgf("服务端返回了错误的结构体 connOpenCmd--> %s", string(p))
+			log.Logger.Error().Msgf("unknown structure connOpenCmd--> %s", string(p))
 			return nil
 		}
 		break
@@ -112,7 +120,7 @@ func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Cl
 	client := &Client{
 		conn:        c,
 		UniqId:      ret.Data.Data.UniqID,
-		topics:      make([]string, 0),
+		topics:      make([]string, 0, 0),
 		LocalUniqId: ret.Data.Data.UniqID,
 		OnMessage:   map[protocol.Cmd]func(payload gjson.Result){},
 		sendCh:      make(chan []byte, 10),
@@ -165,49 +173,82 @@ func (r *Client) Close() {
 }
 
 // InitTopic 伪造主题
-func (r *Client) InitTopic() {
-	topics := make([]string, 0, 600)
-	for i := 0; i < 600; i++ {
-		topics = append(topics, utils.GetRandStr(2))
+func (r *Client) InitTopic(topicNum int, topicLen int) {
+	topics := make([]string, 0, topicNum)
+	for i := 0; i < topicNum; i++ {
+		topics = append(topics, utils.GetRandStr(topicLen))
 	}
 	r.topics = topics
 }
 
-func (r *Client) GetTopic() string {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	return r.topics[0]
-}
-
-func (r *Client) GetSubscribeTopic() []string {
+func (r *Client) GetPublishTopic(topicNum int) []string {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	ret := make([]string, 0, 100)
+	ret := make([]string, 0, topicNum)
+	//强制给第零个主题发布消息，因为第零个主题不会被取消订阅
+	ret = append(ret, r.topics[0])
 	for {
-		if len(ret) == 100 {
+		if len(ret) == topicNum {
+			break
+		}
+		r.topicPublishIndex++
+		if r.topicPublishIndex == len(r.topics) {
+			r.topicPublishIndex = 0
+		}
+		//如果第零个与当前拿到的是一样的，则退出循环
+		if ret[0] == r.topics[r.topicPublishIndex] {
+			break
+		}
+		ret = append(ret, r.topics[r.topicPublishIndex])
+	}
+	return ret
+}
+
+func (r *Client) GetSubscribeTopic(topicNum int) []string {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	ret := make([]string, 0, topicNum)
+	//强制订阅第零个主题
+	if r.topicSubscribeIndex == 0 {
+		ret = append(ret, r.topics[0])
+	}
+	for {
+		if len(ret) == topicNum {
 			break
 		}
 		r.topicSubscribeIndex++
 		if r.topicSubscribeIndex == len(r.topics) {
 			r.topicSubscribeIndex = 0
 		}
+		//如果第零个与当前拿到的是一样的，则退出循环
+		if len(ret) > 0 && ret[0] == r.topics[r.topicSubscribeIndex] {
+			break
+		}
 		ret = append(ret, r.topics[r.topicSubscribeIndex])
 	}
 	return ret
 }
 
-func (r *Client) GetUnsubscribeTopic() []string {
+func (r *Client) GetUnsubscribeTopic(topicNum int) []string {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	ret := make([]string, 0, 50)
+	//如果只有一个备选主题，则没有可取消订阅的主题
+	if len(r.topics) == 1 {
+		return nil
+	}
+	ret := make([]string, 0, topicNum)
 	for {
-		if len(ret) == 50 {
+		if len(ret) == topicNum {
 			break
 		}
 		r.topicUnsubscribeIndex++
 		if r.topicUnsubscribeIndex == len(r.topics) {
-			//这里忽略第零个主题，因为第零个主题会被用于消息发布
+			//这里忽略第零个主题，因为第零个主题会被用于消息发布，所以不能取消订阅
 			r.topicUnsubscribeIndex = 1
+		}
+		//如果第零个与当前拿到的是一样的，则退出循环
+		if len(ret) > 0 && ret[0] == r.topics[r.topicUnsubscribeIndex] {
+			break
 		}
 		ret = append(ret, r.topics[r.topicUnsubscribeIndex])
 	}
@@ -255,9 +296,7 @@ func (r *Client) LoopRead() {
 	}
 	for {
 		select {
-		case <-quit.Ctx.Done():
 		case <-r.close:
-			r.Close()
 			return
 		default:
 			_, p, err := r.conn.ReadMessage()
@@ -297,7 +336,6 @@ func (r *Client) LoopRead() {
 func (r *Client) LoopSend() {
 	for {
 		select {
-		case <-quit.Ctx.Done():
 		case <-r.close:
 			return
 		case p := <-r.sendCh:

@@ -43,9 +43,12 @@ import (
 )
 
 var server *nbhttp.Server
-var serviceBusy = []byte("Service Busy")
-var serviceRestarting = []byte("Service Restarting")
-var dataTooLarge = []byte("Data too large")
+
+// ConnectRateLimit 不能轻易改变这些常量的值，因为websocket客户端代码极有可能判断这些字符串做出下一步处理，改变这些字符会导致这些客户端的代码失效
+const ConnectRateLimit = "Connect rate limited"
+const MessageRateLimit = "Message rate limited"
+const ServiceShutdown = "Service shutdown"
+const MessageTooLarge = "Message too large"
 
 func Start() {
 	var tlsConfig *tls.Config
@@ -102,14 +105,15 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	case <-quit.Ctx.Done():
 		//进程即将关闭，不再受理新的连接
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write(serviceRestarting)
+		_, _ = w.Write(utils.StrToReadOnlyBytes(ServiceShutdown))
 		return
 	default:
 		//限流检查
 		//之所以要判断workerId大于0，是因为有可能业务方并不关心连接的打开信息，连接打开信息不会传递到业务方，则不必限流
 		if configs.Config.Customer.ConnOpenWorkerId > 0 && limit.Manager.Allow(configs.Config.Customer.ConnOpenWorkerId) == false {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write(serviceBusy)
+			_, _ = w.Write(utils.StrToReadOnlyBytes(ConnectRateLimit))
+			log.Logger.Warn().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Msg(ConnectRateLimit)
 			return
 		}
 	}
@@ -239,7 +243,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	}
 	//限制数据包大小
 	if len(data)-3 > configs.Config.Customer.ReceivePackLimit {
-		if err := conn.WriteMessage(websocket.TextMessage, dataTooLarge); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(MessageTooLarge)); err != nil {
 			_ = conn.Close()
 		}
 		return
@@ -248,6 +252,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	workerId := utils.BytesToInt(data, 3)
 	//限流检查
 	if limit.Manager.Allow(workerId) == false {
+		log.Logger.Warn().Int("workerId", workerId).Msg(MessageRateLimit)
 		return
 	}
 	//从连接中拿出session

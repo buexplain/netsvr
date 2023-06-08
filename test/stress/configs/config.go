@@ -79,10 +79,36 @@ type config struct {
 	//疯狂订阅、取消订阅、发布
 	Topic struct {
 		Enable bool
-		//订阅、取消订阅、发布的间隔
-		MessageInterval int
-		//发送的消息大小
-		MessageLen int
+		//每个连接的备选主题数量，该值是随机产生的，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+		AlternateTopicNum int
+		//主题字符串的长度，4有1413720种排列 3有42840种排列，2有1260种排列，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+		AlternateTopicLen int
+		Subscribe         struct {
+			//运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+			Mode int
+			//延长或间隔的秒数
+			ModeSecond int
+			//每次订阅的主题数量，该值是轮询AlternateTopicNum得到的，第零个主题一定会被订阅
+			TopicNum int
+		}
+		Unsubscribe struct {
+			//运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+			Mode int
+			//延长或间隔的秒数
+			ModeSecond int
+			//每次取消订阅的主题数量，该值是轮询AlternateTopicNum得到的，但是不会取消连接订阅的第零个主题
+			TopicNum int
+		}
+		Publish struct {
+			//运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+			Mode int
+			//延长或间隔的秒数
+			ModeSecond int
+			//每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
+			TopicNum int
+			//发布数据的大小
+			MessageLen int
+		}
 		//阶段式发起连接
 		Step []Step
 	}
@@ -111,6 +137,10 @@ func (r *config) GetLogLevel() zerolog.Level {
 	}
 	return zerolog.ErrorLevel
 }
+
+// ModeSchedule 调度方式
+const ModeSchedule = 1
+const ModeAfter = 0
 
 type Step struct {
 	//连接数
@@ -145,6 +175,7 @@ func init() {
 	if Config.Suspend <= 0 {
 		Config.Suspend = 60
 	}
+	//如果workerId不够三位数，则补上0
 	s := strconv.Itoa(Config.WorkerId)
 	for i := len(s); i < 3; i++ {
 		s = "0" + s

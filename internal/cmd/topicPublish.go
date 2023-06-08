@@ -39,15 +39,21 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		return
 	}
 	for _, t := range payload.Topics {
-		uniqIds := topic.Topic.GetUniqIds(t)
-		for _, uniqId := range uniqIds {
-			conn := manager.Manager.Get(uniqId)
-			if conn == nil {
-				continue
+		if t == "" {
+			continue
+		}
+		uniqIds := topic.Topic.GetUniqIds(t, objPool.UniqIdSlice)
+		if uniqIds != nil {
+			for _, uniqId := range *uniqIds {
+				conn := manager.Manager.Get(uniqId)
+				if conn == nil {
+					continue
+				}
+				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+					_ = conn.Close()
+				}
 			}
-			if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
-				_ = conn.Close()
-			}
+			objPool.UniqIdSlice.Put(uniqIds)
 		}
 	}
 	objPool.TopicPublish.Put(payload)

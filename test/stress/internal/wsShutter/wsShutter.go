@@ -20,6 +20,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/internal/log"
 	"sync"
+	"time"
 )
 
 type CloseInterface interface {
@@ -54,14 +55,15 @@ func init() {
 	quit.Wg.Add(1)
 	go func() {
 		defer func() {
-			log.Logger.Debug().Msg("Stress wsShutter coroutine is closed")
+			log.Logger.Debug().Msg("wsShutter coroutine is closed")
 			quit.Wg.Done()
 		}()
 		select {
 		case <-quit.Ctx.Done():
 			wg := &sync.WaitGroup{}
-			concurrency := make(chan struct{}, 100)
+			concurrency := make(chan struct{}, 1000)
 			var ws CloseInterface
+			startTime := time.Now()
 		loop:
 			WsShutter.mux.Lock()
 			for ws = range WsShutter.collect {
@@ -83,6 +85,7 @@ func init() {
 				goto loop
 			}
 			wg.Wait()
+			log.Logger.Info().Msg("shutdown connection spend：" + time.Now().Sub(startTime).String())
 		}
 	}()
 }

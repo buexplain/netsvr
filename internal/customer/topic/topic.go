@@ -19,6 +19,7 @@ package topic
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	"netsvr/internal/utils/slicePool"
 	"sync"
 )
 
@@ -62,35 +63,25 @@ func (r *collect) Count(topics []string, items map[string]int32) {
 
 // SetBySlice 设置主题与uniqId的对应关系
 func (r *collect) SetBySlice(topics []string, uniqId string) {
-	if len(topics) == 0 {
+	if len(topics) == 0 || uniqId == "" {
 		return
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for _, topic := range topics {
+		if topic == "" {
+			continue
+		}
 		c, ok := r.topics[topic]
-		if !ok {
+		if ok {
+			if _, ok = c[uniqId]; !ok {
+				c[uniqId] = struct{}{}
+			}
+		} else {
 			c = map[string]struct{}{}
 			r.topics[topic] = c
+			c[uniqId] = struct{}{}
 		}
-		c[uniqId] = struct{}{}
-	}
-}
-
-// SetByMap 设置主题与uniqId的对应关系
-func (r *collect) SetByMap(topics map[string]struct{}, uniqId string) {
-	if len(topics) == 0 {
-		return
-	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	for topic := range topics {
-		c, ok := r.topics[topic]
-		if !ok {
-			c = map[string]struct{}{}
-			r.topics[topic] = c
-		}
-		c[uniqId] = struct{}{}
 	}
 }
 
@@ -114,16 +105,16 @@ func (r *collect) PullAndReturnUniqIds(topics []string) map[string]map[string]st
 }
 
 // GetUniqIds 获取某个主题的所有uniqId
-func (r *collect) GetUniqIds(topic string) (uniqIds []string) {
+func (r *collect) GetUniqIds(topic string, slicePool *slicePool.StrSlice) *[]string {
 	r.mux.RLock()
 	defer r.mux.RUnlock()
 	c, ok := r.topics[topic]
 	if !ok {
 		return nil
 	}
-	uniqIds = make([]string, 0, len(c))
+	uniqIds := slicePool.Get(len(c))
 	for uniqId := range c {
-		uniqIds = append(uniqIds, uniqId)
+		*uniqIds = append(*uniqIds, uniqId)
 	}
 	return uniqIds
 }
@@ -166,25 +157,23 @@ func (r *collect) DelByMap(topics map[string]struct{}, currentUniqId string, pre
 	if currentUniqId == previousUniqId || previousUniqId == "" {
 		for topic := range topics {
 			c, ok := r.topics[topic]
-			if !ok {
-				continue
-			}
-			delete(c, currentUniqId)
-			if len(c) == 0 {
-				delete(r.topics, topic)
+			if ok {
+				delete(c, currentUniqId)
+				if len(c) == 0 {
+					delete(r.topics, topic)
+				}
 			}
 		}
 		return
 	}
 	for topic := range topics {
 		c, ok := r.topics[topic]
-		if !ok {
-			continue
-		}
-		delete(c, currentUniqId)
-		delete(c, previousUniqId)
-		if len(c) == 0 {
-			delete(r.topics, topic)
+		if ok {
+			delete(c, currentUniqId)
+			delete(c, previousUniqId)
+			if len(c) == 0 {
+				delete(r.topics, topic)
+			}
 		}
 	}
 }
@@ -199,25 +188,23 @@ func (r *collect) DelBySlice(topics []string, currentUniqId string, previousUniq
 	if previousUniqId == "" || currentUniqId == previousUniqId {
 		for _, topic := range topics {
 			c, ok := r.topics[topic]
-			if !ok {
-				continue
-			}
-			delete(c, currentUniqId)
-			if len(c) == 0 {
-				delete(r.topics, topic)
+			if ok {
+				delete(c, currentUniqId)
+				if len(c) == 0 {
+					delete(r.topics, topic)
+				}
 			}
 		}
 		return
 	}
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
-		if !ok {
-			continue
-		}
-		delete(c, currentUniqId)
-		delete(c, previousUniqId)
-		if len(c) == 0 {
-			delete(r.topics, topic)
+		if ok {
+			delete(c, currentUniqId)
+			delete(c, previousUniqId)
+			if len(c) == 0 {
+				delete(r.topics, topic)
+			}
 		}
 	}
 }

@@ -55,9 +55,10 @@ func Run(wg *sync.WaitGroup) {
 				})
 			}
 		}
-		log.Logger.Info().Msgf("current silent step %d online %d", metrics.Step, metrics.Online.Count())
+		log.Logger.Info().Msgf("silent current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Silent.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
+	log.Logger.Info().Msgf("silent current online %d", wsMetrics.Collect.CountByName("silent"))
 }

@@ -23,6 +23,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
+	"netsvr/pkg/quit"
 )
 
 // Register 注册business进程
@@ -60,6 +61,8 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 	if payload.ProcessCmdGoroutineNum > 1 {
 		var i uint32 = 1
 		for ; i < payload.ProcessCmdGoroutineNum; i++ {
+			//添加到进程结束时的等待中，这样business发来的数据都会被处理完毕
+			quit.Wg.Add(1)
 			go processor.LoopCmd()
 		}
 	}

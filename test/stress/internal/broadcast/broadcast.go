@@ -72,9 +72,10 @@ func Run(wg *sync.WaitGroup) {
 				}
 			}
 		}
-		log.Logger.Info().Msgf("current broadcast step %d online %d", metrics.Step, metrics.Online.Count())
+		log.Logger.Info().Msgf("broadcast current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Broadcast.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
+	log.Logger.Info().Msgf("broadcast current online %d", wsMetrics.Collect.CountByName("broadcast"))
 }

@@ -15,9 +15,9 @@ Suspend = 180
 Enable = true
 Step = [
     #每个阶段初始化的连接数、每秒初始化的连接数、本阶段初始化完毕后的暂停秒数
-    { ConnNum = 300, ConnectNum = 10, Suspend = 20 },
-    { ConnNum = 300, ConnectNum = 10, Suspend = 20 },
-    { ConnNum = 400, ConnectNum = 10, Suspend = 20 },
+    { ConnNum = 600, ConnectNum = 100, Suspend = 20 },
+    { ConnNum = 600, ConnectNum = 100, Suspend = 20 },
+    { ConnNum = 800, ConnectNum = 100, Suspend = 20 },
 ]
 
 # 疯狂登录登出的连接
@@ -26,9 +26,9 @@ Enable = true
 # 每个连接间隔多少秒进行一次登录、登出操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
 ]
 
 # 疯狂单播的连接
@@ -39,9 +39,9 @@ MessageLen = 128
 # 每个连接间隔多少秒进行一次单播操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
 ]
 
 # 疯狂组播的连接
@@ -53,22 +53,47 @@ UniqIdNum = 15
 # 每个连接间隔多少秒进行一次组播操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
 ]
 
-# 疯狂订阅、取消订阅、发布
+# 疯狂订阅、取消订阅、发布，下面这套配置下，主题总数是1225个主题，平均每个主题被40个连接订阅了
 [Topic]
 Enable = true
-# 每个连接间隔多少秒进行一次订阅、取消订阅、发布操作
-MessageInterval = 5
-MessageLen = 512
+# 每个连接的备选主题数量，该值是随机产生的，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+AlternateTopicNum = 600
+# 主题字符串的长度，4有1413720种排列 3有42840种排列，2有1260种排列，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+AlternateTopicLen = 2
+# 连接建立的步骤
 Step = [
-    { ConnNum = 25, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 50, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
 ]
+[Topic.Subscribe]
+# 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+Mode = 1
+# 延长或间隔的秒数
+ModeSecond = 5
+# 每次订阅的主题数量，该值是轮询AlternateTopicNum得到的，第零个主题一定会被订阅
+TopicNum = 100
+[Topic.Unsubscribe]
+# 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+Mode = 1
+# 延长或间隔的秒数
+ModeSecond = 5
+# 每次取消订阅的主题数量，该值是轮询AlternateTopicNum得到的，但是不会取消连接订阅的第零个主题
+TopicNum = 50
+[Topic.Publish]
+# 发布数据的大小
+MessageLen = 512
+# 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+Mode = 1
+# 延长或间隔的秒数
+ModeSecond = 5
+# 每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
+TopicNum = 1
 
 # 疯狂广播的连接
 [Broadcast]
@@ -77,7 +102,7 @@ MessageLen = 1024
 # 每个连接间隔多少秒进行一次广播操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 1, ConnectNum = 1, Suspend = 60 },
     { ConnNum = 2, ConnectNum = 1, Suspend = 60 },
-    { ConnNum = 3, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 4, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 6, ConnectNum = 1, Suspend = 60 },
 ]

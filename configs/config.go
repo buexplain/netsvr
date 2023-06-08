@@ -38,7 +38,7 @@ type config struct {
 	ServerId uint8
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 	ShutdownWaitTime time.Duration
-	//pprof服务器监听的地址，ip:port，这个地址一般是内网地址，如果是空值，则不会开启
+	//pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空值，则不会开启
 	PprofListenAddress string
 	//business的限流器
 	Limit []struct {
@@ -72,7 +72,7 @@ type config struct {
 	}
 
 	Worker struct {
-		//worker服务器监听的地址，ip:port，这个地址最好是内网地址，外网不允许访问
+		//监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问
 		ListenAddress string
 		//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 		ReadDeadline time.Duration

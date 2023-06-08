@@ -87,9 +87,10 @@ func Run(wg *sync.WaitGroup) {
 				}
 			}
 		}
-		log.Logger.Info().Msgf("current multicast step %d online %d", metrics.Step, metrics.Online.Count())
+		log.Logger.Info().Msgf("multicast current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Multicast.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
 		}
 	}
+	log.Logger.Info().Msgf("multicast current online %d", wsMetrics.Collect.CountByName("multicast"))
 }
