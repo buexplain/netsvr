@@ -18,11 +18,10 @@
 package broadcast
 
 import (
-	"golang.org/x/time/rate"
-	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
+	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
 	"netsvr/test/stress/internal/wsMetrics"
 	"netsvr/test/stress/internal/wsTimer"
@@ -38,6 +37,7 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Broadcast.Enable {
 		return
 	}
+	log.Logger.Info().Msgf("broadcast running")
 	if configs.Config.Broadcast.MessageInterval <= 0 {
 		log.Logger.Error().Msg("配置 Config.Broadcast.MessageInterval 必须是个大于0的值")
 		return
@@ -47,31 +47,19 @@ func Run(wg *sync.WaitGroup) {
 		message = strings.Repeat("b", configs.Config.Broadcast.MessageLen)
 	}
 	data := map[string]interface{}{"message": message}
-	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Broadcast.Step {
 		metrics := wsMetrics.New("broadcast", key+1)
-		if step.ConnNum > 0 && step.ConnectNum > 0 {
-			l.SetLimit(rate.Limit(step.ConnectNum))
-			l.SetBurst(step.ConnectNum)
-		}
-		for i := 0; i < step.ConnNum; i++ {
-			if err := l.Wait(quit.Ctx); err != nil {
-				return
-			}
-			select {
-			case <-quit.Ctx.Done():
-				return
-			default:
-				ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-					ws.OnMessage = nil
+		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
+			ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
+				ws.OnMessage = nil
+			})
+			if ws != nil {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.MessageInterval), func() {
+					ws.Send(protocol.RouterBroadcast, data)
 				})
-				if ws != nil {
-					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.MessageInterval), func() {
-						ws.Send(protocol.RouterBroadcast, data)
-					})
-				}
 			}
-		}
+		})
+		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("broadcast current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Broadcast.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)

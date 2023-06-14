@@ -18,10 +18,9 @@
 package silent
 
 import (
-	"golang.org/x/time/rate"
-	"netsvr/pkg/quit"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
+	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
 	"netsvr/test/stress/internal/wsMetrics"
 	"sync"
@@ -35,26 +34,15 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Silent.Enable {
 		return
 	}
-	l := rate.NewLimiter(rate.Limit(1), 1)
+	log.Logger.Info().Msgf("silent running")
 	for key, step := range configs.Config.Silent.Step {
 		metrics := wsMetrics.New("silent", key+1)
-		if step.ConnNum > 0 && step.ConnectNum > 0 {
-			l.SetLimit(rate.Limit(step.ConnectNum))
-			l.SetBurst(step.ConnectNum)
-		}
-		for i := 0; i < step.ConnNum; i++ {
-			if err := l.Wait(quit.Ctx); err != nil {
-				return
-			}
-			select {
-			case <-quit.Ctx.Done():
-				return
-			default:
-				wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-					ws.OnMessage = nil
-				})
-			}
-		}
+		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
+			wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
+				ws.OnMessage = nil
+			})
+		})
+		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("silent current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Silent.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)

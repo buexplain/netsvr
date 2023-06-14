@@ -1,7 +1,7 @@
 # 日志级别 debug、info、warn、error
-LogLevel = "info"
+LogLevel = "debug"
 # customer服务的websocket连接地址
-CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+CustomerWsAddress = "ws://124.0.0.1:6060/netsvr"
 # 表示消息被哪个workerId的业务进程处理
 WorkerId = 1
 # 每个连接间隔多少秒进行心跳
@@ -58,12 +58,12 @@ Step = [
     { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
 ]
 
-# 疯狂订阅、取消订阅、发布，下面这套配置下，主题总数是1225个主题，平均每个主题被40个连接订阅了
+# 疯狂订阅、取消订阅、发布，下面这套配置下，主题总数是1225个主题，平均每个主题被80个连接订阅，当然因为机器性能、网络等原因，实际订阅数可能不一样
 [Topic]
 Enable = true
-# 每个连接的备选主题数量，该值是随机产生的，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+# 每个连接的备选主题数量，该值是随机产生的，该值越大，则一个主题会被多个连接订阅的概率越小
 AlternateTopicNum = 600
-# 主题字符串的长度，4有1413720种排列 3有42840种排列，2有1260种排列，该值越大，则一个主题会被多个连接订阅的概率多变的很小
+# 主题字符串的长度，4有1413720种排列 3有42840种排列，2有1260种排列，该值越大，则一个主题会被多个连接订阅的概率越小
 AlternateTopicLen = 2
 # 连接建立的步骤
 Step = [
@@ -102,7 +102,7 @@ MessageLen = 1024
 # 每个连接间隔多少秒进行一次广播操作
 MessageInterval = 5
 Step = [
-    { ConnNum = 2, ConnectNum = 1, Suspend = 60 },
-    { ConnNum = 4, ConnectNum = 1, Suspend = 60 },
-    { ConnNum = 6, ConnectNum = 1, Suspend = 60 },
+    { ConnNum = 2, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 4, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 6, ConnectNum = 10, Suspend = 60 },
 ]

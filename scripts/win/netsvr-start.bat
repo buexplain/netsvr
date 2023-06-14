@@ -6,6 +6,6 @@ call ./netsvr-stop.bat
 
 SET netsvr=./../netsvr-win-amd64.exe -config ./../configs/netsvr.toml
 
-start /i /min /B %netsvr%
+start /i /min /WAIT /B %netsvr%
 
 pause

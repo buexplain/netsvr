@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+type WsStatusSnapshot struct {
+	//花费的时间
+	SpendTime time.Duration
+	//发送的消息字节数
+	Send int64
+	//接收的消息字节数
+	Receive int64
+}
+
 type WsStatus struct {
 	//模块名字
 	Name string
@@ -18,12 +27,67 @@ type WsStatus struct {
 	Step int
 	//开始时间
 	StartTime time.Time
-	//在线人数
+	//全部连接构建完毕的数据快照
+	ConnectOK WsStatusSnapshot
+	//总数据，扣除全部连接构建完毕的数据后的数据
+	ConnectRunning WsStatusSnapshot
+	//总的在线连接数
 	Online gMetrics.Counter
-	//发送的消息字节数
+	//总发送的消息字节数
 	Send gMetrics.Counter
-	//接收的消息字节数
+	//总接收的消息字节数
 	Receive gMetrics.Counter
+}
+
+func (r *WsStatus) RecordConnectOK() {
+	r.ConnectOK.SpendTime = time.Now().Sub(r.StartTime)
+	r.ConnectOK.Send = r.Send.Count()
+	r.ConnectOK.Receive = r.Receive.Count()
+}
+
+func (r *WsStatus) RecordConnectRunning() {
+	r.ConnectRunning.SpendTime = time.Now().Sub(r.StartTime) - r.ConnectOK.SpendTime
+	r.ConnectRunning.Send = r.Send.Count() - r.ConnectOK.Send
+	r.ConnectRunning.Receive = r.Receive.Count() - r.ConnectOK.Receive
+}
+
+func (r *WsStatus) ToTableRow() map[string]string {
+	currentTime := time.Now()
+	ret := map[string]string{}
+	ret["模块"] = r.Name
+	ret["阶段"] = fmt.Sprintf("%d", r.Step)
+	ret["连接数"] = fmt.Sprintf("%d", r.Online.Count())
+	ret["构建中耗时 "] = r.ConnectOK.SpendTime.String()
+	ret["构建中发送"] = bytesToNice(r.ConnectOK.Send)
+	ret["构建中接收"] = bytesToNice(r.ConnectOK.Receive)
+	ret["构建后耗时"] = (currentTime.Sub(r.StartTime) - r.ConnectOK.SpendTime).String()
+	ret["构建后发送"] = bytesToNice(r.Send.Count() - r.ConnectOK.Send)
+	ret["构建后接收"] = bytesToNice(r.Receive.Count() - r.ConnectOK.Receive)
+	ret["总耗时"] = currentTime.Sub(r.StartTime).String()
+	ret["总发送"] = bytesToNice(r.Send.Count())
+	ret["总接收"] = bytesToNice(r.Receive.Count())
+	return ret
+}
+
+func (r *WsStatus) ToTotal(total *WsStatus) {
+	//模块名字
+	total.Name = r.Name
+	//连接数
+	total.Online.Inc(r.Online.Count())
+	//连接构建期间
+	total.ConnectOK.SpendTime += r.ConnectOK.SpendTime
+	total.ConnectOK.Send += r.ConnectOK.Send
+	total.ConnectOK.Receive += r.ConnectOK.Receive
+	//连接构建完毕到结束时
+	total.ConnectRunning.SpendTime += r.ConnectRunning.SpendTime
+	total.ConnectRunning.Send += r.ConnectRunning.Send
+	total.ConnectRunning.Receive += r.ConnectRunning.Receive
+	//总数据
+	total.Send.Inc(r.Send.Count())
+	total.Receive.Inc(r.Receive.Count())
+	if r.StartTime.Compare(total.StartTime) == -1 {
+		total.StartTime = r.StartTime
+	}
 }
 
 func New(name string, step int) *WsStatus {
@@ -35,7 +99,9 @@ func New(name string, step int) *WsStatus {
 		Send:      gMetrics.NewCounter(),
 		Receive:   gMetrics.NewCounter(),
 	}
-	Collect.add(tmp)
+	if tmp.Name != "" && tmp.Step != -1 {
+		Collect.add(tmp)
+	}
 	return tmp
 }
 
@@ -54,19 +120,19 @@ func (r *collect) add(status *WsStatus) {
 	r.c[status.Name] = []*WsStatus{status}
 }
 
-func bytesToNice(s int64) string {
-	if s < 10 {
-		return fmt.Sprintf("%d B", s)
-	}
-	e := math.Floor(math.Log(float64(s)) / math.Log(1024))
+func bytesToNice(x int64) string {
 	sizes := []string{"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
-	suffix := sizes[int(e)]
-	val := math.Floor(float64(s)/math.Pow(1024, e)*10+0.5) / 10
-	f := "%.0f %s"
-	if val < 10 {
-		f = "%.1f %s"
+	intPartIndex := 0
+	tmp := x
+	for {
+		tmp /= 1024
+		if tmp < 1 {
+			break
+		}
+		intPartIndex++
 	}
-	return fmt.Sprintf(f, val, suffix)
+	intPart := math.Pow(1024, float64(intPartIndex))
+	return fmt.Sprintf("%.3f %s", float64(x)/intPart, sizes[intPartIndex])
 }
 
 func (r *collect) CountByName(name string) int64 {
@@ -116,61 +182,46 @@ func (r *collect) ToTable() *bytes.Buffer {
 	sort.Strings(moduleSlice)
 	ret := &bytes.Buffer{}
 	table := tablewriter.NewWriter(ret)
-	table.SetHeader([]string{"模块", "阶段", "连接数", "发送字节", "接收字节", "持续时间"})
-	currentTime := time.Now()
-	var totalOnline int64
-	var totalSend int64
-	var totalReceive int64
-	totalStartTime := currentTime
+	header := []string{"模块", "阶段", "连接数", "构建中耗时 ", "构建中发送", "构建中接收", "构建后耗时", "构建后发送", "构建后接收", "总耗时", "总发送", "总接收"}
+	table.SetHeader(header)
+	total := New("", -1)
 	for _, m := range moduleSlice {
 		statusSlice := r.c[m]
-		var moduleName string
-		var moduleOnline int64
-		var moduleSend int64
-		var moduleReceive int64
-		moduleStartTime := currentTime
+		subtotal := New("", 0)
 		for _, status := range statusSlice {
+			status.RecordConnectRunning()
 			//记录总数
-			totalOnline += status.Online.Count()
-			totalSend += status.Send.Count()
-			totalReceive += status.Receive.Count()
-			if status.StartTime.Compare(totalStartTime) == -1 {
-				totalStartTime = status.StartTime
-			}
+			status.ToTotal(total)
 			//记录本模块数
-			moduleName = status.Name
-			moduleOnline += status.Online.Count()
-			moduleSend += status.Send.Count()
-			moduleReceive += status.Receive.Count()
-			if status.StartTime.Compare(moduleStartTime) == -1 {
-				moduleStartTime = status.StartTime
+			status.ToTotal(subtotal)
+			//写入当前步骤数据
+			tmp := status.ToTableRow()
+			row := make([]string, 0, len(header))
+			for _, v := range header {
+				row = append(row, tmp[v])
 			}
-			table.Append([]string{
-				status.Name,
-				fmt.Sprintf("%d", status.Step),
-				fmt.Sprintf("%d", status.Online.Count()),
-				bytesToNice(status.Send.Count()),
-				bytesToNice(status.Receive.Count()),
-				fmt.Sprintf("%s", currentTime.Sub(status.StartTime).String()),
-			})
+			table.Append(row)
 		}
-		table.Append([]string{
-			moduleName,
-			"小计",
-			fmt.Sprintf("%d", moduleOnline),
-			bytesToNice(moduleSend),
-			bytesToNice(moduleReceive),
-			fmt.Sprintf("%s", currentTime.Sub(moduleStartTime).String()),
-		})
+		tmp := subtotal.ToTableRow()
+		tmp["阶段"] = "小计"
+		tmp["构建后耗时"] = "-" //因为有时间重叠，所以不能做相加计算
+		tmp["总耗时"] = "-"
+		row := make([]string, 0, len(header))
+		for _, v := range header {
+			row = append(row, tmp[v])
+		}
+		table.Append(row)
 	}
-	table.Append([]string{
-		"总计",
-		"-",
-		fmt.Sprintf("%d", totalOnline),
-		bytesToNice(totalSend),
-		bytesToNice(totalReceive),
-		fmt.Sprintf("%s", currentTime.Sub(totalStartTime).String()),
-	})
+	tmp := total.ToTableRow()
+	tmp["模块"] = "总计"
+	tmp["阶段"] = "-"
+	tmp["构建后耗时"] = "-"
+	tmp["总耗时"] = "-"
+	row := make([]string, 0, len(header))
+	for _, v := range header {
+		row = append(row, tmp[v])
+	}
+	table.Append(row)
 	table.SetAutoMergeCellsByColumnIndex([]int{0})
 	table.SetRowLine(true)
 	table.Render()

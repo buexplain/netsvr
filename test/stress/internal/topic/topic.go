@@ -18,11 +18,10 @@
 package topic
 
 import (
-	"golang.org/x/time/rate"
-	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
+	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
 	"netsvr/test/stress/internal/wsMetrics"
 	"netsvr/test/stress/internal/wsTimer"
@@ -38,6 +37,7 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Topic.Enable {
 		return
 	}
+	log.Logger.Info().Msgf("topic running")
 	if configs.Config.Topic.AlternateTopicNum <= 0 {
 		log.Logger.Error().Msg("配置 Config.Topic.AlternateTopicNum 必须是个大于0的值")
 		return
@@ -50,78 +50,66 @@ func Run(wg *sync.WaitGroup) {
 	if configs.Config.Topic.Publish.MessageLen > 0 {
 		message = strings.Repeat("t", configs.Config.Topic.Publish.MessageLen)
 	}
-	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Topic.Step {
 		metrics := wsMetrics.New("topic", key+1)
-		if step.ConnNum > 0 && step.ConnectNum > 0 {
-			l.SetLimit(rate.Limit(step.ConnectNum))
-			l.SetBurst(step.ConnectNum)
-		}
-		for i := 0; i < step.ConnNum; i++ {
-			if err := l.Wait(quit.Ctx); err != nil {
+		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
+			ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
+				ws.InitTopic(configs.Config.Topic.AlternateTopicNum, configs.Config.Topic.AlternateTopicLen)
+				ws.OnMessage = nil
+			})
+			if ws == nil {
 				return
 			}
-			select {
-			case <-quit.Ctx.Done():
-				return
-			default:
-				ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-					ws.InitTopic(configs.Config.Topic.AlternateTopicNum, configs.Config.Topic.AlternateTopicLen)
-					ws.OnMessage = nil
+			//处理订阅
+			if configs.Config.Topic.Subscribe.ModeSecond < 0 {
+				configs.Config.Topic.Subscribe.ModeSecond = 1
+			}
+			if configs.Config.Topic.Subscribe.TopicNum < 0 {
+				configs.Config.Topic.Subscribe.TopicNum = 1
+			}
+			if configs.Config.Topic.Subscribe.Mode == configs.ModeAfter {
+				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Subscribe.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic(configs.Config.Topic.Subscribe.TopicNum)})
 				})
-				if ws == nil {
-					continue
-				}
-				//处理订阅
-				if configs.Config.Topic.Subscribe.ModeSecond < 0 {
-					configs.Config.Topic.Subscribe.ModeSecond = 1
-				}
-				if configs.Config.Topic.Subscribe.TopicNum < 0 {
-					configs.Config.Topic.Subscribe.TopicNum = 1
-				}
-				if configs.Config.Topic.Subscribe.Mode == configs.ModeAfter {
-					wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Subscribe.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic(configs.Config.Topic.Subscribe.TopicNum)})
-					})
-				} else if configs.Config.Topic.Subscribe.Mode == configs.ModeSchedule {
-					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Subscribe.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic(configs.Config.Topic.Subscribe.TopicNum)})
-					})
-				}
-				//处理取消订阅
-				if configs.Config.Topic.Unsubscribe.ModeSecond < 0 {
-					configs.Config.Topic.Unsubscribe.ModeSecond = 1
-				}
-				if configs.Config.Topic.Unsubscribe.TopicNum < 0 {
-					configs.Config.Topic.Unsubscribe.TopicNum = 1
-				}
-				if configs.Config.Topic.Unsubscribe.Mode == configs.ModeAfter {
-					wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Unsubscribe.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic(configs.Config.Topic.Unsubscribe.TopicNum)})
-					})
-				} else if configs.Config.Topic.Unsubscribe.Mode == configs.ModeSchedule {
-					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Unsubscribe.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic(configs.Config.Topic.Unsubscribe.TopicNum)})
-					})
-				}
-				//处理发布
-				if configs.Config.Topic.Publish.ModeSecond < 0 {
-					configs.Config.Topic.Publish.ModeSecond = 1
-				}
-				if configs.Config.Topic.Publish.TopicNum < 0 {
-					configs.Config.Topic.Publish.TopicNum = 1
-				}
-				if configs.Config.Topic.Publish.Mode == configs.ModeAfter {
-					wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Publish.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})
-					})
-				} else if configs.Config.Topic.Publish.Mode == configs.ModeSchedule {
-					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Publish.ModeSecond), func() {
-						ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})
-					})
-				}
+			} else if configs.Config.Topic.Subscribe.Mode == configs.ModeSchedule {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Subscribe.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic(configs.Config.Topic.Subscribe.TopicNum)})
+				})
 			}
-		}
+			//处理取消订阅
+			if configs.Config.Topic.Unsubscribe.ModeSecond < 0 {
+				configs.Config.Topic.Unsubscribe.ModeSecond = 1
+			}
+			if configs.Config.Topic.Unsubscribe.TopicNum < 0 {
+				configs.Config.Topic.Unsubscribe.TopicNum = 1
+			}
+			if configs.Config.Topic.Unsubscribe.Mode == configs.ModeAfter {
+				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Unsubscribe.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic(configs.Config.Topic.Unsubscribe.TopicNum)})
+				})
+			} else if configs.Config.Topic.Unsubscribe.Mode == configs.ModeSchedule {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Unsubscribe.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic(configs.Config.Topic.Unsubscribe.TopicNum)})
+				})
+			}
+			//处理发布
+			if configs.Config.Topic.Publish.ModeSecond < 0 {
+				configs.Config.Topic.Publish.ModeSecond = 1
+			}
+			if configs.Config.Topic.Publish.TopicNum < 0 {
+				configs.Config.Topic.Publish.TopicNum = 1
+			}
+			if configs.Config.Topic.Publish.Mode == configs.ModeAfter {
+				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Publish.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})
+				})
+			} else if configs.Config.Topic.Publish.Mode == configs.ModeSchedule {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.Publish.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})
+				})
+			}
+		})
+		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("topic current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Topic.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)

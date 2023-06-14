@@ -18,11 +18,10 @@
 package multicast
 
 import (
-	"golang.org/x/time/rate"
-	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
+	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
 	"netsvr/test/stress/internal/wsCollect"
 	"netsvr/test/stress/internal/wsMetrics"
@@ -45,6 +44,7 @@ func Run(wg *sync.WaitGroup) {
 	if !configs.Config.Multicast.Enable {
 		return
 	}
+	log.Logger.Info().Msgf("multicast running")
 	if configs.Config.Multicast.MessageInterval <= 0 {
 		log.Logger.Error().Msg("配置 Config.Multicast.MessageInterval 必须是个大于0的值")
 		return
@@ -57,36 +57,25 @@ func Run(wg *sync.WaitGroup) {
 	if configs.Config.Multicast.MessageLen > 0 {
 		message = strings.Repeat("m", configs.Config.Multicast.MessageLen)
 	}
-	l := rate.NewLimiter(rate.Limit(1), 1)
 	for key, step := range configs.Config.Multicast.Step {
 		metrics := wsMetrics.New("multicast", key+1)
-		if step.ConnNum > 0 && step.ConnectNum > 0 {
-			l.SetLimit(rate.Limit(step.ConnectNum))
-			l.SetBurst(step.ConnectNum)
-		}
-		for i := 0; i < step.ConnNum; i++ {
-			if err := l.Wait(quit.Ctx); err != nil {
+		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
+			ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
+				ws.OnMessage = nil
+			})
+			if ws == nil {
 				return
 			}
-			select {
-			case <-quit.Ctx.Done():
-				return
-			default:
-				ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-					ws.OnMessage = nil
-				})
-				if ws != nil {
-					collect.Add(ws)
-					uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
-					wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.MessageInterval), func() {
-						if len(uniqIds) < configs.Config.Multicast.UniqIdNum {
-							uniqIds = collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
-						}
-						ws.Send(protocol.RouterMulticastForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
-					})
+			collect.Add(ws)
+			uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
+			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.MessageInterval), func() {
+				if len(uniqIds) < configs.Config.Multicast.UniqIdNum {
+					uniqIds = collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
 				}
-			}
-		}
+				ws.Send(protocol.RouterMulticastForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
+			})
+		})
+		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("multicast current step %d online %d", metrics.Step, metrics.Online.Count())
 		if key < len(configs.Config.Multicast.Step)-1 && step.Suspend > 0 {
 			time.Sleep(time.Duration(step.Suspend) * time.Second)
