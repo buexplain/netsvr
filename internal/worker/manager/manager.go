@@ -69,9 +69,6 @@ func (r *collect) Del(conn *ConnProcessor) bool {
 type manager [netsvrProtocol.WorkerIdMax + 1]*collect
 
 func (r manager) Get(workerId int) *ConnProcessor {
-	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-		return nil
-	}
 	return r[workerId].Get()
 }
 

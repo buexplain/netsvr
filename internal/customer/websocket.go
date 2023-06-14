@@ -49,6 +49,7 @@ const ConnectRateLimit = "Connect rate limited"
 const MessageRateLimit = "Message rate limited"
 const ServiceShutdown = "Service shutdown"
 const MessageTooLarge = "Message too large"
+const WorkerIdWrong = "WorkerId wrong"
 
 func Start() {
 	var tlsConfig *tls.Config
@@ -113,7 +114,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		if configs.Config.Customer.ConnOpenWorkerId > 0 && limit.Manager.Allow(configs.Config.Customer.ConnOpenWorkerId) == false {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write(utils.StrToReadOnlyBytes(ConnectRateLimit))
-			log.Logger.Warn().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Msg(ConnectRateLimit)
+			log.Logger.Error().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg(ConnectRateLimit)
 			return
 		}
 	}
@@ -137,7 +138,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	//开始升级
 	wsConn, err := upgrade.Upgrade(w, r, responseHeader)
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Customer websocket upgrade failed")
+		log.Logger.Error().Err(err).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Customer websocket upgrade failed")
 		return
 	}
 	//升级成功
@@ -148,11 +149,16 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	session := info.NewInfo(uniqId)
 	wsConn.SetSession(session)
 	manager.Manager.Set(uniqId, wsConn)
-	log.Logger.Debug().Str("uniqId", uniqId).Msg("Customer websocket open")
+	log.Logger.Debug().Str("uniqId", uniqId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Customer websocket open")
 	//获取能够处理连接打开信息的business
+	if configs.Config.Customer.ConnOpenWorkerId == 0 {
+		//配置为0，表示当前业务不关心连接的打开信息
+		return
+	}
 	worker := workerManager.Manager.Get(configs.Config.Customer.ConnOpenWorkerId)
 	if worker == nil {
-		log.Logger.Debug().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Msg("Not found process conn open business")
+		//配置了处理的workerId，但是又没找到具体的业务进程，则打错误日志告警，因为此时有可能是business进程挂了
+		log.Logger.Error().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Not found process conn open business")
 		return
 	}
 	//连接打开消息回传给business
@@ -199,7 +205,7 @@ func onClose(conn *websocket.Conn, _ error) {
 	//关闭info
 	session.Close()
 	//清空info，并返回相关数据
-	topics, uniqId, userSession := session.Clear()
+	topics, uniqId, customerSession := session.Clear()
 	if uniqId == "" {
 		session.MuxUnLock()
 		//当前连接已经被清空了uniqId，无需进行接下来的逻辑
@@ -211,17 +217,20 @@ func onClose(conn *websocket.Conn, _ error) {
 	topic.Topic.DelByMap(topics, uniqId, "")
 	//释放锁
 	session.MuxUnLock()
-	log.Logger.Debug().Interface("topics", topics).Str("uniqId", uniqId).Str("session", userSession).Msg("Customer websocket close")
 	//连接关闭消息回传给business
+	if configs.Config.Customer.ConnCloseWorkerId == 0 {
+		//配置为0，表示当前业务不关心连接的关闭信息
+		return
+	}
 	worker := workerManager.Manager.Get(configs.Config.Customer.ConnCloseWorkerId)
 	if worker == nil {
-		log.Logger.Debug().Int("workerId", configs.Config.Customer.ConnCloseWorkerId).Msg("Not found process conn close business")
+		log.Logger.Error().Int("workerId", configs.Config.Customer.ConnCloseWorkerId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Not found process conn close business")
 		return
 	}
 	//转发数据到business
 	cl := objPool.ConnClose.Get()
 	cl.UniqId = uniqId
-	cl.Session = userSession
+	cl.Session = customerSession
 	if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
 		//统计转发到business的次数与字节数
 		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
@@ -250,9 +259,17 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	}
 	//读取前三个字节，转成business的workerId
 	workerId := utils.BytesToInt(data, 3)
+	//检查workerId是否合法
+	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
+		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(WorkerIdWrong)); err != nil {
+			_ = conn.Close()
+		}
+		log.Logger.Info().Int("workerId", workerId).Str("remoteAddr", conn.RemoteAddr().String()).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg(WorkerIdWrong)
+		return
+	}
 	//限流检查
 	if limit.Manager.Allow(workerId) == false {
-		log.Logger.Warn().Int("workerId", workerId).Msg(MessageRateLimit)
+		log.Logger.Error().Int("workerId", workerId).Str("remoteAddr", conn.RemoteAddr().String()).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg(MessageRateLimit)
 		return
 	}
 	//从连接中拿出session
@@ -263,7 +280,9 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//获取能处理消息的business
 	worker := workerManager.Manager.Get(workerId)
 	if worker == nil {
-		log.Logger.Debug().Int("workerId", workerId).Str("session", session.GetSession()).Bytes("customerToWorkerData", data[3:]).Msg("Not found business")
+		//这里打error日志告警，假设客户端是传递了正确的workerId，但是服务端的业务进程可能挂了，导致没找到，这时候打告警日志是必须的
+		//当然客户端有可能是恶意乱传，所以记录下对方的远程地址也是必须的
+		log.Logger.Error().Int("workerId", workerId).Str("remoteAddr", conn.RemoteAddr().String()).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Str("session", session.GetSession()).Bytes("customerToWorkerData", data[3:]).Msg("Not found business")
 		return
 	}
 	//编码数据成business需要的格式

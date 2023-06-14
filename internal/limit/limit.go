@@ -51,9 +51,6 @@ type manager struct {
 }
 
 func (r manager) Allow(workerId int) bool {
-	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-		return false
-	}
 	return r.collect[workerId].Allow()
 }
 
