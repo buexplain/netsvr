@@ -243,9 +243,9 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
 	if bytes.Equal(data, netsvrProtocol.PingMessage) {
 		//响应客户端心跳
-		err := conn.WriteMessage(websocket.TextMessage, netsvrProtocol.PongMessage)
-		if err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, netsvrProtocol.PongMessage); err != nil {
 			_ = conn.Close()
+			return
 		}
 		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 		return
@@ -255,6 +255,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(MessageTooLarge)); err != nil {
 			_ = conn.Close()
 		}
+		//溢出限制大小，直接丢弃该数据
 		return
 	}
 	//读取前三个字节，转成business的workerId
@@ -269,6 +270,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	}
 	//限流检查
 	if limit.Manager.Allow(workerId) == false {
+		//触发了限流也要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关部署地太少
 		log.Logger.Error().Int("workerId", workerId).Str("remoteAddr", conn.RemoteAddr().String()).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg(MessageRateLimit)
 		return
 	}
