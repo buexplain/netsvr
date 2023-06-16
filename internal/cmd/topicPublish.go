@@ -22,6 +22,7 @@ import (
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -49,7 +50,10 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 				if conn == nil {
 					continue
 				}
-				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
+				} else {
 					_ = conn.Close()
 				}
 			}

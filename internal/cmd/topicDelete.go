@@ -23,6 +23,7 @@ import (
 	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -82,7 +83,10 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 			}
 			//没有发送过数据，则发送数据
 			if !isSend {
-				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
+				} else {
 					_ = conn.Close()
 				}
 			}

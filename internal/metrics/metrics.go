@@ -32,6 +32,8 @@ const (
 	ItemCustomerHeartbeat                  //统计客户连接的心跳情况
 	ItemCustomerTransferNumber             //统计客户数据转发到worker的次数情况
 	ItemCustomerTransferByte               //统计客户数据转发到worker的字节数情况
+	ItemCustomerWriteNumber                //统计往客户写入数据次数
+	ItemCustomerWriteByte                  //统计往客户写入字节数
 	itemLen                                //结束符
 )
 
@@ -56,14 +58,14 @@ func init() {
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
 			ok = true
-			//配置要求统计，则初始化真实的
+			//配置文件要求统计，则初始化真实地统计对象
 			s.Meter = gMetrics.NewMeter()
 			s.MeanRateMax = gMetrics.NewGauge()
 			s.Rate1Max = gMetrics.NewGauge()
 			s.Rate5Max = gMetrics.NewGauge()
 			s.Rate15Max = gMetrics.NewGauge()
 		} else {
-			//配置不要求统计，则初始化一个空壳子上去
+			//配置文件不要求统计，则初始化一个空壳子上去，这个空壳子是个空函数调用，不影响程序性能
 			s.Meter = gMetrics.NilMeter{}
 			s.MeanRateMax = gMetrics.NilGauge{}
 			s.Rate1Max = gMetrics.NilGauge{}

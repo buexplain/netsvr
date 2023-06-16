@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"time"
@@ -55,12 +56,18 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		if conn == nil {
 			continue
 		}
-		_ = conn.WriteMessage(websocket.TextMessage, payload.Data)
-		timer.Timer.AfterFunc(time.Second*3, func() {
-			defer func() {
-				_ = recover()
-			}()
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+			//倒计时的目的是确保数据发送成功
+			timer.Timer.AfterFunc(time.Second*3, func() {
+				defer func() {
+					_ = recover()
+				}()
+				_ = conn.Close()
+			})
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
+		} else {
 			_ = conn.Close()
-		})
+		}
 	}
 }

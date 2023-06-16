@@ -23,6 +23,7 @@ import (
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
@@ -71,13 +72,19 @@ func ConnInfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 				_ = conflictConn.Close()
 			} else {
 				//写入数据，并在一定倒计时后关闭连接
-				_ = conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted)
-				timer.Timer.AfterFunc(time.Second*3, func() {
-					defer func() {
-						_ = recover()
-					}()
+				if err := conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted); err == nil {
+					//倒计时的目的是确保数据发送成功
+					timer.Timer.AfterFunc(time.Second*3, func() {
+						defer func() {
+							_ = recover()
+						}()
+						_ = conflictConn.Close()
+					})
+					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.DataAsNewUniqIdExisted)))
+				} else {
 					_ = conflictConn.Close()
-				})
+				}
 			}
 		}
 		//处理连接管理器中的关系
@@ -120,7 +127,10 @@ func ConnInfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	session.MuxUnLock()
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
+		} else {
 			_ = conn.Close()
 		}
 	}

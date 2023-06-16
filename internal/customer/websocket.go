@@ -186,11 +186,13 @@ func pongMessageHandler(_ *websocket.Conn, _ string) {
 // pong客户端心跳帧
 func pingMessageHandler(conn *websocket.Conn, _ string) {
 	//响应客户端心跳
-	err := conn.WriteMessage(websocket.PongMessage, netsvrProtocol.PongMessage)
-	if err != nil {
+	if err := conn.WriteMessage(websocket.PongMessage, netsvrProtocol.PongMessage); err == nil {
+		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(netsvrProtocol.PongMessage)))
+	} else {
 		_ = conn.Close()
 	}
-	metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 }
 
 func onClose(conn *websocket.Conn, _ error) {
@@ -243,16 +245,21 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
 	if bytes.Equal(data, netsvrProtocol.PingMessage) {
 		//响应客户端心跳
-		if err := conn.WriteMessage(websocket.TextMessage, netsvrProtocol.PongMessage); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, netsvrProtocol.PongMessage); err == nil {
+			metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(netsvrProtocol.PongMessage)))
+		} else {
 			_ = conn.Close()
-			return
 		}
-		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
 		return
 	}
 	//限制数据包大小
 	if len(data)-3 > configs.Config.Customer.ReceivePackLimit {
-		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(MessageTooLarge)); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(MessageTooLarge)); err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(MessageTooLarge)))
+		} else {
 			_ = conn.Close()
 		}
 		//溢出限制大小，直接丢弃该数据
@@ -262,10 +269,12 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	workerId := utils.BytesToInt(data, 3)
 	//检查workerId是否合法
 	if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(WorkerIdWrong)); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, utils.StrToReadOnlyBytes(WorkerIdWrong)); err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(WorkerIdWrong)))
+		} else {
 			_ = conn.Close()
 		}
-		log.Logger.Info().Int("workerId", workerId).Str("remoteAddr", conn.RemoteAddr().String()).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg(WorkerIdWrong)
 		return
 	}
 	//限流检查

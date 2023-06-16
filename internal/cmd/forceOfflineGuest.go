@@ -23,6 +23,7 @@ import (
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"time"
@@ -53,13 +54,18 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		} else {
 			//写入数据，并在一定倒计时后关闭连接
-			_ = conn.WriteMessage(websocket.TextMessage, payload.Data)
-			timer.Timer.AfterFunc(time.Second*3, func() {
-				defer func() {
-					_ = recover()
-				}()
+			if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+				timer.Timer.AfterFunc(time.Second*3, func() {
+					defer func() {
+						_ = recover()
+					}()
+					_ = conn.Close()
+				})
+				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
+			} else {
 				_ = conn.Close()
-			})
+			}
 		}
 	}
 	if payload.Delay <= 0 {
@@ -68,6 +74,9 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 		}
 	} else {
 		timer.Timer.AfterFunc(time.Second*time.Duration(payload.Delay), func() {
+			defer func() {
+				_ = recover()
+			}()
 			for _, uniqId := range payload.UniqIds {
 				f(uniqId)
 			}
