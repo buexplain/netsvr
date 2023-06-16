@@ -206,6 +206,18 @@
         <div class="case">
             <label>
                 <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                       value="我是一条按uniqId批量单播的信息">
+            </label>
+            <label>
+                <input type="text" name="uniqIds" data-processor="processorToStringArr" placeholder="请输入目标uniqId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.singleCastBulkForUniqId)">按uniqId批量单播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
                        value="我是一条按用户id组播的信息">
             </label>
             <label>
@@ -323,6 +335,7 @@
         forceOfflineGuestForUniqId: parseInt("{!.RouterForceOfflineGuestForUniqId!}"), //按uniqId强制下线游客
         singleCastForUserId: parseInt("{!.RouterSingleCastForUserId!}"), //单播给某个用户
         singleCastForUniqId: parseInt("{!.RouterSingleCastForUniqId!}"), //单播给某个uniqId
+        singleCastBulkForUniqId: parseInt("{!.RouterSingleCastBulkForUniqId!}"), //批量单播给某几个uniqId
         multicastForUserId: parseInt("{!.RouterMulticastForUserId!}"), //组播给多个用户
         multicastForUniqId: parseInt("{!.RouterMulticastForUniqId!}"), //组播给多个uniqId
         broadcast: parseInt("{!.RouterBroadcast!}"), //广播
@@ -583,6 +596,7 @@
                 if (
                     resp.cmd === routerCmd.singleCastForUserId
                     || resp.cmd === routerCmd.singleCastForUniqId
+                    || resp.cmd === routerCmd.singleCastBulkForUniqId
                     || resp.cmd === routerCmd.multicastForUniqId
                     || resp.cmd === routerCmd.multicastForUserId
                     || resp.cmd === routerCmd.broadcast

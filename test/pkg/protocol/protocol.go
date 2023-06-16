@@ -43,6 +43,7 @@ const (
 	RouterForceOfflineGuestForUniqId
 	RouterSingleCastForUserId
 	RouterSingleCastForUniqId
+	RouterSingleCastBulkForUniqId
 	RouterMulticastForUserId
 	RouterMulticastForUniqId
 	RouterBroadcast
@@ -73,6 +74,7 @@ var CmdName = map[Cmd]string{
 	RouterForceOfflineForUniqId:      "RouterForceOfflineForUniqId",      //强制关闭某个连接
 	RouterForceOfflineGuestForUniqId: "RouterForceOfflineGuestForUniqId", //将某个没有session值的连接强制关闭
 	RouterSingleCastForUserId:        "RouterSingleCastForUserId",        //单播给某个用户
+	RouterSingleCastBulkForUniqId:    "RouterSingleCastBulkForUniqId",    //批量单播给某几个uniqId
 	RouterSingleCastForUniqId:        "RouterSingleCastForUniqId",        //单播给某个uniqId
 	RouterMulticastForUserId:         "RouterMulticastForUserId",         //组播给多个用户
 	RouterMulticastForUniqId:         "RouterMulticastForUniqId",         //组播给多个uniqId

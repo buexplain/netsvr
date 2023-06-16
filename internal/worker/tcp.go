@@ -73,6 +73,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_Multicast, cmd.Multicast)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicPublish, cmd.TopicPublish)
 			c.RegisterCmd(netsvrProtocol.Cmd_SingleCast, cmd.SingleCast)
+			c.RegisterCmd(netsvrProtocol.Cmd_SingleCastBulk, cmd.SingleCastBulk)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicSubscribe, cmd.TopicSubscribe)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicUnsubscribe, cmd.TopicUnsubscribe)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicDelete, cmd.TopicDelete)

@@ -51,3 +51,29 @@ func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	objPool.SingleCast.Put(payload)
 }
+
+// SingleCastBulk 批量单播
+func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
+	payload := objPool.SingleCastBulk.Get()
+	if err := proto.Unmarshal(param, payload); err != nil {
+		objPool.SingleCastBulk.Put(payload)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCastBulk failed")
+		return
+	}
+	for _, v := range payload.Items {
+		if v.UniqId == "" || len(v.Data) == 0 {
+			continue
+		}
+		conn := manager.Manager.Get(v.UniqId)
+		if conn == nil {
+			continue
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, v.Data); err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(v.Data)))
+		} else {
+			_ = conn.Close()
+		}
+	}
+	objPool.SingleCastBulk.Put(payload)
+}

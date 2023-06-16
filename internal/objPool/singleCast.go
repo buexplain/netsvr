@@ -46,3 +46,28 @@ func init() {
 		},
 	}
 }
+
+type singleCastBulk struct {
+	pool *sync.Pool
+}
+
+var SingleCastBulk *singleCastBulk
+
+func (r *singleCastBulk) Get() *netsvrProtocol.SingleCastBulk {
+	return r.pool.Get().(*netsvrProtocol.SingleCastBulk)
+}
+
+func (r *singleCastBulk) Put(singleCastBulk *netsvrProtocol.SingleCastBulk) {
+	singleCastBulk.Items = nil
+	r.pool.Put(singleCastBulk)
+}
+
+func init() {
+	SingleCastBulk = &singleCastBulk{
+		pool: &sync.Pool{
+			New: func() any {
+				return &netsvrProtocol.SingleCastBulk{}
+			},
+		},
+	}
+}
