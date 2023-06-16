@@ -29,3 +29,8 @@ message SingleCast {
   //需要发给客户的数据
   bytes data = 2;
 }
+
+//business向worker请求，进行批量单播
+message SingleCastBulk {
+  repeated SingleCast items = 1;
+}

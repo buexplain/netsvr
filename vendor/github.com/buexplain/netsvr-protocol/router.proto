@@ -27,38 +27,39 @@ enum Cmd {
   //毫无意义的占位符，目的是避免枚举从零开始，另外把指令搞大一点的目的是避免和business的指令段冲突
   Placeholder = 0;
   //--------------------------------worker单向转发给business的指令 开始--------------------------------
-  ConnOpen = 90001001; //连接打开
-  ConnClose = 90001002;//连接关闭
-  Transfer = 90001003;//透传客户数据
+  ConnOpen = 900001001; //连接打开
+  ConnClose = 900001002;//连接关闭
+  Transfer = 900001003;//透传客户数据
   //--------------------------------worker单向转发给business的指令 结束--------------------------------
 
   //--------------------------------business单向请求worker的指令，worker不会响应business 开始--------------------------------
-  ConnInfoUpdate = 90002001;//更新连接的info信息
-  ConnInfoDelete = 90002002;//删除连接的info信息
-  Broadcast = 90002003; //广播
-  Multicast = 90002004; //组播
-  SingleCast = 90002005;//单播
-  TopicSubscribe = 90002006;//订阅
-  TopicUnsubscribe = 90002007;//取消订阅
-  TopicDelete = 9000208;//删除主题
-  TopicPublish = 9000209;//发布
-  ForceOffline = 90002010;//强制关闭某个连接
-  ForceOfflineGuest = 90002011;//强制关闭某个空session值的连接
+  ConnInfoUpdate = 900002001;//更新连接的info信息
+  ConnInfoDelete = 900002002;//删除连接的info信息
+  Broadcast = 900002003; //广播
+  Multicast = 900002004; //组播
+  SingleCast = 900002005;//单播
+  SingleCastBulk = 900002006;//批量单播
+  TopicSubscribe = 900002007;//订阅
+  TopicUnsubscribe = 900002008;//取消订阅
+  TopicDelete = 900002009;//删除主题
+  TopicPublish = 900002010;//发布
+  ForceOffline = 900002011;//强制关闭某个连接
+  ForceOfflineGuest = 900002012;//强制关闭某个空session值的连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------
 
   //--------------------------------business请求worker的指令，worker会响应business 开始--------------------------------
-  Register = 90003001; //注册business到worker，注册后，business会收到worker转发的客户信息
-  Unregister = 90003002; //取消注册，取消后不会再收到客户信息
-  CheckOnline = 90003003; //判断uniqId是否在网关中
-  UniqIdList = 90003004; //获取网关中全部的uniqId
-  UniqIdCount = 90003005; //获取网关中uniqId的数量
-  TopicCount = 90003006; //获取网关中的主题数量
-  TopicList = 90003007; //获取网关中的主题
-  TopicUniqIdList = 90003008; //获取网关中某个主题包含的uniqId
-  TopicUniqIdCount = 90003009; //获取网关中的主题包含的连接数
-  ConnInfo = 90003010; //获取连接的信息
-  Metrics = 900030011; //获取网关统计的服务状态
-  Limit = 90003012; //更新限流配置、获取网关中的限流配置的真实情况
+  Register = 900003001; //注册business到worker，注册后，business会收到worker转发的客户信息
+  Unregister = 900003002; //取消注册，取消后不会再收到客户信息
+  CheckOnline = 900003003; //判断uniqId是否在网关中
+  UniqIdList = 900003004; //获取网关中全部的uniqId
+  UniqIdCount = 900003005; //获取网关中uniqId的数量
+  TopicCount = 900003006; //获取网关中的主题数量
+  TopicList = 900003007; //获取网关中的主题
+  TopicUniqIdList = 900003008; //获取网关中某个主题包含的uniqId
+  TopicUniqIdCount = 900003009; //获取网关中的主题包含的连接数
+  ConnInfo = 900003010; //获取连接的信息
+  Metrics = 900003011; //获取网关统计的服务状态
+  Limit = 900003012; //更新限流配置、获取网关中的限流配置的真实情况
   //--------------------------------business请求worker的指令，worker会响应business 结束--------------------------------
 }
 
