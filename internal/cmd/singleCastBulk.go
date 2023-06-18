@@ -26,28 +26,32 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// SingleCast 单播
-func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
-	payload := objPool.SingleCast.Get()
+// SingleCastBulk 批量单播
+func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
+	payload := objPool.SingleCastBulk.Get()
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.SingleCast.Put(payload)
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCast failed")
+		objPool.SingleCastBulk.Put(payload)
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCastBulk failed")
 		return
 	}
-	if payload.UniqId == "" || len(payload.Data) == 0 {
-		objPool.SingleCast.Put(payload)
+	//如果结构不对称，则会引起下面代码的切片索引越界，所以丢弃不做处理
+	if len(payload.UniqIds) != len(payload.Data) {
 		return
 	}
-	conn := manager.Manager.Get(payload.UniqId)
-	if conn == nil {
-		objPool.SingleCast.Put(payload)
-		return
+	for index, uniqId := range payload.UniqIds {
+		if uniqId == "" || len(payload.Data[index]) == 0 {
+			continue
+		}
+		conn := manager.Manager.Get(uniqId)
+		if conn == nil {
+			continue
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data[index])))
+		} else {
+			_ = conn.Close()
+		}
 	}
-	if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
-		metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-	} else {
-		_ = conn.Close()
-	}
-	objPool.SingleCast.Put(payload)
+	objPool.SingleCastBulk.Put(payload)
 }

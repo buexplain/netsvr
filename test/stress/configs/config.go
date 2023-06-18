@@ -64,6 +64,18 @@ type config struct {
 		//阶段式发起连接
 		Step []Step
 	}
+	//疯狂批量单播的连接
+	SingleCastBulk struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//一组包含的uniqId数量
+		UniqIdNum int
+		//发消息的间隔，单位秒
+		MessageInterval int
+		//阶段式发起连接
+		Step []Step
+	}
 	//疯狂组播
 	Multicast struct {
 		Enable bool

@@ -1,7 +1,7 @@
 # 日志级别 debug、info、warn、error
 LogLevel = "debug"
 # customer服务的websocket连接地址
-CustomerWsAddress = "ws://124.0.0.1:6060/netsvr"
+CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
 # 表示消息被哪个workerId的业务进程处理
 WorkerId = 1
 # 每个连接间隔多少秒进行心跳
@@ -37,6 +37,20 @@ Enable = true
 # 单播时发送的消息大小
 MessageLen = 128
 # 每个连接间隔多少秒进行一次单播操作
+MessageInterval = 5
+Step = [
+    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+]
+
+# 疯狂批量单播的连接
+[SingleCastBulk]
+Enable = true
+MessageLen = 256
+# 一组包含的uniqId数量
+UniqIdNum = 15
+# 每个连接间隔多少秒进行一次组播操作
 MessageInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 60 },

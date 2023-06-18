@@ -26,6 +26,8 @@ github.com/buexplain/netsvr-protocol v0.0.0-20230510083714-f26ec9d0759d h1:EeN3Q
 github.com/buexplain/netsvr-protocol v0.0.0-20230510083714-f26ec9d0759d/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
 github.com/buexplain/netsvr-protocol v0.0.0-20230616062146-935675592b9f h1:Pwz+zpRo6JhBOYyJxIKUhCx1OW3aOcG+ol18X/5IK7Q=
 github.com/buexplain/netsvr-protocol v0.0.0-20230616062146-935675592b9f/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
+github.com/buexplain/netsvr-protocol v0.0.0-20230618042800-e27d20780450 h1:BdA8gL0SNZdCkzE1rFfqQrTwnycLYV6mT2ydjgj8tmY=
+github.com/buexplain/netsvr-protocol v0.0.0-20230618042800-e27d20780450/go.mod h1:d4zhEqHjmw9blcosWP4kWWOIsZk0uxejI8Q2EXlw3XQ=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230325054344-6e38ec2fe5f8 h1:uIZonHFL7RDQyYF06s0RAav9tGAFEjJuYP42KuTMu9E=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230325054344-6e38ec2fe5f8/go.mod h1:2WL9kleQ40a8Y2jQdBBitaoH2um8/Q0pbtPHdc0s+H0=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230418060001-96a2e7d926d5 h1:auLVXAcG0IMPWtFV8R0fF71Q62+2IBTXJ+l7OC4cOvg=
@@ -44,6 +46,8 @@ github.com/buexplain/netsvr-protocol-go v0.0.0-20230510084614-24cb6879bad8 h1:z/
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230510084614-24cb6879bad8/go.mod h1:8MIec4JaV2di+TaYIpeEH0qjDqWq2ylZJxGY2qW1dMc=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230616063057-2ae9cd90b00b h1:Nqa+qw/wFAsXwCBu4HVsGm9iE2vDC4b1fbyRW217SUw=
 github.com/buexplain/netsvr-protocol-go v0.0.0-20230616063057-2ae9cd90b00b/go.mod h1:h5EqlC8tvNVDubfSGeEp3G3ZmqngNa/dhI5ltXYfEEQ=
+github.com/buexplain/netsvr-protocol-go v0.0.0-20230618044230-c07c0e9c1508 h1:C1W8b9illwnwqGuz7I4M+kmcFnxvLrbf3u7FoMsazLc=
+github.com/buexplain/netsvr-protocol-go v0.0.0-20230618044230-c07c0e9c1508/go.mod h1:TJGocMvFRAgsP8KFLPCQ7AM39nlUuHl+79aPFBV+gkM=
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

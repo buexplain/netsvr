@@ -36,7 +36,6 @@ var SingleCast = singleCast{}
 func (r singleCast) Init(processor *connProcessor.ConnProcessor) {
 	processor.RegisterBusinessCmd(protocol.RouterSingleCastForUserId, r.ForUserId)
 	processor.RegisterBusinessCmd(protocol.RouterSingleCastForUniqId, r.ForUniqId)
-	processor.RegisterBusinessCmd(protocol.RouterSingleCastBulkForUniqId, r.BulkForUniqId)
 }
 
 // SingleCastForUserIdParam 客户端发送的单播信息
@@ -107,43 +106,6 @@ func (singleCast) ForUniqId(tf *netsvrProtocol.Transfer, param string, processor
 	//发到网关
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
-}
-
-// SingleCastBulkForUniqIdParam 客户端发送的单播信息
-type SingleCastBulkForUniqIdParam struct {
-	Message string
-	UniqIds []string `json:"uniqIds"`
-}
-
-// BulkForUniqId 批量单播给某几个uniqId
-func (singleCast) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
-	payload := SingleCastBulkForUniqIdParam{}
-	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastBulkForUniqIdParam failed")
-		return
-	}
-	var fromUser string
-	currentUser := userDb.ParseNetSvrInfo(tf.Session)
-	if currentUser == nil {
-		fromUser = fmt.Sprintf("uniqId(%s)", tf.UniqId)
-	} else {
-		fromUser = currentUser.Name
-	}
-	//构建单播数据
-	ret := &netsvrProtocol.SingleCastBulk{Items: make([]*netsvrProtocol.SingleCast, 0, len(payload.UniqIds))}
-	for _, currentUniqId := range payload.UniqIds {
-		item := &netsvrProtocol.SingleCast{}
-		item.UniqId = currentUniqId
-		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-		item.Data = testUtils.NewResponse(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
-		ret.Items = append(ret.Items, item)
-	}
-	//发到网关
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCastBulk
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

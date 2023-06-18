@@ -55,6 +55,7 @@ func main() {
 	cmd.Broadcast.Init(processor)
 	cmd.Multicast.Init(processor)
 	cmd.SingleCast.Init(processor)
+	cmd.SingleCastBulk.Init(processor)
 	cmd.ConnSwitch.Init(processor)
 	cmd.Sign.Init(processor)
 	cmd.ForceOffline.Init(processor)

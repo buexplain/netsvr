@@ -26,6 +26,7 @@ import (
 	"netsvr/test/stress/internal/sign"
 	"netsvr/test/stress/internal/silent"
 	"netsvr/test/stress/internal/singleCast"
+	"netsvr/test/stress/internal/singleCastBulk"
 	"netsvr/test/stress/internal/topic"
 	"netsvr/test/stress/internal/wsMetrics"
 	"os"
@@ -44,6 +45,8 @@ func main() {
 			wg.Add(1)
 			go singleCast.Run(wg)
 			wg.Add(1)
+			go singleCastBulk.Run(wg)
+			wg.Add(1)
 			go multicast.Run(wg)
 			wg.Add(1)
 			go topic.Run(wg)
@@ -53,6 +56,7 @@ func main() {
 			silent.Run(nil)
 			sign.Run(nil)
 			singleCast.Run(nil)
+			singleCastBulk.Run(nil)
 			multicast.Run(nil)
 			topic.Run(nil)
 			broadcast.Run(nil)
