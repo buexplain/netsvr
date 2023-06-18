@@ -32,6 +32,7 @@ import (
 	"netsvr/test/business/web"
 	"netsvr/test/pkg/protocol"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -131,6 +132,12 @@ func clientServer() {
 		}
 		data["pingMessage"] = string(netsvrProtocol.PingMessage)
 		data["pongMessage"] = string(netsvrProtocol.PongMessage)
+		//如果workerId不够三位数，则补上0
+		workerId := strconv.Itoa(int(configs.Config.WorkerId))
+		for i := len(workerId); i < 3; i++ {
+			workerId = "0" + workerId
+		}
+		data["workerId"] = workerId
 		err = t.Execute(writer, data)
 		if err != nil {
 			log.Logger.Error().Msgf("模板输出失败：%s", err)

@@ -50,7 +50,7 @@ Enable = true
 MessageLen = 256
 # 一组包含的uniqId数量
 UniqIdNum = 15
-# 每个连接间隔多少秒进行一次组播操作
+# 每个连接间隔多少秒进行一次批量单播操作
 MessageInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
