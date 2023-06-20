@@ -101,9 +101,12 @@ loop:
 
 func CheckIsOpen(addr string) bool {
 	c, err := net.Dial("tcp", addr)
+	if err == nil {
+		_ = c.Close()
+		return true
+	}
 	if e, ok := err.(*net.OpError); ok && strings.Contains(e.Err.Error(), "No connection") {
 		return false
 	}
-	_ = c.Close()
 	return true
 }

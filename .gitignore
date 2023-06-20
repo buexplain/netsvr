@@ -6,3 +6,4 @@ build
 netSvr.log
 rsa.cert
 rsa.key
+nohup.out
