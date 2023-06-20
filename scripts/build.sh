@@ -24,6 +24,7 @@ do
     export "GOARCH=${cpu[$j]}"
     export "GOOS=${system[$i]}"
     if [ -f "$current_dir/${system[$i]}/${cpu[$j]}-cpu.pprof" ]; then
+      # 关于pgo优化，请移步：https://go.dev/doc/pgo#building
       go build -trimpath -pgo="$current_dir/${system[$i]}/${cpu[$j]}-cpu.pprof" -ldflags "-s -w" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
     else
       go build -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
@@ -38,12 +39,16 @@ do
     # 拷贝附带的脚本文件
     if [[ -d "$current_dir/${system[$i]}" ]]; then
       scripts="$current_dir/${system[$i]}/*"
-      mkdir -p "$build_dir/${system[$i]}/scripts/"
        for file in $scripts; do
-         if [[ "$file" == *"linux"* ]]; then
+         # 跳过不需要的文件
+         if [[ "$file" == *"pprof" ]]; then
            continue 1
          fi
          if [ -f "$file" ]; then
+            # 这里浪费一点性能，检查文件夹是否存在，若不存在，则创建它
+            if [ ! -d "$build_dir/${system[$i]}/scripts" ]; then
+              mkdir -p "$build_dir/${system[$i]}/scripts"
+            fi
            cp "$file" "$build_dir/${system[$i]}/scripts/"
          fi
        done

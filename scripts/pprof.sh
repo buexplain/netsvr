@@ -21,6 +21,7 @@ clearAll() {
   rm -fr ./log
   rm -fr /tmp/stress.log
 }
+# 删除旧的文件
 rm -fr ./linux/amd64-cpu.pprof
 # 先杀进程
 clearAll
