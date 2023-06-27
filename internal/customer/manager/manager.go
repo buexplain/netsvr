@@ -19,9 +19,7 @@ package manager
 
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
-	"hash/adler32"
 	"sync"
-	"unsafe"
 )
 
 type collect struct {
@@ -85,7 +83,13 @@ const managerLen = 8
 type manager [managerLen]*collect
 
 func (r manager) index(uniqId string) uint32 {
-	return adler32.Checksum(unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))) % managerLen
+	//算子常数与标准库保持一致 Go/src/hash/fnv/fnv.go
+	var hash uint32 = 2166136261
+	for i := 0; i < len(uniqId); i++ {
+		hash *= 16777619
+		hash ^= uint32(uniqId[i])
+	}
+	return hash % managerLen
 }
 
 func (r manager) Has(uniqId string) bool {
