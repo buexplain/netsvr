@@ -18,6 +18,7 @@ package configs
 
 import (
 	"flag"
+	"fmt"
 	"github.com/BurntSushi/toml"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/logging"
@@ -25,6 +26,7 @@ import (
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -125,10 +127,29 @@ func (r *config) GetLogLevel() zerolog.Level {
 // Config 应用程序配置
 var Config *config
 
+// 构建版本信息
+var (
+	BuildVersion   = ""
+	BuildGoVersion = ""
+	BuildTimestamp = ""
+)
+
 func init() {
 	var configFile string
+	var version bool
+	flag.BoolVar(&version, "version", false, "Version prints the build information for netsvr binary files.")
 	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/netsvr.toml"), "Set netsvr.toml file")
 	flag.Parse()
+	//打印构建信息
+	if version {
+		t, err := strconv.ParseInt(BuildTimestamp, 10, 0)
+		if err != nil {
+			logging.Error("Prints the build information failed：%s", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Go version: %s\nBuild version: %s\nBuild date: %s\n", BuildGoVersion, BuildVersion, time.Unix(t, 0).Format(time.RFC3339))
+		os.Exit(0)
+	}
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
