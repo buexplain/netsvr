@@ -43,15 +43,15 @@ func NewConn(conn net.Conn, config *Config, isClient bool, isNonBlock bool, v ..
 	if isClient {
 		c.handshakeFn = c.clientHandshake
 	}
-	// if len(v) > 0 {
-	// 	if allocator, ok := v[0].(Allocator); ok {
-	// 		c.allocator = allocator
-	// 	}
-	// }
-	// if c.allocator == nil {
-	// 	c.allocator = &NativeAllocator{}
-	// }
-	c.allocator = &NativeAllocator{}
+	if len(v) > 0 {
+		if allocator, ok := v[0].(Allocator); ok {
+			c.allocator = allocator
+		}
+	}
+	if c.allocator == nil {
+		c.allocator = &NativeAllocator{}
+	}
+	// c.allocator = &NativeAllocator{}
 	return c
 }
 
