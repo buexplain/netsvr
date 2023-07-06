@@ -50,6 +50,7 @@ const MessageRateLimit = "Message rate limited"
 const ServiceShutdown = "Service shutdown"
 const MessageTooLarge = "Message too large"
 const WorkerIdWrong = "WorkerId wrong"
+const CustomUniqIdWrong = "Custom uniqId wrong"
 
 func Start() {
 	var tlsConfig *tls.Config
@@ -118,6 +119,19 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var uniqId string
+	//获取uniqId
+	if configs.Config.Customer.ConnOpenCustomUniqIdKey == "" {
+		uniqId = utils.UniqId()
+	} else {
+		uniqId = r.URL.Query().Get(configs.Config.Customer.ConnOpenCustomUniqIdKey)
+		if l := len(uniqId); l == 0 || l > 128 {
+			//如果客户端传递的uniqId太长，则会被拒绝，这么做的目的是避免太长的uniqId对网关的稳定性不利
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write(utils.StrToReadOnlyBytes(CustomUniqIdWrong))
+			return
+		}
+	}
 	upgrade := websocket.NewUpgrader()
 	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
 	upgrade.CheckOrigin = checkOrigin
@@ -144,8 +158,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	//升级成功
 	//统计打开连接次数
 	metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
-	//分配uniqId，并将添加到管理器中
-	uniqId := utils.UniqId()
+	//添加到管理器中
 	session := info.NewInfo(uniqId)
 	wsConn.SetSession(session)
 	manager.Manager.Set(uniqId, wsConn)

@@ -66,6 +66,8 @@ type config struct {
 		ConnOpenWorkerId int
 		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
 		ConnCloseWorkerId int
+		//连接打开时，通过url的queryString传递自定义uniqId的字段名字
+		ConnOpenCustomUniqIdKey string
 		//tls配置
 		TLSCert string
 		TLSKey  string
