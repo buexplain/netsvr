@@ -65,13 +65,18 @@ type Client struct {
 	wsStatus              *wsMetrics.WsStatus
 }
 
-func New(urlStr string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
-	c, resp, err := websocket.DefaultDialer.DialContext(quit.Ctx, urlStr, nil)
+func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
+	if configs.Config.ConnOpenCustomUniqIdKey != "" {
+		resp := &netsvrProtocol.ConnOpenCustomUniqIdTokenResp{}
+		utils.RequestNetSvr(nil, netsvrProtocol.Cmd_ConnOpenCustomUniqIdToken, resp)
+		connUrl = connUrl + "?" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
+	}
+	c, resp, err := websocket.DefaultDialer.DialContext(quit.Ctx, connUrl, nil)
 	if err != nil {
 		if resp != nil {
 			respByte, _ := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
-			log.Logger.Error().Err(err).Int("respStatusCode", resp.StatusCode).Str("respBody", string(respByte)).Msg("websocket dial failed")
+			log.Logger.Error().Err(err).Int("respStatusCode", resp.StatusCode).Str("connUrl", connUrl).Str("respBody", string(respByte)).Msg("websocket dial failed")
 		} else {
 			log.Logger.Error().Err(err).Msg("websocket dial failed")
 		}

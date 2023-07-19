@@ -28,14 +28,18 @@ import (
 	"netsvr/test/business/internal/cmd"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/business/web"
 	"netsvr/test/pkg/protocol"
+	"netsvr/test/pkg/utils"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func main() {
+	//初始化连接池
+	utils.InitPool(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress)
+	//连接到网关的worker服务器
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
 		log.Logger.Error().Msgf("连接服务端失败，%v", err)
@@ -113,7 +117,18 @@ func clientServer() {
 	if configs.Config.ClientListenAddress == "" {
 		return
 	}
-	if utils.CheckIsOpen(configs.Config.ClientListenAddress) {
+	checkIsOpen := func(addr string) bool {
+		c, err := net.Dial("tcp", addr)
+		if err == nil {
+			_ = c.Close()
+			return true
+		}
+		if e, ok := err.(*net.OpError); ok && strings.Contains(e.Err.Error(), "No connection") {
+			return false
+		}
+		return true
+	}
+	if checkIsOpen(configs.Config.ClientListenAddress) {
 		log.Logger.Info().Msg("地址已被占用: " + configs.Config.ClientListenAddress)
 		return
 	}
@@ -125,7 +140,17 @@ func clientServer() {
 		}
 		data := map[string]interface{}{}
 		//注入连接地址
-		data["conn"] = configs.Config.CustomerWsAddress
+		connUrl := configs.Config.CustomerWsAddress
+		if configs.Config.ConnOpenCustomUniqIdKey != "" {
+			resp := &netsvrProtocol.ConnOpenCustomUniqIdTokenResp{}
+			utils.RequestNetSvr(nil, netsvrProtocol.Cmd_ConnOpenCustomUniqIdToken, resp)
+			if strings.Contains(connUrl, "?") {
+				connUrl = connUrl + "&" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
+			} else {
+				connUrl = connUrl + "?" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
+			}
+		}
+		data["conn"] = connUrl
 		//把所有的命令注入到客户端
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)

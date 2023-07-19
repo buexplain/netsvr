@@ -2,6 +2,10 @@
 LogLevel = "debug"
 # customer服务的websocket连接地址
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+# worker服务的监听地址
+WorkerListenAddress = "127.0.0.1:6061"
+# 该值与netsvr.toml的配置保持一致
+ConnOpenCustomUniqIdKey = ""
 # 表示消息被哪个workerId的业务进程处理
 WorkerId = 1
 # 每个连接间隔多少秒进行心跳

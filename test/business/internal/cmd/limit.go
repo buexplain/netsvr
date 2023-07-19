@@ -22,7 +22,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -56,7 +55,7 @@ func (limit) Request(tf *netsvrProtocol.Transfer, param string, processor *connP
 		},
 	}
 	resp := &netsvrProtocol.LimitResp{}
-	utils.RequestNetSvr(req, netsvrProtocol.Cmd_Limit, resp)
+	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_Limit, resp)
 	//将结果单播给客户端
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast

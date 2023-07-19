@@ -20,7 +20,6 @@ import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -36,7 +35,7 @@ func (r metrics) Init(processor *connProcessor.ConnProcessor) {
 // Request 获取网关统计的服务状态
 func (metrics) Request(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	resp := &netsvrProtocol.MetricsResp{}
-	utils.RequestNetSvr(nil, netsvrProtocol.Cmd_Metrics, resp)
+	testUtils.RequestNetSvr(nil, netsvrProtocol.Cmd_Metrics, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId

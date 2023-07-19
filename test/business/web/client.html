@@ -88,7 +88,7 @@
     <div style="width: 70%;max-height: 90vh;overflow-y: auto;">
         <div class="case">
             <label for="address">
-                <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}?admin=1">
+                <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
             </label>
             <button onclick="openWebsocket()">打开连接</button>
             <button onclick="closeWebsocket()">关闭连接</button>
@@ -444,6 +444,10 @@
                 document.getElementById("topInfo").innerText = '连接网关失败，网关服务器异常';
             }
         }
+        ws.onerror = function (evt) {
+            console.error(evt);
+            document.getElementById("topInfo").innerText = '连接网关失败';
+        }
         ws.onmessage = function (evt) {
             //服务端响应了客户端的心跳
             if (evt.data === pongMessage) {
@@ -660,9 +664,6 @@
             } catch (e) {
                 console.error(e);
             }
-        }
-        ws.onerror = function () {
-            document.getElementById("topInfo").innerText = '连接网关失败';
         }
     }
 </script>

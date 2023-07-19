@@ -24,7 +24,6 @@ import (
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -48,7 +47,7 @@ func (r topic) Init(processor *connProcessor.ConnProcessor) {
 // RequestTopicCount 获取网关中的主题数量
 func (r topic) RequestTopicCount(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	resp := &netsvrProtocol.TopicCountResp{}
-	utils.RequestNetSvr(nil, netsvrProtocol.Cmd_TopicCount, resp)
+	testUtils.RequestNetSvr(nil, netsvrProtocol.Cmd_TopicCount, resp)
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast
 	ret := &netsvrProtocol.SingleCast{}
@@ -63,7 +62,7 @@ func (r topic) RequestTopicCount(tf *netsvrProtocol.Transfer, _ string, processo
 // RequestTopicList 获取网关中的主题
 func (topic) RequestTopicList(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	resp := &netsvrProtocol.TopicListResp{}
-	utils.RequestNetSvr(nil, netsvrProtocol.Cmd_TopicList, resp)
+	testUtils.RequestNetSvr(nil, netsvrProtocol.Cmd_TopicList, resp)
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast
 	ret := &netsvrProtocol.SingleCast{}
@@ -92,7 +91,7 @@ func (topic) RequestTopicUniqIdCount(tf *netsvrProtocol.Transfer, param string, 
 	req.Topics = payload.Topics
 	req.CountAll = payload.CountAll
 	resp := &netsvrProtocol.TopicUniqIdCountResp{}
-	utils.RequestNetSvr(req, netsvrProtocol.Cmd_TopicUniqIdCount, resp)
+	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_TopicUniqIdCount, resp)
 	//将结果单播给客户端
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast
@@ -119,7 +118,7 @@ func (topic) RequestTopicUniqIdList(tf *netsvrProtocol.Transfer, param string, p
 	req := &netsvrProtocol.TopicUniqIdListReq{}
 	req.Topics = []string{payload.Topic}
 	resp := &netsvrProtocol.TopicUniqIdListResp{}
-	utils.RequestNetSvr(req, netsvrProtocol.Cmd_TopicUniqIdList, resp)
+	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_TopicUniqIdList, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
@@ -138,7 +137,7 @@ func (topic) RequestTopicMyList(tf *netsvrProtocol.Transfer, _ string, processor
 	req := &netsvrProtocol.ConnInfoReq{}
 	req.UniqIds = []string{tf.UniqId}
 	resp := &netsvrProtocol.ConnInfoResp{}
-	utils.RequestNetSvr(req, netsvrProtocol.Cmd_ConnInfo, resp)
+	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_ConnInfo, resp)
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
 	msg := map[string]interface{}{"topics": resp.Items[tf.UniqId].Topics}

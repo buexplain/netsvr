@@ -29,6 +29,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/token"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
@@ -124,9 +125,11 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	if configs.Config.Customer.ConnOpenCustomUniqIdKey == "" {
 		uniqId = utils.UniqId()
 	} else {
-		uniqId = r.URL.Query().Get(configs.Config.Customer.ConnOpenCustomUniqIdKey)
-		if l := len(uniqId); l == 0 || l > 128 {
+		query := r.URL.Query()
+		uniqId = query.Get(configs.Config.Customer.ConnOpenCustomUniqIdKey)
+		if l := len(uniqId); l == 0 || l > 128 || !token.Token.Exist(query.Get("token")) {
 			//如果客户端传递的uniqId太长，则会被拒绝，这么做的目的是避免太长的uniqId对网关的稳定性不利
+			//校验连接的token是避免闲杂人等的接入
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write(utils.StrToReadOnlyBytes(CustomUniqIdWrong))
 			return

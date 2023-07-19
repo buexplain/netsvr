@@ -30,6 +30,10 @@ import (
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
+	//worker服务的监听地址
+	WorkerListenAddress string
+	//该值与netsvr.toml的配置保持一致
+	ConnOpenCustomUniqIdKey string
 	//customer服务的websocket连接地址
 	CustomerWsAddress string
 	//表示消息被哪个workerId的业务进程处理

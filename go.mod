@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/antlabs/timer v0.0.10
-	github.com/buexplain/netsvr-protocol-go v1.0.0
+	github.com/buexplain/netsvr-protocol-go v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/lesismal/llib v1.1.13
 	github.com/lesismal/nbio v1.3.17
@@ -20,7 +20,7 @@ require (
 
 require (
 	github.com/antlabs/stl v0.0.1 // indirect
-	github.com/buexplain/netsvr-protocol v1.0.0 // indirect
+	github.com/buexplain/netsvr-protocol v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect

@@ -19,6 +19,7 @@ package main
 
 import (
 	"netsvr/pkg/quit"
+	"netsvr/test/pkg/utils"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/broadcast"
 	"netsvr/test/stress/internal/log"
@@ -35,6 +36,8 @@ import (
 )
 
 func main() {
+	//初始化连接池
+	utils.InitPool(50, configs.Config.WorkerListenAddress)
 	go func() {
 		wg := &sync.WaitGroup{}
 		if configs.Config.Concurrent {

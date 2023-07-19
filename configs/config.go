@@ -68,8 +68,12 @@ type config struct {
 		ConnOpenWorkerId int
 		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
 		ConnCloseWorkerId int
-		//连接打开时，通过url的queryString传递自定义uniqId的字段名字
+		//连接打开时，通过url的queryString传递自定义uniqId的字段名字，客户端如果传递该字段，则token必须一并传递过来
+		//如果配置了该值，则网关会启用自定义uniqId的模式来接入连接
+		//假设该值配置为 ConnOpenCustomUniqIdKey="myUniqId"，则客户端发起连接的示例：ws://127.0.0.1:6060/netsvr?myUniqId=01xxx&token=o0o0o
 		ConnOpenCustomUniqIdKey string
+		//自定义uniqId连接的token的过期时间
+		ConnOpenCustomUniqIdTokenExpire time.Duration
 		//tls配置
 		TLSCert string
 		TLSKey  string
@@ -89,7 +93,7 @@ type config struct {
 	Metrics struct {
 		//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
 		Item []int
-		//统计服务的各种状态里记录最大值的间隔时间（单位：秒）
+		//统计服务的各种状态里记录最大值的间隔时间
 		MaxRecordInterval time.Duration
 	}
 }

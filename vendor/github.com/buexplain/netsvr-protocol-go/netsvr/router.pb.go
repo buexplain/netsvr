@@ -59,18 +59,19 @@ const (
 	Cmd_ForceOffline      Cmd = 900002011 //强制关闭某个连接
 	Cmd_ForceOfflineGuest Cmd = 900002012 //强制关闭某个空session值的连接
 	// --------------------------------business请求worker的指令，worker会响应business 开始--------------------------------
-	Cmd_Register         Cmd = 900003001 //注册business到worker，注册后，business会收到worker转发的客户信息
-	Cmd_Unregister       Cmd = 900003002 //取消注册，取消后不会再收到客户信息
-	Cmd_CheckOnline      Cmd = 900003003 //判断uniqId是否在网关中
-	Cmd_UniqIdList       Cmd = 900003004 //获取网关中全部的uniqId
-	Cmd_UniqIdCount      Cmd = 900003005 //获取网关中uniqId的数量
-	Cmd_TopicCount       Cmd = 900003006 //获取网关中的主题数量
-	Cmd_TopicList        Cmd = 900003007 //获取网关中的主题
-	Cmd_TopicUniqIdList  Cmd = 900003008 //获取网关中某个主题包含的uniqId
-	Cmd_TopicUniqIdCount Cmd = 900003009 //获取网关中的主题包含的连接数
-	Cmd_ConnInfo         Cmd = 900003010 //获取连接的信息
-	Cmd_Metrics          Cmd = 900003011 //获取网关统计的服务状态
-	Cmd_Limit            Cmd = 900003012 //更新限流配置、获取网关中的限流配置的真实情况
+	Cmd_Register                  Cmd = 900003001 //注册business到worker，注册后，business会收到worker转发的客户信息
+	Cmd_Unregister                Cmd = 900003002 //取消注册，取消后不会再收到客户信息
+	Cmd_CheckOnline               Cmd = 900003003 //判断uniqId是否在网关中
+	Cmd_UniqIdList                Cmd = 900003004 //获取网关中全部的uniqId
+	Cmd_UniqIdCount               Cmd = 900003005 //获取网关中uniqId的数量
+	Cmd_TopicCount                Cmd = 900003006 //获取网关中的主题数量
+	Cmd_TopicList                 Cmd = 900003007 //获取网关中的主题
+	Cmd_TopicUniqIdList           Cmd = 900003008 //获取网关中某个主题包含的uniqId
+	Cmd_TopicUniqIdCount          Cmd = 900003009 //获取网关中的主题包含的连接数
+	Cmd_ConnInfo                  Cmd = 900003010 //获取连接的信息
+	Cmd_Metrics                   Cmd = 900003011 //获取网关统计的服务状态
+	Cmd_Limit                     Cmd = 900003012 //更新限流配置、获取网关中的限流配置的真实情况
+	Cmd_ConnOpenCustomUniqIdToken Cmd = 900003013 //连接打开时，传递自定义uniqId时的校验token，用后即删，必须是一个随机性很强的字符串
 )
 
 // Enum value maps for Cmd.
@@ -104,36 +105,38 @@ var (
 		900003010: "ConnInfo",
 		900003011: "Metrics",
 		900003012: "Limit",
+		900003013: "ConnOpenCustomUniqIdToken",
 	}
 	Cmd_value = map[string]int32{
-		"Placeholder":       0,
-		"ConnOpen":          900001001,
-		"ConnClose":         900001002,
-		"Transfer":          900001003,
-		"ConnInfoUpdate":    900002001,
-		"ConnInfoDelete":    900002002,
-		"Broadcast":         900002003,
-		"Multicast":         900002004,
-		"SingleCast":        900002005,
-		"SingleCastBulk":    900002006,
-		"TopicSubscribe":    900002007,
-		"TopicUnsubscribe":  900002008,
-		"TopicDelete":       900002009,
-		"TopicPublish":      900002010,
-		"ForceOffline":      900002011,
-		"ForceOfflineGuest": 900002012,
-		"Register":          900003001,
-		"Unregister":        900003002,
-		"CheckOnline":       900003003,
-		"UniqIdList":        900003004,
-		"UniqIdCount":       900003005,
-		"TopicCount":        900003006,
-		"TopicList":         900003007,
-		"TopicUniqIdList":   900003008,
-		"TopicUniqIdCount":  900003009,
-		"ConnInfo":          900003010,
-		"Metrics":           900003011,
-		"Limit":             900003012,
+		"Placeholder":               0,
+		"ConnOpen":                  900001001,
+		"ConnClose":                 900001002,
+		"Transfer":                  900001003,
+		"ConnInfoUpdate":            900002001,
+		"ConnInfoDelete":            900002002,
+		"Broadcast":                 900002003,
+		"Multicast":                 900002004,
+		"SingleCast":                900002005,
+		"SingleCastBulk":            900002006,
+		"TopicSubscribe":            900002007,
+		"TopicUnsubscribe":          900002008,
+		"TopicDelete":               900002009,
+		"TopicPublish":              900002010,
+		"ForceOffline":              900002011,
+		"ForceOfflineGuest":         900002012,
+		"Register":                  900003001,
+		"Unregister":                900003002,
+		"CheckOnline":               900003003,
+		"UniqIdList":                900003004,
+		"UniqIdCount":               900003005,
+		"TopicCount":                900003006,
+		"TopicList":                 900003007,
+		"TopicUniqIdList":           900003008,
+		"TopicUniqIdCount":          900003009,
+		"ConnInfo":                  900003010,
+		"Metrics":                   900003011,
+		"Limit":                     900003012,
+		"ConnOpenCustomUniqIdToken": 900003013,
 	}
 )
 
@@ -231,7 +234,7 @@ var file_router_proto_rawDesc = []byte{
 	0x20, 0x01, 0x28, 0x0e, 0x32, 0x12, 0x2e, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2e, 0x72, 0x6f,
 	0x75, 0x74, 0x65, 0x72, 0x2e, 0x43, 0x6d, 0x64, 0x52, 0x03, 0x63, 0x6d, 0x64, 0x12, 0x12, 0x0a,
 	0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74,
-	0x61, 0x2a, 0xcd, 0x04, 0x0a, 0x03, 0x43, 0x6d, 0x64, 0x12, 0x0f, 0x0a, 0x0b, 0x50, 0x6c, 0x61,
+	0x61, 0x2a, 0xf0, 0x04, 0x0a, 0x03, 0x43, 0x6d, 0x64, 0x12, 0x0f, 0x0a, 0x0b, 0x50, 0x6c, 0x61,
 	0x63, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x08, 0x43, 0x6f,
 	0x6e, 0x6e, 0x4f, 0x70, 0x65, 0x6e, 0x10, 0xe9, 0xd9, 0x93, 0xad, 0x03, 0x12, 0x11, 0x0a, 0x09,
 	0x43, 0x6f, 0x6e, 0x6e, 0x43, 0x6c, 0x6f, 0x73, 0x65, 0x10, 0xea, 0xd9, 0x93, 0xad, 0x03, 0x12,
@@ -268,10 +271,12 @@ var file_router_proto_rawDesc = []byte{
 	0x10, 0x0a, 0x08, 0x43, 0x6f, 0x6e, 0x6e, 0x49, 0x6e, 0x66, 0x6f, 0x10, 0xc2, 0xe9, 0x93, 0xad,
 	0x03, 0x12, 0x0f, 0x0a, 0x07, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x10, 0xc3, 0xe9, 0x93,
 	0xad, 0x03, 0x12, 0x0d, 0x0a, 0x05, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x10, 0xc4, 0xe9, 0x93, 0xad,
-	0x03, 0x42, 0x27, 0x5a, 0x07, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2f, 0xca, 0x02, 0x06, 0x4e,
-	0x65, 0x74, 0x73, 0x76, 0x72, 0xe2, 0x02, 0x12, 0x4e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x5c, 0x47,
-	0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x03, 0x12, 0x21, 0x0a, 0x19, 0x43, 0x6f, 0x6e, 0x6e, 0x4f, 0x70, 0x65, 0x6e, 0x43, 0x75, 0x73,
+	0x74, 0x6f, 0x6d, 0x55, 0x6e, 0x69, 0x71, 0x49, 0x64, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x10, 0xc5,
+	0xe9, 0x93, 0xad, 0x03, 0x42, 0x27, 0x5a, 0x07, 0x6e, 0x65, 0x74, 0x73, 0x76, 0x72, 0x2f, 0xca,
+	0x02, 0x06, 0x4e, 0x65, 0x74, 0x73, 0x76, 0x72, 0xe2, 0x02, 0x12, 0x4e, 0x65, 0x74, 0x73, 0x76,
+	0x72, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x62, 0x06, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (

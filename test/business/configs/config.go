@@ -35,6 +35,8 @@ type config struct {
 	ServerId uint32
 	//customer服务的websocket连接地址
 	ClientListenAddress string
+	//该值与netsvr.toml的配置保持一致
+	ConnOpenCustomUniqIdKey string
 	//输出客户端界面的http服务的监听地址
 	CustomerWsAddress string
 	//让worker为我开启n条协程来处理我的请求

@@ -8,6 +8,8 @@ ServerId = 0
 ClientListenAddress = "127.0.0.1:6063"
 # customer服务的websocket连接地址
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+# 该值与netsvr.toml的配置保持一致
+ConnOpenCustomUniqIdKey = ""
 # 让worker为我开启n条协程来处理我的请求
 ProcessCmdGoroutineNum = 25
 # 业务进程注册到网关的工作id

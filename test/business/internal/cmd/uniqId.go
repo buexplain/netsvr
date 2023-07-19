@@ -20,7 +20,6 @@ import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -38,7 +37,7 @@ func (r uniqId) Init(processor *connProcessor.ConnProcessor) {
 // RequestList 获取网关所有的uniqId
 func (uniqId) RequestList(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	resp := &netsvrProtocol.UniqIdListResp{}
-	utils.RequestNetSvr(nil, netsvrProtocol.Cmd_UniqIdList, resp)
+	testUtils.RequestNetSvr(nil, netsvrProtocol.Cmd_UniqIdList, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
@@ -56,7 +55,7 @@ func (uniqId) RequestList(tf *netsvrProtocol.Transfer, _ string, processor *conn
 // RequestCount 获取网关中uniqId的数量
 func (uniqId) RequestCount(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	resp := &netsvrProtocol.UniqIdCountResp{}
-	utils.RequestNetSvr(nil, netsvrProtocol.Cmd_UniqIdCount, resp)
+	testUtils.RequestNetSvr(nil, netsvrProtocol.Cmd_UniqIdCount, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId

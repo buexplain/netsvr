@@ -22,7 +22,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
-	"netsvr/test/business/internal/utils"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -50,7 +49,7 @@ func (checkOnline) RequestForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	req := &netsvrProtocol.CheckOnlineReq{}
 	req.UniqIds = payload.UniqIds
 	resp := &netsvrProtocol.CheckOnlineResp{}
-	utils.RequestNetSvr(req, netsvrProtocol.Cmd_CheckOnline, resp)
+	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_CheckOnline, resp)
 	//将结果单播给客户端
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCast
