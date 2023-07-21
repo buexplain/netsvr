@@ -15,9 +15,13 @@ type WsStatusSnapshot struct {
 	//花费的时间
 	SpendTime time.Duration
 	//发送的消息字节数
-	Send int64
+	SendByte int64
 	//接收的消息字节数
-	Receive int64
+	ReceiveByte int64
+	//发送次数
+	SendNum int64
+	//接收次数
+	ReceiveNum int64
 }
 
 type WsStatus struct {
@@ -34,21 +38,29 @@ type WsStatus struct {
 	//总的在线连接数
 	Online gMetrics.Counter
 	//总发送的消息字节数
-	Send gMetrics.Counter
+	SendByte gMetrics.Counter
 	//总接收的消息字节数
-	Receive gMetrics.Counter
+	ReceiveByte gMetrics.Counter
+	//总发送次数
+	SendNum gMetrics.Counter
+	//总接收次数
+	ReceiveNum gMetrics.Counter
 }
 
 func (r *WsStatus) RecordConnectOK() {
 	r.ConnectOK.SpendTime = time.Now().Sub(r.StartTime)
-	r.ConnectOK.Send = r.Send.Count()
-	r.ConnectOK.Receive = r.Receive.Count()
+	r.ConnectOK.SendByte = r.SendByte.Count()
+	r.ConnectOK.SendNum = r.SendNum.Count()
+	r.ConnectOK.ReceiveByte = r.ReceiveByte.Count()
+	r.ConnectOK.ReceiveNum = r.ReceiveNum.Count()
 }
 
 func (r *WsStatus) RecordConnectRunning() {
 	r.ConnectRunning.SpendTime = time.Now().Sub(r.StartTime) - r.ConnectOK.SpendTime
-	r.ConnectRunning.Send = r.Send.Count() - r.ConnectOK.Send
-	r.ConnectRunning.Receive = r.Receive.Count() - r.ConnectOK.Receive
+	r.ConnectRunning.SendByte = r.SendByte.Count() - r.ConnectOK.SendByte
+	r.ConnectRunning.SendNum = r.SendNum.Count() - r.ConnectOK.SendNum
+	r.ConnectRunning.ReceiveByte = r.ReceiveByte.Count() - r.ConnectOK.ReceiveByte
+	r.ConnectRunning.ReceiveNum = r.ReceiveNum.Count() - r.ConnectOK.ReceiveNum
 }
 
 func (r *WsStatus) ToTableRow() map[string]string {
@@ -58,14 +70,14 @@ func (r *WsStatus) ToTableRow() map[string]string {
 	ret["阶段"] = fmt.Sprintf("%d", r.Step)
 	ret["连接数"] = fmt.Sprintf("%d", r.Online.Count())
 	ret["构建中耗时 "] = r.ConnectOK.SpendTime.String()
-	ret["构建中发送"] = bytesToNice(r.ConnectOK.Send)
-	ret["构建中接收"] = bytesToNice(r.ConnectOK.Receive)
+	ret["构建中发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.SendByte), r.ConnectOK.SendNum)
+	ret["构建中接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.ReceiveByte), r.ConnectOK.ReceiveNum)
 	ret["构建后耗时"] = (currentTime.Sub(r.StartTime) - r.ConnectOK.SpendTime).String()
-	ret["构建后发送"] = bytesToNice(r.Send.Count() - r.ConnectOK.Send)
-	ret["构建后接收"] = bytesToNice(r.Receive.Count() - r.ConnectOK.Receive)
+	ret["构建后发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()-r.ConnectOK.SendByte), r.SendNum.Count()-r.ConnectOK.SendNum)
+	ret["构建后接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()-r.ConnectOK.ReceiveByte), r.ReceiveNum.Count()-r.ConnectOK.ReceiveNum)
 	ret["总耗时"] = currentTime.Sub(r.StartTime).String()
-	ret["总发送"] = bytesToNice(r.Send.Count())
-	ret["总接收"] = bytesToNice(r.Receive.Count())
+	ret["总发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()), r.SendNum.Count())
+	ret["总接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()), r.ReceiveNum.Count())
 	return ret
 }
 
@@ -76,15 +88,21 @@ func (r *WsStatus) ToTotal(total *WsStatus) {
 	total.Online.Inc(r.Online.Count())
 	//连接构建期间
 	total.ConnectOK.SpendTime += r.ConnectOK.SpendTime
-	total.ConnectOK.Send += r.ConnectOK.Send
-	total.ConnectOK.Receive += r.ConnectOK.Receive
+	total.ConnectOK.SendByte += r.ConnectOK.SendByte
+	total.ConnectOK.SendNum += r.ConnectOK.SendNum
+	total.ConnectOK.ReceiveByte += r.ConnectOK.ReceiveByte
+	total.ConnectOK.ReceiveNum += r.ConnectOK.ReceiveNum
 	//连接构建完毕到结束时
 	total.ConnectRunning.SpendTime += r.ConnectRunning.SpendTime
-	total.ConnectRunning.Send += r.ConnectRunning.Send
-	total.ConnectRunning.Receive += r.ConnectRunning.Receive
+	total.ConnectRunning.SendByte += r.ConnectRunning.SendByte
+	total.ConnectRunning.SendNum += r.ConnectRunning.SendNum
+	total.ConnectRunning.ReceiveByte += r.ConnectRunning.ReceiveByte
+	total.ConnectRunning.ReceiveNum += r.ConnectRunning.ReceiveNum
 	//总数据
-	total.Send.Inc(r.Send.Count())
-	total.Receive.Inc(r.Receive.Count())
+	total.SendByte.Inc(r.SendByte.Count())
+	total.SendNum.Inc(r.SendNum.Count())
+	total.ReceiveByte.Inc(r.ReceiveByte.Count())
+	total.ReceiveNum.Inc(r.ReceiveNum.Count())
 	if r.StartTime.Compare(total.StartTime) == -1 {
 		total.StartTime = r.StartTime
 	}
@@ -92,12 +110,14 @@ func (r *WsStatus) ToTotal(total *WsStatus) {
 
 func New(name string, step int) *WsStatus {
 	tmp := &WsStatus{
-		Name:      name,
-		Step:      step,
-		StartTime: time.Now(),
-		Online:    gMetrics.NewCounter(),
-		Send:      gMetrics.NewCounter(),
-		Receive:   gMetrics.NewCounter(),
+		Name:        name,
+		Step:        step,
+		StartTime:   time.Now(),
+		Online:      gMetrics.NewCounter(),
+		SendByte:    gMetrics.NewCounter(),
+		ReceiveByte: gMetrics.NewCounter(),
+		SendNum:     gMetrics.NewCounter(),
+		ReceiveNum:  gMetrics.NewCounter(),
 	}
 	if tmp.Name != "" && tmp.Step != -1 {
 		Collect.add(tmp)

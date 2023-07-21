@@ -316,7 +316,8 @@ func (r *Client) LoopRead() {
 				return
 			}
 			if r.wsStatus != nil {
-				r.wsStatus.Receive.Inc(int64(len(p)))
+				r.wsStatus.ReceiveByte.Inc(int64(len(p)))
+				r.wsStatus.ReceiveNum.Inc(1)
 			}
 			if bytes.Equal(p, netsvrProtocol.PongMessage) {
 				continue
@@ -353,7 +354,8 @@ func (r *Client) LoopSend() {
 				return
 			}
 			if r.wsStatus != nil {
-				r.wsStatus.Send.Inc(int64(len(p)))
+				r.wsStatus.SendByte.Inc(int64(len(p)))
+				r.wsStatus.SendNum.Inc(1)
 			}
 		}
 	}
