@@ -169,21 +169,29 @@ func (r *ConnProcessor) send(data []byte) {
 		r.sendBuf.Reset()
 		return
 	}
-	//设置写超时
-	if err = r.conn.SetWriteDeadline(time.Now().Add(time.Second * 60)); err != nil {
-		r.ForceClose()
-		log.Logger.Error().Err(err).Msg("Business SetWriteDeadline to worker conn failed")
-		return
-	}
-	//一次性写入到连接中
-	_, err = r.sendBuf.WriteTo(r.conn)
-	if err != nil {
+	//写入到连接中
+	for {
+		//设置写超时
+		if err = r.conn.SetWriteDeadline(time.Now().Add(time.Second * 60)); err != nil {
+			r.ForceClose()
+			log.Logger.Error().Err(err).Msg("Business SetWriteDeadline to worker conn failed")
+			return
+		}
+		//写入数据
+		_, err = r.sendBuf.WriteTo(r.conn)
+		//写入成功
+		if err == nil {
+			return
+		}
+		//发生短写，继续写入
+		if err == io.ErrShortWrite {
+			continue
+		}
+		//其它错误
 		r.ForceClose()
 		log.Logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker failed")
 		return
 	}
-	//写入成功，重置缓冲区
-	r.sendBuf.Reset()
 }
 
 func (r *ConnProcessor) Send(data []byte) {

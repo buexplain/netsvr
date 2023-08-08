@@ -136,17 +136,26 @@ func (r *ConnProcessor) send(data []byte) {
 		r.sendBuf.Reset()
 		return
 	}
-	//设置写超时
-	if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
-		r.ForceClose()
-		log.Logger.Error().Err(err).Msg("Worker SetWriteDeadline to business conn failed")
-		return
-	}
-	//一次性写入到连接中
-	_, err = r.sendBuf.WriteTo(r.conn)
-	if err != nil {
-		//如果失败，则有可能写入了部分字节，进而导致business不能解包
-		//而且business没有第一时间处理数据，极有可能是阻塞住了
+	//写入到连接中
+	for {
+		//设置写超时
+		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
+			r.ForceClose()
+			log.Logger.Error().Err(err).Msg("Worker SetWriteDeadline to business conn failed")
+			return
+		}
+		//写入数据
+		_, err = r.sendBuf.WriteTo(r.conn)
+		//写入成功
+		if err == nil {
+			return
+		}
+		//发生短写，继续写入
+		if err == io.ErrShortWrite {
+			continue
+		}
+		//其它错误
+		//business没有第一时间处理数据，极有可能是阻塞住了
 		//所以强制关闭连接，让数据直接丢弃是最好的选择
 		//否则这里的阻塞会蔓延整个网关进程，导致处理客户心跳的协程都没有，最终导致所有客户连接被服务端强制关闭
 		//两害相权取其轻
@@ -154,8 +163,6 @@ func (r *ConnProcessor) send(data []byte) {
 		log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Bytes("workerToBusinessData", data).Msg("Worker send to business failed")
 		return
 	}
-	//写入成功，重置缓冲区
-	r.sendBuf.Reset()
 }
 
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
