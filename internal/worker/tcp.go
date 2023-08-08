@@ -38,21 +38,17 @@ func (r *Server) Start() {
 	defer func() {
 		log.Logger.Debug().Int("pid", os.Getpid()).Msg("Worker tcp stop accept")
 	}()
-	var delay int64 = 0
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				if delay == 0 {
-					delay = 15
-				} else {
-					delay *= 2
-				}
-				if delay > 1000 {
-					delay = 1000
-				}
-				time.Sleep(time.Millisecond * time.Duration(delay))
+			log.Logger.Error().Err(err).Msg("Worker tcp accept failed")
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				//发生这个错误，大概率是句柄耗尽，https://go.dev/src/syscall/syscall_unix.go#L129
+				time.Sleep(time.Second / 20)
 				continue
+			} else {
+				//未知错误，触发进程关闭信号
+				quit.Execute("Worker tcp accept failed")
 			}
 			return
 		}
