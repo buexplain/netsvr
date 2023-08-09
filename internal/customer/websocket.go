@@ -52,6 +52,7 @@ const ServiceShutdown = "Service shutdown"
 const MessageTooLarge = "Message too large"
 const WorkerIdWrong = "WorkerId wrong"
 const CustomUniqIdWrong = "Custom uniqId wrong"
+const ConnOpenWorkerNotFound = "Connection open worker not found"
 
 func Start() {
 	var tlsConfig *tls.Config
@@ -173,8 +174,13 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 	worker := workerManager.Manager.Get(configs.Config.Customer.ConnOpenWorkerId)
 	if worker == nil {
+		//响应一个错误给到客户端
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write(utils.StrToReadOnlyBytes(ConnOpenWorkerNotFound))
 		//配置了处理的workerId，但是又没找到具体的业务进程，则打错误日志告警，因为此时有可能是business进程挂了
 		log.Logger.Error().Int("workerId", configs.Config.Customer.ConnOpenWorkerId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Not found process conn open business")
+		//关闭连接
+		_ = wsConn.Close()
 		return
 	}
 	//连接打开消息回传给business
