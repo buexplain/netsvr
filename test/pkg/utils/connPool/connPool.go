@@ -50,6 +50,7 @@ func (r *ConnPool) compensator() {
 			default:
 				//莫名其妙的逻辑导致连接池满了，这里直接丢弃即可
 				_ = conn.Close()
+				return
 			}
 		}
 	}
@@ -73,16 +74,18 @@ func (r *ConnPool) loopHeartbeat(heartbeatDuration time.Duration) {
 			case conn := <-r.pool:
 				//拿到连接，判断是否已经发送过心跳
 				if _, ok := heartbeatOk[conn]; ok {
+					r.pool <- conn
 					break
 				}
 				//没有心跳过，进行一次心跳操作
-				if !r.heartbeat(conn) {
-					//操作失败
-					r.Put(nil)
-				} else {
+				if r.heartbeat(conn) {
 					//操作成功，记录起来
 					heartbeatOk[conn] = struct{}{}
 					r.pool <- conn
+				} else {
+					//操作失败
+					r.Put(nil)
+					_ = conn.Close()
 				}
 			default:
 				//没拿到连接，说明连接池内的连接被频繁使用，跳过，进行下一次获取连接
