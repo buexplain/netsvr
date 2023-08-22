@@ -42,9 +42,9 @@ func New(lvl zerolog.Level, filename string) zerolog.Logger {
 	} else {
 		//非debug模式，打印到日志文件
 		w := &lumberjack.Logger{
-			MaxSize:    1024 * 1024 * 256,
-			MaxBackups: 6,
-			MaxAge:     1,
+			MaxSize:    1024 * 1024 * 255,
+			MaxBackups: 3,
+			MaxAge:     30,
 			Compress:   false,
 			Filename:   filename,
 		}
