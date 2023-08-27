@@ -125,6 +125,16 @@ type config struct {
 			//发布数据的大小
 			MessageLen int
 		}
+		PublishBulk struct {
+			//运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+			Mode int
+			//延长或间隔的秒数
+			ModeSecond int
+			//每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
+			TopicNum int
+			//发布数据的大小
+			MessageLen int
+		}
 		//阶段式发起连接
 		Step []Step
 	}

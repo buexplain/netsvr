@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，给某个主题发布信息
+// business向worker请求，给某几个主题发布信息，一份消息发布到多个主题
 type TopicPublish struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

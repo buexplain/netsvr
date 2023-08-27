@@ -304,6 +304,19 @@
             </label>
             <button onclick="send(this,routerCmd.topicPublish)">发布</button>
         </div>
+
+        <div class="case">
+            <label>
+                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发布的信息"
+                       value="我是一条批量发布信息">
+            </label>
+            <label>
+                <input type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要发布的主题，多个用逗号分割"
+                       value="小品频道，相声频道，戏曲频道，评书频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicPublishBulk)">批量发布</button>
+        </div>
     </div>
     <div style="width: 30%;max-height: 90vh;overflow-y: auto;">
         <div id="topInfo"></div>
@@ -345,6 +358,7 @@
         topicUniqIdCount: parseInt("{!.RouterTopicUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
         topicUniqIdList: parseInt("{!.RouterTopicUniqIdList!}"), //获取网关中的某个主题包含的uniqId
         topicPublish: parseInt("{!.RouterTopicPublish!}"), //发布
+        topicPublishBulk: parseInt("{!.RouterTopicPublishBulk!}"), //批量发布
     };
 
     //当前连接
@@ -605,6 +619,7 @@
                     || resp.cmd === routerCmd.multicastForUserId
                     || resp.cmd === routerCmd.broadcast
                     || resp.cmd === routerCmd.topicPublish
+                    || resp.cmd === routerCmd.topicPublishBulk
                 ) {
                     if (resp.data.code !== 0) {
                         print(resp.data.message);

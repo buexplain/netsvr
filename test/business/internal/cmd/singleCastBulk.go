@@ -60,7 +60,7 @@ func (singleCastBulk) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	ret := &netsvrProtocol.SingleCastBulk{UniqIds: make([]string, 0, len(payload.UniqIds)), Data: make([][]byte, 0, len(payload.UniqIds))}
 	for _, currentUniqId := range payload.UniqIds {
 		ret.UniqIds = append(ret.UniqIds, currentUniqId)
-		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
+		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message + currentUniqId}
 		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 	}
 	//发到网关

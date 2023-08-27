@@ -112,6 +112,15 @@ Mode = 1
 ModeSecond = 5
 # 每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
 TopicNum = 1
+[Topic.PublishBulk]
+# 发布数据的大小
+MessageLen = 512
+# 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
+Mode = 1
+# 延长或间隔的秒数
+ModeSecond = 5
+# 每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
+TopicNum = 1
 
 # 疯狂广播的连接
 [Broadcast]

@@ -41,6 +41,7 @@ func (r topic) Init(processor *connProcessor.ConnProcessor) {
 	processor.RegisterBusinessCmd(protocol.RouterTopicSubscribe, r.RequestTopicSubscribe)
 	processor.RegisterBusinessCmd(protocol.RouterTopicUnsubscribe, r.RequestTopicUnsubscribe)
 	processor.RegisterBusinessCmd(protocol.RouterTopicPublish, r.RequestTopicPublish)
+	processor.RegisterBusinessCmd(protocol.RouterTopicPublishBulk, r.RequestTopicPublishBulk)
 	processor.RegisterBusinessCmd(protocol.RouterTopicDelete, r.RequestTopicDelete)
 }
 
@@ -231,6 +232,41 @@ func (topic) RequestTopicPublish(tf *netsvrProtocol.Transfer, param string, proc
 	ret.Data = testUtils.NewResponse(protocol.RouterTopicPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_TopicPublish
+	router.Data, _ = proto.Marshal(ret)
+	pt, _ := proto.Marshal(router)
+	processor.Send(pt)
+}
+
+// TopicPublishBulkParam 客户端发送的批量发布信息
+type TopicPublishBulkParam struct {
+	Message string
+	Topics  []string
+}
+
+// RequestTopicPublishBulk 处理客户的批量发布请求
+func (topic) RequestTopicPublishBulk(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	//解析客户端发来的数据
+	target := new(TopicPublishBulkParam)
+	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), target); err != nil {
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicPublishBulkParam failed")
+		return
+	}
+	var fromUser string
+	currentUser := userDb.ParseNetSvrInfo(tf.Session)
+	if currentUser == nil {
+		fromUser = fmt.Sprintf("uniqId(%s)", tf.UniqId)
+	} else {
+		fromUser = currentUser.Name
+	}
+	ret := &netsvrProtocol.TopicPublishBulk{Topics: make([]string, 0, len(target.Topics)), Data: make([][]byte, 0, len(target.Topics))}
+	for _, currentTopic := range target.Topics {
+		//这里message拼接上topic，方便界面上识别
+		msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message + currentTopic}
+		ret.Topics = append(ret.Topics, currentTopic)
+		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	}
+	router := &netsvrProtocol.Router{}
+	router.Cmd = netsvrProtocol.Cmd_TopicPublishBulk
 	router.Data, _ = proto.Marshal(ret)
 	pt, _ := proto.Marshal(router)
 	processor.Send(pt)

@@ -53,6 +53,7 @@ const (
 	RouterTopicUniqIdCount
 	RouterTopicUniqIdList
 	RouterTopicPublish
+	RouterTopicPublishBulk
 )
 
 var CmdName = map[Cmd]string{
@@ -85,6 +86,7 @@ var CmdName = map[Cmd]string{
 	RouterTopicUniqIdCount:           "RouterTopicUniqIdCount",           //获取网关中的某几个主题的连接数
 	RouterTopicUniqIdList:            "RouterTopicUniqIdList",            //获取网关中的某个主题包含的uniqId
 	RouterTopicPublish:               "RouterTopicPublish",               //发布信息
+	RouterTopicPublishBulk:           "RouterTopicPublishBulk",           //批量发布信息
 }
 
 type ClientRouter struct {

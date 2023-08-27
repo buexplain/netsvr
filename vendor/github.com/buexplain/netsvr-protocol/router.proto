@@ -43,6 +43,7 @@ enum Cmd {
   TopicUnsubscribe = 900002008;//取消订阅
   TopicDelete = 900002009;//删除主题
   TopicPublish = 900002010;//发布
+  TopicPublishBulk = 900002013;//批量发布
   ForceOffline = 900002011;//强制关闭某个连接
   ForceOfflineGuest = 900002012;//强制关闭某个空session值的连接
   //--------------------------------business单向请求worker的指令 结束--------------------------------

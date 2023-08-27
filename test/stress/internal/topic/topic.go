@@ -108,6 +108,22 @@ func Run(wg *sync.WaitGroup) {
 					ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})
 				})
 			}
+			//处理批量发布
+			if configs.Config.Topic.PublishBulk.ModeSecond < 0 {
+				configs.Config.Topic.PublishBulk.ModeSecond = 1
+			}
+			if configs.Config.Topic.PublishBulk.TopicNum < 0 {
+				configs.Config.Topic.PublishBulk.TopicNum = 1
+			}
+			if configs.Config.Topic.PublishBulk.Mode == configs.ModeAfter {
+				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.PublishBulk.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum), "message": message})
+				})
+			} else if configs.Config.Topic.PublishBulk.Mode == configs.ModeSchedule {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.PublishBulk.ModeSecond), func() {
+					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum), "message": message})
+				})
+			}
 		})
 		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("topic current step %d online %d", metrics.Step, metrics.Online.Count())

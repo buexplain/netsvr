@@ -68,6 +68,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_ForceOfflineGuest, cmd.ForceOfflineGuest)
 			c.RegisterCmd(netsvrProtocol.Cmd_Multicast, cmd.Multicast)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicPublish, cmd.TopicPublish)
+			c.RegisterCmd(netsvrProtocol.Cmd_TopicPublishBulk, cmd.TopicPublishBulk)
 			c.RegisterCmd(netsvrProtocol.Cmd_SingleCast, cmd.SingleCast)
 			c.RegisterCmd(netsvrProtocol.Cmd_SingleCastBulk, cmd.SingleCastBulk)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicSubscribe, cmd.TopicSubscribe)

@@ -35,13 +35,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，进行批量单播
+// business向worker请求，进行批量单播，多份不同的消息单播到多个不同的用户
+// 举个场景：假设要发送这条消息：“尊敬的xxx，您的xx已经到账，请查收。”
+// 这里的x就是自定义的部分，不同的用户有不同的消息，适合用该指令进行消息的批量单播
 type SingleCastBulk struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 目标uniqId，有多少个uniqId，就有多少个data，下标是对应关系，worker端会循环uniqId，并用下标从data获取对应的数据
+	// 目标uniqId，有多少个uniqId，就有多少个data，下标是对应关系，网关的worker服务器会循环uniqId，并用其下标从data获取对应的数据
 	UniqIds []string `protobuf:"bytes,1,rep,name=uniqIds,proto3" json:"uniqIds,omitempty"`
 	// 目标uniqId的数据
 	Data [][]byte `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`

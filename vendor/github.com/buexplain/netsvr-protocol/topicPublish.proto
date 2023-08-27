@@ -22,7 +22,7 @@ option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//business向worker请求，给某个主题发布信息
+//business向worker请求，给某几个主题发布信息，一份消息发布到多个主题
 message TopicPublish {
   //目标主题
   repeated string topics = 1;
