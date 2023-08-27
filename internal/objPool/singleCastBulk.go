@@ -21,27 +21,27 @@ import (
 	"sync"
 )
 
-type singleCast struct {
+type singleCastBulk struct {
 	pool *sync.Pool
 }
 
-var SingleCast *singleCast
+var SingleCastBulk *singleCastBulk
 
-func (r *singleCast) Get() *netsvrProtocol.SingleCast {
-	return r.pool.Get().(*netsvrProtocol.SingleCast)
+func (r *singleCastBulk) Get() *netsvrProtocol.SingleCastBulk {
+	return r.pool.Get().(*netsvrProtocol.SingleCastBulk)
 }
 
-func (r *singleCast) Put(singleCast *netsvrProtocol.SingleCast) {
-	singleCast.Data = nil
-	singleCast.UniqId = ""
-	r.pool.Put(singleCast)
+func (r *singleCastBulk) Put(singleCastBulk *netsvrProtocol.SingleCastBulk) {
+	singleCastBulk.UniqIds = nil
+	singleCastBulk.Data = nil
+	r.pool.Put(singleCastBulk)
 }
 
 func init() {
-	SingleCast = &singleCast{
+	SingleCastBulk = &singleCastBulk{
 		pool: &sync.Pool{
 			New: func() any {
-				return &netsvrProtocol.SingleCast{}
+				return &netsvrProtocol.SingleCastBulk{}
 			},
 		},
 	}

@@ -35,7 +35,8 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicPublish failed")
 		return
 	}
-	if len(payload.Data) == 0 {
+	dataLen := int64(len(payload.Data))
+	if dataLen == 0 {
 		objPool.TopicPublish.Put(payload)
 		return
 	}
@@ -44,21 +45,22 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 			continue
 		}
 		uniqIds := topic.Topic.GetUniqIds(t, objPool.UniqIdSlice)
-		if uniqIds != nil {
-			for _, uniqId := range *uniqIds {
-				conn := manager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
-				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
-					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-				} else {
-					_ = conn.Close()
-				}
-			}
-			objPool.UniqIdSlice.Put(uniqIds)
+		if uniqIds == nil {
+			continue
 		}
+		for _, uniqId := range *uniqIds {
+			conn := manager.Manager.Get(uniqId)
+			if conn == nil {
+				continue
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
+			} else {
+				_ = conn.Close()
+			}
+		}
+		objPool.UniqIdSlice.Put(uniqIds)
 	}
 	objPool.TopicPublish.Put(payload)
 }

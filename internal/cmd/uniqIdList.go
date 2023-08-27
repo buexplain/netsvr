@@ -25,7 +25,8 @@ import (
 
 // UniqIdList 获取网关中全部的uniqId
 func UniqIdList(_ []byte, processor *workerManager.ConnProcessor) {
-	uniqIds := make([]string, 0, customerManager.Manager.Len())
+	//加1024的目的是担心获取连接的过程中又有连接进来，导致slice的底层发生扩容，引起内存拷贝
+	uniqIds := make([]string, 0, customerManager.Manager.Len()+1024)
 	for _, c := range customerManager.Manager {
 		c.GetUniqIds(&uniqIds)
 	}

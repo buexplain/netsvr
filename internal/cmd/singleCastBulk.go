@@ -36,10 +36,15 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//如果结构不对称，则会引起下面代码的切片索引越界，所以丢弃不做处理
 	if len(payload.UniqIds) != len(payload.Data) {
+		objPool.SingleCastBulk.Put(payload)
 		return
 	}
 	for index, uniqId := range payload.UniqIds {
-		if uniqId == "" || len(payload.Data[index]) == 0 {
+		if uniqId == "" {
+			continue
+		}
+		dataLen := int64(len(payload.Data[index]))
+		if dataLen == 0 {
 			continue
 		}
 		conn := manager.Manager.Get(uniqId)
@@ -48,7 +53,7 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 		}
 		if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data[index])))
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
 		} else {
 			_ = conn.Close()
 		}
