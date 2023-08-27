@@ -2,6 +2,8 @@
 # 这个脚本只生成Linux下的amd64的cpu.pprof文件
 # 初始化编译输出目录
 base_dir=$(dirname "$(pwd)")"/build/linux"
+# 初始化打开文件数据量
+ulimit -n 100000
 # 清理函数
 clearAll() {
   if ps aux | grep '[n]etsvr-linux-amd64.bin'; then
