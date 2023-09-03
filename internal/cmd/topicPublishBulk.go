@@ -30,41 +30,87 @@ import (
 // TopicPublishBulk 批量发布
 func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.TopicPublishBulk.Get()
+	defer objPool.TopicPublishBulk.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.TopicPublishBulk.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicPublishBulk failed")
 		return
 	}
-	//如果结构不对称，则会引起下面代码的切片索引越界，所以丢弃不做处理
-	if len(payload.Data) != len(payload.Topics) {
-		objPool.TopicPublishBulk.Put(payload)
-		return
-	}
-	for index, t := range payload.Topics {
-		if t == "" {
-			continue
-		}
-		dataLen := int64(len(payload.Data[index]))
-		if dataLen == 0 {
-			continue
-		}
-		uniqIds := topic.Topic.GetUniqIds(t, objPool.UniqIdSlice)
+	//当业务进程传递的topics的topic数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个topic
+	if len(payload.Topics) == 1 && len(payload.Data) > 1 {
+		//先根据主题，获得主题下的所有uniqId
+		uniqIds := topic.Topic.GetUniqIds(payload.Topics[0], objPool.UniqIdSlice)
 		if uniqIds == nil {
-			continue
+			return
 		}
-		for _, uniqId := range *uniqIds {
-			conn := manager.Manager.Get(uniqId)
+		defer objPool.UniqIdSlice.Put(uniqIds)
+		//再迭代所有uniqId
+		var uniqId string
+		var conn *websocket.Conn
+		var index, datumLen int
+		for _, uniqId = range *uniqIds {
+			//根据uniqId获得对应的连接
+			conn = manager.Manager.Get(uniqId)
 			if conn == nil {
 				continue
 			}
-			if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
-				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-			} else {
-				_ = conn.Close()
+			//将所有数据写入当前迭代到的连接
+			for index = range payload.Data {
+				//这里有重复计算，一时半会儿也找不到更好的写法
+				datumLen = len(payload.Data[index])
+				if datumLen == 0 {
+					continue
+				}
+				if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
+					//写入成功，记录统计信息
+					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
+				} else {
+					//写入失败，不再写入剩余的数据，而是跳出当前for循环，处理下一个uniqId
+					_ = conn.Close()
+					break
+				}
 			}
 		}
-		objPool.UniqIdSlice.Put(uniqIds)
+		return
 	}
-	objPool.TopicPublishBulk.Put(payload)
+	//当业务进程传递的topics的topic数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的topic
+	if len(payload.Topics) > 0 && len(payload.Topics) == len(payload.Data) {
+		var datumLen int64
+		var conn *websocket.Conn
+		var index int
+		var currentTopic string
+		var uniqId string
+		//迭代所有的主题
+		for index, currentTopic = range payload.Topics {
+			//判断当前迭代的主题对应的数据是否有效
+			datumLen = int64(len(payload.Data[index]))
+			if datumLen == 0 {
+				continue
+			}
+			//获得当前迭代的主题下的所有uniqId
+			uniqIds := topic.Topic.GetUniqIds(currentTopic, objPool.UniqIdSlice)
+			if uniqIds == nil {
+				continue
+			}
+			//迭代所有uniqId
+			for _, uniqId = range *uniqIds {
+				//根据uniqId获得对应的连接
+				conn = manager.Manager.Get(uniqId)
+				if conn == nil {
+					continue
+				}
+				//将当前迭代的主题对应的数据写入到该连接
+				if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
+					//写入成功，记录统计信息
+					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(datumLen)
+				} else {
+					//写入失败，关闭连接，继续处理下一个unqId
+					_ = conn.Close()
+				}
+			}
+			//将uniqIds归还给内存池
+			objPool.UniqIdSlice.Put(uniqIds)
+		}
+	}
 }

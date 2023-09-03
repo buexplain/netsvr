@@ -38,7 +38,7 @@ func (r singleCastBulk) Init(processor *connProcessor.ConnProcessor) {
 
 // SingleCastBulkForUniqIdParam 客户端发送的单播信息
 type SingleCastBulkForUniqIdParam struct {
-	Message string
+	Message []string
 	UniqIds []string `json:"uniqIds"`
 }
 
@@ -58,11 +58,11 @@ func (singleCastBulk) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	}
 	//构建批量单播数据
 	ret := &netsvrProtocol.SingleCastBulk{UniqIds: make([]string, 0, len(payload.UniqIds)), Data: make([][]byte, 0, len(payload.UniqIds))}
-	for _, currentUniqId := range payload.UniqIds {
-		ret.UniqIds = append(ret.UniqIds, currentUniqId)
-		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message + currentUniqId}
+	for _, data := range payload.Message {
+		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 	}
+	ret.UniqIds = payload.UniqIds
 	//发到网关
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_SingleCastBulk

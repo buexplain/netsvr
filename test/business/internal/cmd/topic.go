@@ -239,7 +239,7 @@ func (topic) RequestTopicPublish(tf *netsvrProtocol.Transfer, param string, proc
 
 // TopicPublishBulkParam 客户端发送的批量发布信息
 type TopicPublishBulkParam struct {
-	Message string
+	Message []string
 	Topics  []string
 }
 
@@ -259,12 +259,12 @@ func (topic) RequestTopicPublishBulk(tf *netsvrProtocol.Transfer, param string, 
 		fromUser = currentUser.Name
 	}
 	ret := &netsvrProtocol.TopicPublishBulk{Topics: make([]string, 0, len(target.Topics)), Data: make([][]byte, 0, len(target.Topics))}
-	for _, currentTopic := range target.Topics {
+	for _, data := range target.Message {
 		//这里message拼接上topic，方便界面上识别
-		msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message + currentTopic}
-		ret.Topics = append(ret.Topics, currentTopic)
+		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 	}
+	ret.Topics = target.Topics
 	router := &netsvrProtocol.Router{}
 	router.Cmd = netsvrProtocol.Cmd_TopicPublishBulk
 	router.Data, _ = proto.Marshal(ret)

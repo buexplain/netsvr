@@ -196,8 +196,12 @@ func (c *Conn) handleWsMessage(opcode MessageType, data []byte) {
 		c.pongMessageHandler(c, string(data))
 		return
 	case CloseMessage:
-		if len(data) >= 2 {
-			code := int(binary.BigEndian.Uint16(data[:2]))
+		var code int
+		var reason string
+		if len(data) == 0 {
+			code = 1005 // no status
+		} else if len(data) >= 2 {
+			code = int(binary.BigEndian.Uint16(data[:2]))
 			if !validCloseCode(code) {
 				protoErrorCode := make([]byte, 2)
 				binary.BigEndian.PutUint16(protoErrorCode, 1002)
@@ -213,18 +217,17 @@ func (c *Conn) handleWsMessage(opcode MessageType, data []byte) {
 				c.WriteMessage(CloseMessage, protoErrorData)
 				goto ErrExit
 			}
-
-			reson := string(data[2:])
-			if code != 1000 {
-				c.SetCloseError(&CloseError{
-					Code:   code,
-					Reason: reson,
-				})
-			}
-			c.closeMessageHandler(c, code, reson)
+			reason = string(data[2:])
 		} else {
-			c.SetCloseError(ErrInvalidControlFrame)
+			code = 1002 // protocol_error
 		}
+		if code != 1000 {
+			c.SetCloseError(&CloseError{
+				Code:   code,
+				Reason: reason,
+			})
+		}
+		c.closeMessageHandler(c, code, reason)
 	case FragmentMessage:
 		logging.Debug("invalid fragment message")
 		c.SetCloseError(ErrInvalidFragmentMessage)
@@ -312,7 +315,7 @@ func (c *Conn) Read(p *nbhttp.Parser, data []byte) error {
 	}
 
 	var err error
-	for i := 0; true; i++ {
+	for !c.closed {
 		opcode, body, ok, fin, res1, res2, res3, e := c.nextFrame()
 		if e != nil {
 			err = e
@@ -463,7 +466,9 @@ func (c *Conn) OnMessage(h func(*Conn, MessageType, []byte)) {
 			if c.Engine.ReleaseWebsocketPayload && len(data) > 0 {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
-			h(c, messageType, data)
+			if !c.closed {
+				h(c, messageType, data)
+			}
 		}
 	}
 }
@@ -771,6 +776,7 @@ func NewConn(u *Upgrader, c net.Conn, subprotocol string, remoteCompressionEnabl
 		subprotocol:              subprotocol,
 		remoteCompressionEnabled: remoteCompressionEnabled,
 	}
+	wsc.EnableWriteCompression(remoteCompressionEnabled)
 	if asyncWrite {
 		wsc.sendQueue = make([][]byte, u.BlockingModSendQueueInitSize)[:0]
 		wsc.sendQueueSize = u.BlockingModSendQueueMaxSize

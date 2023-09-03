@@ -72,7 +72,11 @@ func Run(wg *sync.WaitGroup) {
 				if len(uniqIds) < configs.Config.SingleCastBulk.UniqIdNum {
 					uniqIds = collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
 				}
-				ws.Send(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
+				data := make([]string, 0, len(uniqIds))
+				for i := len(uniqIds); i > 0; i-- {
+					data = append(data, message)
+				}
+				ws.Send(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"message": data, "uniqIds": uniqIds})
 			})
 		})
 		metrics.RecordConnectOK()

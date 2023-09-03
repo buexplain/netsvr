@@ -35,16 +35,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// business向worker请求，进行批量的主题发布信息，多份不同的消息发布到多个不同的主题
-// 举个场景：直播室消息需要人工审核，自己的消息无论是否审核通过都要显示在自己的消息列表，别人的消息只显示审核通过的。
-// 用户发消息到你的服务器，大概处理逻辑就是：先写入数据库，然后再包装成一个客户端需要的消息格式，发布到对应直播室的主题；然后再包装成另外一个消息格式，发布到管理员审核消息的主题，给审核人员审核。
-// 这里一份消息有两个格式，分别发布到直播室主题、审核直播室消息的主题，适合用该指令进行批量发布
+// business向worker请求，进行批量的主题发布信息
+// 网关必须实现以下三种处理：
+// 1.当业务进程传递的topics的topic数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的topic
+// 2.当业务进程传递的topics的topic数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个topic
+// 3.除以上两种情况外，其它情况都丢弃不做处理
 type TopicPublishBulk struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 目标主题，有多少个topic，就有多少个data，下标是对应关系，网关的worker服务器会循环uniqId，并用其下标从data获取对应的数据
+	// 目标主题
 	Topics []string `protobuf:"bytes,1,rep,name=topics,proto3" json:"topics,omitempty"`
 	// 需要发给客户的数据
 	Data [][]byte `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`

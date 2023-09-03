@@ -12,12 +12,18 @@
             margin-top: 15px;
         }
 
-        input, select {
-            width: 420px;
+        .input-max, .select-max {
+            width: 300px;
+        }
+
+        .input-min {
+            width: 200px;
         }
 
         label {
             user-select: none;
+            margin: 5px 0 5px 0;
+            display: inline-block;
         }
     </style>
     <script>
@@ -88,7 +94,7 @@
     <div style="width: 70%;max-height: 90vh;overflow-y: auto;">
         <div class="case">
             <label for="address">
-                <input type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
+                <input class="input-max" type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
             </label>
             <button onclick="openWebsocket()">打开连接</button>
             <button onclick="closeWebsocket()">关闭连接</button>
@@ -97,7 +103,7 @@
 
         <div class="case">
             <label>
-                <select name="username" data-processor="processorToString">
+                <select class="select-max" name="username" data-processor="processorToString">
                     <option>请选择账号</option>
                     <option>玄德</option>
                     <option>云长</option>
@@ -129,12 +135,12 @@
 
         <div class="case">
             <label>
-                <input type="text" name="name" data-processor="processorToString"
+                <input class="input-max" type="text" name="name" data-processor="processorToString"
                        placeholder="请输入目标限流器"
                        value="">
             </label>
             <label>
-                <input type="number" name="concurrency" data-processor="processorToInt"
+                <input class="input-min" type="number" name="concurrency" data-processor="processorToInt"
                        placeholder="请输入每秒允许的请求数量"
                        value="" autocomplete="off">
             </label>
@@ -143,7 +149,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="uniqIds" data-processor="processorToStringArr"
+                <input class="input-max" type="text" name="uniqIds" data-processor="processorToStringArr"
                        placeholder="请输入目标uniqId，多个用逗号分割"
                        value="">
             </label>
@@ -152,7 +158,8 @@
 
         <div class="case">
             <label>
-                <input type="text" name="userId" data-processor="processorToInt" placeholder="请输入目标用户Id"
+                <input class="input-max" type="text" name="userId" data-processor="processorToInt"
+                       placeholder="请输入目标用户Id"
                        value="1">
             </label>
             <button onclick="send(this,routerCmd.forceOfflineForUserId)">按用户id强制下线</button>
@@ -160,7 +167,8 @@
 
         <div class="case">
             <label>
-                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                <input class="input-max" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
                        value="">
             </label>
             <button onclick="send(this,routerCmd.forceOfflineForUniqId)">按uniqId强制下线</button>
@@ -168,11 +176,12 @@
 
         <div class="case">
             <label>
-                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                <input class="input-max" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
                        value="">
             </label>
             <label>
-                <input type="number" step="1" name="delay" data-processor="processorToInt"
+                <input class="input-min" type="number" step="1" name="delay" data-processor="processorToInt"
                        placeholder="请输入需要延迟下线的秒数"
                        value="">
             </label>
@@ -181,11 +190,13 @@
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
                        value="我是一条按用户id的单播的信息">
             </label>
             <label>
-                <input type="text" name="userId" data-processor="processorToInt" placeholder="请输入目标用户Id"
+                <input class="input-min" type="text" name="userId" data-processor="processorToInt"
+                       placeholder="请输入目标用户Id"
                        value="1">
             </label>
             <button onclick="send(this,routerCmd.singleCastForUserId)">按用户id单播</button>
@@ -193,35 +204,54 @@
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
                        value="我是一条按uniqId单播的信息">
             </label>
             <label>
-                <input type="text" name="uniqId" data-processor="processorToString" placeholder="请输入目标uniqId"
+                <input class="input-min" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
                        value="">
             </label>
             <button onclick="send(this,routerCmd.singleCastForUniqId)">按uniqId单播</button>
         </div>
 
         <div class="case">
-            <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
-                       value="我是一条按uniqId批量单播的信息">
-            </label>
-            <label>
-                <input type="text" name="uniqIds" data-processor="processorToStringArr" placeholder="请输入目标uniqId，多个用逗号分割"
-                       value="">
-            </label>
+            <div>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按uniqId批量单播的信息1">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="uniqIds[]" data-processor="processorToString"
+                           placeholder="请输入目标uniqId"
+                           value="">
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按uniqId批量单播的信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="uniqIds[]" data-processor="processorToString"
+                           placeholder="请输入目标uniqId"
+                           value="">
+                </label>
+            </div>
             <button onclick="send(this,routerCmd.singleCastBulkForUniqId)">按uniqId批量单播</button>
         </div>
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
                        value="我是一条按用户id组播的信息">
             </label>
             <label>
-                <input type="text" name="userIds" data-processor="processorToIntArr"
+                <input class="input-min" type="text" name="userIds" data-processor="processorToIntArr"
                        placeholder="请输入目标用户Id，多个用逗号分割"
                        value="1，2，3">
             </label>
@@ -230,11 +260,12 @@
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
                        value="我是一条按uniqId组播的信息">
             </label>
             <label>
-                <input type="text" name="uniqIds" data-processor="processorToStringArr"
+                <input class="input-min" type="text" name="uniqIds" data-processor="processorToStringArr"
                        placeholder="请输入目标uniqId，多个用逗号分割"
                        value="">
             </label>
@@ -243,7 +274,8 @@
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发送的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
                        value="我是一条广播信息">
             </label>
             <button onclick="send(this,routerCmd.broadcast)">广播</button>
@@ -251,7 +283,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要订阅的主题，多个用逗号分割"
                        value="小品频道，相声频道，戏曲频道，评书频道">
             </label>
@@ -260,7 +292,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要取消订阅的主题，多个用逗号分割"
                        value="相声频道，小品频道，评书频道">
             </label>
@@ -269,7 +301,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要删除的主题，多个用逗号分割"
                        value="相声频道，小品频道，评书频道">
             </label>
@@ -278,7 +310,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
             </label>
             <button onclick="send(this,routerCmd.topicUniqIdCount)">获取主题连接数</button>
@@ -286,7 +318,7 @@
 
         <div class="case">
             <label>
-                <input type="text" name="topic" data-processor="processorToString"
+                <input class="input-max" type="text" name="topic" data-processor="processorToString"
                        placeholder="请输入主题" value="戏曲频道">
             </label>
             <button onclick="send(this,routerCmd.topicUniqIdList)">获取主题的uniqId</button>
@@ -294,11 +326,12 @@
 
         <div class="case">
             <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发布的信息"
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发布的信息"
                        value="我是一条发布信息">
             </label>
             <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
+                <input class="input-min" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要发布的主题，多个用逗号分割"
                        value="戏曲频道">
             </label>
@@ -306,15 +339,30 @@
         </div>
 
         <div class="case">
-            <label>
-                <input type="text" name="message" data-processor="processorToString" placeholder="请输入要发布的信息"
-                       value="我是一条批量发布信息">
-            </label>
-            <label>
-                <input type="text" name="topics" data-processor="processorToStringArr"
-                       placeholder="请输入要发布的主题，多个用逗号分割"
-                       value="小品频道，相声频道，戏曲频道，评书频道">
-            </label>
+            <div>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发布的信息"
+                           value="我是一条批量发布信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
+                           placeholder="请输入要发布的主题"
+                           value="小品频道">
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发布的信息"
+                           value="我是一条批量发布信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
+                           placeholder="请输入要发布的主题"
+                           value="相声频道">
+                </label>
+            </div>
             <button onclick="send(this,routerCmd.topicPublishBulk)">批量发布</button>
         </div>
     </div>
@@ -410,7 +458,21 @@
             ['input[type="text"]', 'input[type="number"]', 'input[type="hidden"]', 'select'].forEach(function (selectors) {
                 btn.parentNode.querySelectorAll(selectors).forEach(function (input) {
                     let processor = input.getAttribute('data-processor');
-                    param[input.name] = processor ? window[processor](input.value) : input.value;
+                    let name = input.name;
+                    let value = processor ? window[processor](input.value) : input.value;
+                    if (value === '') {
+                        return;
+                    }
+                    if (name.indexOf('[]') !== -1) {
+                        name = name.substring(0, name.length - 2);
+                        if (param.hasOwnProperty(name)) {
+                            param[name].push(value);
+                        } else {
+                            param[name] = [value];
+                        }
+                    } else {
+                        param[name] = value;
+                    }
                 });
             });
             btn.parentNode.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
@@ -547,7 +609,7 @@
                          * @type {{workerIds: number[],concurrency:number,name:string}}
                          */
                         let item = resp.data.data[i];
-                        print("限流器 "+item.name+" 允许网关向 workerId：" + item.workerIds.join('、') + ' 每秒最多转发' + item.concurrency + '次客户数据')
+                        print("限流器 " + item.name + " 允许网关向 workerId：" + item.workerIds.join('、') + ' 每秒最多转发' + item.concurrency + '次客户数据')
                     }
                     return;
                 }
@@ -664,7 +726,7 @@
                     print(resp.data.message);
                     if (resp.data.data) {
                         for (let i in resp.data.data) {
-                            resp.data.data[i]['uniqIds'] && print(i+ '-->' +resp.data.data[i]['uniqIds'].join('\n'));
+                            resp.data.data[i]['uniqIds'] && print(i + '-->' + resp.data.data[i]['uniqIds'].join('\n'));
                         }
                     }
                     return;

@@ -117,11 +117,21 @@ func Run(wg *sync.WaitGroup) {
 			}
 			if configs.Config.Topic.PublishBulk.Mode == configs.ModeAfter {
 				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.PublishBulk.ModeSecond), func() {
-					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum), "message": message})
+					topics := ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum)
+					data := make([]string, 0, len(topics))
+					for i := len(topics); i > 0; i-- {
+						data = append(data, message)
+					}
+					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": topics, "message": data})
 				})
 			} else if configs.Config.Topic.PublishBulk.Mode == configs.ModeSchedule {
 				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Topic.PublishBulk.ModeSecond), func() {
-					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum), "message": message})
+					topics := ws.GetPublishTopic(configs.Config.Topic.PublishBulk.TopicNum)
+					data := make([]string, 0, len(topics))
+					for i := len(topics); i > 0; i-- {
+						data = append(data, message)
+					}
+					ws.Send(protocol.RouterTopicPublishBulk, map[string]any{"topics": topics, "message": data})
 				})
 			}
 		})
