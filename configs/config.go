@@ -22,6 +22,7 @@ import (
 	"github.com/BurntSushi/toml"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"github.com/rs/zerolog"
 	"netsvr/pkg/wd"
 	"os"
@@ -64,6 +65,8 @@ type config struct {
 		MaxOnlineNum int
 		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
+		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
+		SendMessageType websocket.MessageType
 		//指定处理连接打开的worker id，允许设置为0，表示不关心连接的打开
 		ConnOpenWorkerId int
 		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
@@ -170,6 +173,17 @@ func init() {
 	if Config.Customer.MaxOnlineNum <= 0 {
 		//默认最多负载十万个连接，超过的会被拒绝
 		Config.Customer.MaxOnlineNum = 10 * 10000
+	}
+	//默认只接收2MiB以内的数据
+	if Config.Customer.ReceivePackLimit <= 0 {
+		Config.Customer.ReceivePackLimit = 2097152
+	}
+	//检查发消息的类型
+	if Config.Customer.SendMessageType == 0 {
+		Config.Customer.SendMessageType = websocket.TextMessage
+	} else if Config.Customer.SendMessageType != websocket.TextMessage && Config.Customer.SendMessageType != websocket.BinaryMessage {
+		logging.Error("Config Customer.SendMessageType, must be in [%d,%d]", websocket.TextMessage, websocket.BinaryMessage)
+		os.Exit(1)
 	}
 	if Config.Customer.ReadDeadline <= 0 {
 		//默认120秒

@@ -17,8 +17,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
@@ -72,7 +72,7 @@ func ConnInfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 				_ = conflictConn.Close()
 			} else {
 				//写入数据，并在一定倒计时后关闭连接
-				if err := conflictConn.WriteMessage(websocket.TextMessage, payload.DataAsNewUniqIdExisted); err == nil {
+				if err := conflictConn.WriteMessage(configs.Config.Customer.SendMessageType, payload.DataAsNewUniqIdExisted); err == nil {
 					//倒计时的目的是确保数据发送成功
 					timer.Timer.AfterFunc(time.Second*3, func() {
 						defer func() {
@@ -127,7 +127,7 @@ func ConnInfoUpdate(param []byte, _ *workerManager.ConnProcessor) {
 	session.MuxUnLock()
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 		} else {

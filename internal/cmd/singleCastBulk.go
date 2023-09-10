@@ -19,6 +19,7 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
@@ -49,7 +50,7 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 				continue
 			}
 			//将当前数据写入到连接中
-			if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
+			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 				//写入成功，记录统计信息
 				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
 				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
@@ -78,7 +79,7 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 				continue
 			}
 			//将数据写入到连接中
-			if err := conn.WriteMessage(websocket.TextMessage, payload.Data[index]); err == nil {
+			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 				//写入成功，记录统计信息
 				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
 				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))

@@ -18,8 +18,8 @@ package cmd
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
@@ -56,7 +56,7 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		if conn == nil {
 			continue
 		}
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			//倒计时的目的是确保数据发送成功
 			timer.Timer.AfterFunc(time.Second*3, func() {
 				defer func() {

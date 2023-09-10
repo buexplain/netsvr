@@ -17,8 +17,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
@@ -83,7 +83,7 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 			}
 			//没有发送过数据，则发送数据
 			if !isSend {
-				if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 				} else {

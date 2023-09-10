@@ -17,8 +17,8 @@
 package cmd
 
 import (
-	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
@@ -45,7 +45,7 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//循环所有的连接，挨个发送出去
 	for _, conn := range *connections {
-		if err := conn.WriteMessage(websocket.TextMessage, payload.Data); err == nil {
+		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 		} else {
