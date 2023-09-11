@@ -524,7 +524,7 @@
             console.error(evt);
             document.getElementById("topInfo").innerText = '连接网关失败';
         }
-        ws.onmessage = function (evt) {
+        ws.onmessage = async function (evt) {
             //服务端响应了客户端的心跳
             if (evt.data === pongMessage) {
                 return;
@@ -534,7 +534,12 @@
                  * 服务器返回信息
                  * @type {{data: any, cmd: number}}
                  */
-                let resp = JSON.parse(evt.data);
+                let resp;
+                if (evt.data instanceof Blob) {
+                    resp = JSON.parse(await evt.data.text());
+                }else {
+                    resp = JSON.parse(evt.data);
+                }
 
                 //连接打开，服务端发来了相关信息
                 if (resp.cmd === routerCmd.connOpen) {
