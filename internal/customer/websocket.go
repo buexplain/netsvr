@@ -69,9 +69,11 @@ func Start() {
 		}
 	}
 	config := nbhttp.Config{
-		Network: "tcp",
-		Name:    "customer",
-		MaxLoad: configs.Config.Customer.MaxOnlineNum,
+		Network:           "tcp",
+		Name:              "customer",
+		MaxLoad:           configs.Config.Customer.MaxOnlineNum,
+		IOMod:             configs.Config.Customer.IOMod,
+		MaxBlockingOnline: configs.Config.Customer.MaxBlockingOnline,
 	}
 	if tlsConfig == nil {
 		config.Addrs = []string{configs.Config.Customer.ListenAddress}

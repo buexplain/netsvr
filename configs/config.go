@@ -22,6 +22,7 @@ import (
 	"github.com/BurntSushi/toml"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"github.com/rs/zerolog"
 	"netsvr/pkg/wd"
@@ -63,6 +64,10 @@ type config struct {
 		ReadDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
+		//io模式，0：IOModNonBlocking，1：IOModBlocking，2：IOModMixed，详细见：https://github.com/lesismal/nbio
+		IOMod int
+		//最大阻塞连接数，IOMod是2时有效，详细见：https://github.com/lesismal/nbio
+		MaxBlockingOnline int
 		//客户发送数据的大小限制（单位：字节）
 		ReceivePackLimit int
 		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
@@ -177,6 +182,12 @@ func init() {
 	if Config.Customer.MaxOnlineNum <= 0 {
 		//默认最多负载十万个连接，超过的会被拒绝
 		Config.Customer.MaxOnlineNum = 10 * 10000
+	}
+	if Config.Customer.IOMod != nbhttp.IOModNonBlocking && Config.Customer.IOMod != nbhttp.IOModBlocking && Config.Customer.IOMod != nbhttp.IOModMixed {
+		Config.Customer.IOMod = nbhttp.DefaultIOMod
+	}
+	if Config.Customer.MaxBlockingOnline <= 0 {
+		Config.Customer.MaxBlockingOnline = nbhttp.DefaultMaxBlockingOnline
 	}
 	//默认只接收2MiB以内的数据
 	if Config.Customer.ReceivePackLimit <= 0 {

@@ -28,6 +28,10 @@ AllowOrigin = []
 ReadDeadline = "120s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
+# io模式，0：IOModNonBlocking，1：IOModBlocking，2：IOModMixed，详细见：https://github.com/lesismal/nbio
+IOMod = 0
+# 最大阻塞连接数，IOMod是2时有效，详细见：https://github.com/lesismal/nbio
+MaxBlockingOnline = 10000
 # 客户发送数据的大小限制（单位：字节）
 ReceivePackLimit = 2097152
 # 往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
