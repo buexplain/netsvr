@@ -89,8 +89,12 @@ type config struct {
 		ReadDeadline time.Duration
 		//worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 		SendDeadline time.Duration
-		//business发送数据的大小限制（单位：字节）
+		//business发送数据的大小限制（单位：字节），business发送了超过该限制的包，则连接会被关闭
 		ReceivePackLimit uint32
+		//读取business发送数据的缓冲区大小（单位：字节）
+		ReadBufferSize int
+		//worker发送给business的缓通道大小
+		SendChanCap int
 	}
 
 	Metrics struct {
@@ -199,6 +203,15 @@ func init() {
 	if Config.Worker.SendDeadline <= 0 {
 		//默认10秒
 		Config.Worker.SendDeadline = time.Second * 10
+	}
+	if Config.Worker.ReceivePackLimit == 0 {
+		Config.Worker.ReceivePackLimit = 1024 * 1024 * 2
+	}
+	if Config.Worker.ReadBufferSize <= 0 {
+		Config.Worker.ReadBufferSize = 4 * 1024
+	}
+	if Config.Worker.SendChanCap <= 0 {
+		Config.Worker.SendChanCap = 1024
 	}
 	if Config.Metrics.MaxRecordInterval <= 0 {
 		//默认10秒

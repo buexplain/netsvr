@@ -17,6 +17,7 @@
 package connProcessor
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -230,10 +231,11 @@ func (r *ConnProcessor) LoopReceive() {
 	var dataBufCap uint32 = 0
 	var dataBuf []byte
 	var err error
+	connReader := bufio.NewReaderSize(r.conn, 4096)
 	for {
 		//获取前4个字节，确定数据包长度
 		dataLenBuf = dataLenBuf[:4]
-		if _, err = io.ReadAtLeast(r.conn, dataLenBuf, 4); err != nil {
+		if _, err = io.ReadAtLeast(connReader, dataLenBuf, 4); err != nil {
 			//读失败了，直接干掉这个连接，让business重新连接，因为缓冲区的tcp流已经脏了，程序无法拆包
 			r.ForceClose()
 			break
@@ -248,7 +250,7 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//获取数据包
 		dataBuf = dataBuf[0:dataLen]
-		if _, err = io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
+		if _, err = io.ReadAtLeast(connReader, dataBuf, len(dataBuf)); err != nil {
 			r.ForceClose()
 			log.Logger.Error().Err(err).Msg("Business receive body failed")
 			break

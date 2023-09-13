@@ -54,8 +54,12 @@ ListenAddress = "127.0.0.1:6061"
 ReadDeadline = "120s"
 # worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
 SendDeadline = "10s"
-# business发送数据的大小限制（单位：字节）
+# business发送数据的大小限制（单位：字节），business发送了超过该限制的包，则连接会被关闭
 ReceivePackLimit = 2097152
+# 读取business发送数据的缓冲区大小（单位：字节）
+ReadBufferSize = 4096
+# worker发送给business的缓通道大小
+SendChanCap = 1024
 
 # 统计服务
 [Metrics]

@@ -17,6 +17,7 @@
 package manager
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
@@ -55,7 +56,7 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	return &ConnProcessor{
 		conn:        conn,
 		closeCh:     make(chan struct{}),
-		sendCh:      make(chan []byte, 1000),
+		sendCh:      make(chan []byte, configs.Config.Worker.SendChanCap),
 		sendBuf:     &bytes.Buffer{},
 		sendDataLen: 0,
 		receiveCh:   make(chan *netsvrProtocol.Router, 1000),
@@ -131,7 +132,7 @@ func (r *ConnProcessor) send(data []byte) {
 	//再写包体
 	var err error
 	if _, err = r.sendBuf.Write(data); err != nil {
-		log.Logger.Error().Err(err).Msg("Worker send to business buffer failed")
+		log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker send to business buffer failed")
 		//写缓冲区失败，重置缓冲区
 		r.sendBuf.Reset()
 		return
@@ -141,7 +142,7 @@ func (r *ConnProcessor) send(data []byte) {
 		//设置写超时
 		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Worker SetWriteDeadline to business conn failed")
+			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker SetWriteDeadline to business conn failed")
 			return
 		}
 		//写入数据
@@ -199,7 +200,7 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//打印日志信息
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Int32("workerId", r.GetWorkerId()).Msg("Worker receive coroutine is closed")
+			log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Msg("Worker receive coroutine is closed")
 		} else {
 			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Msg("Worker receive coroutine is closed")
 		}
@@ -211,16 +212,17 @@ func (r *ConnProcessor) LoopReceive() {
 	var dataBuf []byte
 	var err error
 	var dataLen uint32
+	connReader := bufio.NewReaderSize(r.conn, configs.Config.Worker.ReadBufferSize)
 	for {
 		//设置读超时时间，再这个时间之内，business没有发数据过来，则会发生超时错误，导致连接被关闭
 		if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Worker SetReadDeadline to business conn failed")
+			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker SetReadDeadline to business conn failed")
 			break
 		}
 		//获取前4个字节，确定数据包长度
 		dataLenBuf = dataLenBuf[:4]
-		if _, err = io.ReadAtLeast(r.conn, dataLenBuf, 4); err != nil {
+		if _, err = io.ReadAtLeast(connReader, dataLenBuf, 4); err != nil {
 			//读失败了，直接干掉这个连接，让business端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
 			//关掉重来，是最好的办法
 			r.ForceClose()
@@ -231,8 +233,8 @@ func (r *ConnProcessor) LoopReceive() {
 		//判断装载数据的缓存区是否足够
 		if dataLen > dataBufCap {
 			//发送是数据包太大，直接关闭business，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
-			if dataLen > configs.Config.Worker.ReceivePackLimit-4 {
-				log.Logger.Error().Uint32("dataLen", dataLen).Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack size overflow")
+			if dataLen > configs.Config.Worker.ReceivePackLimit {
+				log.Logger.Error().Int32("workerId", r.GetWorkerId()).Uint32("dataLen", dataLen).Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack size overflow")
 				r.ForceClose()
 				break
 			}
@@ -245,9 +247,9 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//获取数据包，这里不必设置读取超时，因为接下来大大概率是有数据的，除非business不按包头包体的协议格式发送
 		dataBuf = dataBuf[0:dataLen]
-		if _, err = io.ReadAtLeast(r.conn, dataBuf, len(dataBuf)); err != nil {
+		if _, err = io.ReadAtLeast(connReader, dataBuf, len(dataBuf)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Msg("Worker receive body failed")
+			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker receive body failed")
 			break
 		}
 		//business发来心跳
@@ -259,7 +261,7 @@ func (r *ConnProcessor) LoopReceive() {
 		router := objPool.Router.Get()
 		if err = proto.Unmarshal(dataBuf, router); err != nil {
 			objPool.Router.Put(router)
-			log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Router failed")
+			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Proto unmarshal netsvrProtocol.Router failed")
 			continue
 		}
 		r.receiveCh <- router
@@ -293,7 +295,7 @@ func (r *ConnProcessor) cmd(router *netsvrProtocol.Router) {
 	}
 	//business搞错了指令，直接关闭连接，让business明白，不能瞎传，代码一定要通过测试
 	r.ForceClose()
-	log.Logger.Error().Interface("cmd", router.Cmd).Msg("Unknown protocol.router.Cmd")
+	log.Logger.Error().Interface("cmd", router.Cmd).Int32("workerId", r.GetWorkerId()).Msg("Unknown protocol.router.Cmd")
 	objPool.Router.Put(router)
 }
 
