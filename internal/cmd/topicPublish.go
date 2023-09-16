@@ -48,7 +48,8 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		if uniqIds == nil {
 			continue
 		}
-		for _, uniqId := range *uniqIds {
+		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+		for _, uniqId := range uniqIdsAlias {
 			conn := manager.Manager.Get(uniqId)
 			if conn == nil {
 				continue
