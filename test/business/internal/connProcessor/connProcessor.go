@@ -30,6 +30,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
+	"strconv"
 	"time"
 )
 
@@ -296,6 +297,11 @@ func (r *ConnProcessor) cmd(router *netsvrProtocol.Router) {
 			log.Logger.Error().Err(err).Msg("Proto unmarshal internalProtocol.Transfer failed")
 			return
 		}
+		//如果开始与结尾的字符不是花括号，说明不是有效的json字符串，则把数据吐回去
+		if l := len(tf.Data); l > 0 && (tf.Data[0] == 123 && tf.Data[l-1] == 125) == false {
+			r.echo(router, tf)
+			return
+		}
 		//解析出业务路由对象
 		clientRoute := new(protocol.ClientRouter)
 		if err := json.Unmarshal(tf.Data, clientRoute); err != nil {
@@ -319,6 +325,26 @@ func (r *ConnProcessor) cmd(router *netsvrProtocol.Router) {
 	}
 	//worker传递了未知的命令
 	log.Logger.Error().Interface("cmd", router.Cmd).Msg("Unknown internalProtocol.Router.Cmd")
+}
+
+// 将用户发来的数据原样返回给用户
+func (r *ConnProcessor) echo(router *netsvrProtocol.Router, tf *netsvrProtocol.Transfer) {
+	workerId := strconv.Itoa(int(r.workerId))
+	for i := len(workerId); i < 3; i++ {
+		workerId = "0" + workerId
+	}
+	sc := netsvrProtocol.SingleCast{}
+	sc.UniqId = tf.UniqId
+	sc.Data = make([]byte, len(tf.Data)+3)
+	//这里把workerId也补上
+	//因为有的压测工具会在数据尾部放时间戳
+	//压测工具发送的时候有workerId，接收的时候无workerId，则可能导致压测工具无法正确截取尾部的时间戳
+	copy(sc.Data, workerId)
+	copy(sc.Data[3:], tf.Data)
+	router.Cmd = netsvrProtocol.Cmd_SingleCast
+	router.Data, _ = proto.Marshal(&sc)
+	pt, _ := proto.Marshal(router)
+	r.Send(pt)
 }
 
 func (r *ConnProcessor) RegisterWorkerCmd(cmd interface{}, callback WorkerCmdCallback) {
