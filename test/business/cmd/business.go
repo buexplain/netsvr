@@ -19,7 +19,7 @@ package main
 
 import (
 	_ "embed"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"html/template"
 	"net"
 	"net/http"
@@ -38,7 +38,7 @@ import (
 
 func main() {
 	//初始化连接池
-	utils.InitPool(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress)
+	utils.InitRequestNetSvrPool(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress)
 	//连接到网关的worker服务器
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
@@ -55,7 +55,6 @@ func main() {
 	}
 	log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")
 	//注册各种回调函数
-	cmd.Unregister.Init(processor)
 	cmd.CheckOnline.Init(processor)
 	cmd.Broadcast.Init(processor)
 	cmd.Multicast.Init(processor)

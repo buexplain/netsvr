@@ -21,7 +21,7 @@ package customer
 import (
 	"bytes"
 	"context"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -44,6 +44,19 @@ import (
 )
 
 var server *nbhttp.Server
+var upgrade = (func() *websocket.Upgrader {
+	upgrade := websocket.NewUpgrader()
+	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
+	upgrade.CheckOrigin = checkOrigin
+	upgrade.SetPingHandler(pingMessageHandler)
+	upgrade.SetPongHandler(pongMessageHandler)
+	upgrade.OnOpen(nil)
+	upgrade.OnClose(onClose)
+	upgrade.OnMessage(onMessage)
+	//处理websocket子协议
+	upgrade.Subprotocols = nil
+	return upgrade
+})()
 
 // ConnectRateLimit 不能轻易改变这些常量的值，因为websocket客户端代码极有可能判断这些字符串做出下一步处理，改变这些字符会导致这些客户端的代码失效
 const ConnectRateLimit = "Connect rate limited"
@@ -138,16 +151,6 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	upgrade := websocket.NewUpgrader()
-	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
-	upgrade.CheckOrigin = checkOrigin
-	upgrade.SetPingHandler(pingMessageHandler)
-	upgrade.SetPongHandler(pongMessageHandler)
-	upgrade.OnOpen(nil)
-	upgrade.OnClose(onClose)
-	upgrade.OnMessage(onMessage)
-	//处理websocket子协议
-	upgrade.Subprotocols = nil
 	subProtocols := utils.ParseSubProtocols(r)
 	var responseHeader http.Header
 	if subProtocols != nil {
@@ -198,7 +201,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
 		//统计转发到business的次数与字节数
 		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 	}
 	objPool.ConnOpen.Put(co)
 }
@@ -221,7 +224,7 @@ func pingMessageHandler(conn *websocket.Conn, _ string) {
 
 func onClose(conn *websocket.Conn, _ error) {
 	//分配了session才算是真正打开过的连接
-	session, ok := conn.Session().(*info.Info)
+	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
 		return
 	}
@@ -260,7 +263,7 @@ func onClose(conn *websocket.Conn, _ error) {
 	if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
 		//统计转发到business的次数与字节数
 		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 	}
 	objPool.ConnClose.Put(cl)
 }
@@ -308,7 +311,7 @@ func onMessage(conn *websocket.Conn, messageType websocket.MessageType, data []b
 		return
 	}
 	//从连接中拿出session
-	session, ok := conn.Session().(*info.Info)
+	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
 		return
 	}
@@ -328,7 +331,7 @@ func onMessage(conn *websocket.Conn, messageType websocket.MessageType, data []b
 	if sendSize := worker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
 		//统计转发到business的次数与字节数
 		metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize + 4)) //加上4字节，是因为tcp包头的缘故
+		metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 	}
 	objPool.Transfer.Put(tf)
 }

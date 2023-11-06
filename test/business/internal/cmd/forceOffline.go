@@ -18,8 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -56,11 +55,7 @@ func (forceOffline) ForUserId(_ *netsvrProtocol.Transfer, param string, processo
 	ret := &netsvrProtocol.ForceOffline{}
 	ret.UniqIds = []string{strconv.Itoa(user.Id)}
 	ret.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ForceOffline
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ForceOffline)
 }
 
 // ForceOfflineForUniqIdParam 强制踢下线某个用户
@@ -78,9 +73,5 @@ func (forceOffline) ForUniqId(_ *netsvrProtocol.Transfer, param string, processo
 	ret := &netsvrProtocol.ForceOffline{}
 	ret.UniqIds = []string{payload.UniqId}
 	ret.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ForceOffline
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ForceOffline)
 }

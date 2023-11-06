@@ -18,8 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
@@ -57,12 +56,8 @@ func (limit) Request(tf *netsvrProtocol.Transfer, param string, processor *connP
 	resp := &netsvrProtocol.LimitResp{}
 	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_Limit, resp)
 	//将结果单播给客户端
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
 	ret.Data = testUtils.NewResponse(protocol.RouterLimit, map[string]interface{}{"code": 0, "message": "获取网关中的限流配置的真实情况成功", "data": resp.Items})
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

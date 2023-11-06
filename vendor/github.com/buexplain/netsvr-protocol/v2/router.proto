@@ -64,11 +64,3 @@ enum Cmd {
   ConnOpenCustomUniqIdToken = 900003013;//连接打开时，传递自定义uniqId时的校验token，用后即删，必须是一个随机性很强的字符串
   //--------------------------------business请求worker的指令，worker会响应business 结束--------------------------------
 }
-
-//路由
-message Router {
-  //命令
-  Cmd cmd = 1;
-  //命令携带的数据
-  bytes data = 2;
-}

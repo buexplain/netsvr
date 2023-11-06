@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	workerManager "netsvr/internal/worker/manager"

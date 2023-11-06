@@ -45,7 +45,7 @@ func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 		objPool.TopicUnsubscribe.Put(payload)
 		return
 	}
-	session, ok := conn.Session().(*info.Info)
+	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
 		objPool.TopicUnsubscribe.Put(payload)
 		return

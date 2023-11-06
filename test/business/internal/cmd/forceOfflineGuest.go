@@ -18,8 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
@@ -51,9 +50,5 @@ func (forceOfflineGuest) ForUniqId(_ *netsvrProtocol.Transfer, param string, pro
 	ret.UniqIds = []string{payload.UniqId}
 	ret.Delay = payload.Delay
 	ret.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "游客您好，您已被迫下线！"})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ForceOfflineGuest
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ForceOfflineGuest)
 }

@@ -19,33 +19,51 @@ package manager
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	"encoding/hex"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"netsvr/internal/objPool"
 	"netsvr/pkg/quit"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
+
+var pongMessage []byte
+var registerId *uint32
+
+func init() {
+	pongMessage = make([]byte, 4+len(netsvrProtocol.PongMessage))
+	binary.BigEndian.PutUint32(pongMessage[0:4], uint32(len(netsvrProtocol.PongMessage)))
+	copy(pongMessage[4:], netsvrProtocol.PongMessage)
+	var registerIdBody uint32 = 0
+	registerId = &registerIdBody
+}
+
+func getRegisterIdPrefix() string {
+	strconv.FormatUint(uint64(atomic.AddUint32(registerId, 1)), 10)
+	tmp := make([]byte, 4)
+	binary.BigEndian.PutUint32(tmp, atomic.AddUint32(registerId, 1))
+	return hex.EncodeToString(tmp)
+}
 
 type CmdCallback func(data []byte, processor *ConnProcessor)
 
 type ConnProcessor struct {
 	//business与worker的连接
-	conn net.Conn
+	conn       net.Conn
+	registerId string
 	//退出信号
 	closeCh chan struct{}
 	//要发送给连接的数据
 	sendCh chan []byte
-	//发送缓冲区
-	sendBuf     *bytes.Buffer
-	sendDataLen uint32
 	//从连接中读取的数据
-	receiveCh chan *netsvrProtocol.Router
+	receiveCh chan []byte
 	//当前连接的workerId
 	workerId int32
 	//各种命令的回调函数
@@ -55,14 +73,17 @@ type ConnProcessor struct {
 func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	return &ConnProcessor{
 		conn:        conn,
+		registerId:  getRegisterIdPrefix() + conn.RemoteAddr().String(),
 		closeCh:     make(chan struct{}),
 		sendCh:      make(chan []byte, configs.Config.Worker.SendChanCap),
-		sendBuf:     &bytes.Buffer{},
-		sendDataLen: 0,
-		receiveCh:   make(chan *netsvrProtocol.Router, 1000),
+		receiveCh:   make(chan []byte, 1000),
 		workerId:    0,
 		cmdCallback: map[netsvrProtocol.Cmd]CmdCallback{},
 	}
+}
+
+func (r *ConnProcessor) GetRegisterId() string {
+	return r.registerId
 }
 
 // ForceClose 优雅的强制关闭，发给business的数据会被丢弃，business发来的数据会被处理
@@ -108,7 +129,7 @@ func (r *ConnProcessor) LoopSend() {
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("workerId", r.GetWorkerId()).Msg("Worker send coroutine is closed")
 		} else {
-			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Msg("Worker send coroutine is closed")
+			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Str("registerId", r.registerId).Msg("Worker send coroutine is closed")
 		}
 	}()
 	for data := range r.sendCh {
@@ -123,45 +144,38 @@ func (r *ConnProcessor) LoopSend() {
 }
 
 func (r *ConnProcessor) send(data []byte) {
-	r.sendDataLen = uint32(len(data))
-	//先写包头，注意这是大端序
-	r.sendBuf.WriteByte(byte(r.sendDataLen >> 24))
-	r.sendBuf.WriteByte(byte(r.sendDataLen >> 16))
-	r.sendBuf.WriteByte(byte(r.sendDataLen >> 8))
-	r.sendBuf.WriteByte(byte(r.sendDataLen))
-	//再写包体
 	var err error
-	if _, err = r.sendBuf.Write(data); err != nil {
-		log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker send to business buffer failed")
-		//写缓冲区失败，重置缓冲区
-		r.sendBuf.Reset()
-		return
-	}
+	var writeLen int
+	totalLen := len(data)
 	//写入到连接中
 	for {
 		//设置写超时
 		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker SetWriteDeadline to business conn failed")
+			log.Logger.Error().Err(err).Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Msg("Worker SetWriteDeadline to business conn failed")
 			return
 		}
 		//写入数据
-		_, err = r.sendBuf.WriteTo(r.conn)
+		writeLen, err = r.conn.Write(data)
 		//写入成功
 		if err == nil {
-			return
-		}
-		//发生短写，继续写入
-		if err == io.ErrShortWrite {
+			//写入成功
+			if writeLen == len(data) {
+				return
+			}
+			//短写，继续写入
+			data = data[writeLen:]
 			continue
 		}
-		//其它错误
-		//business没有第一时间处理数据，极有可能是阻塞住了
-		//所以强制关闭连接，让数据直接丢弃是最好的选择
-		//否则这里的阻塞会蔓延整个网关进程，导致处理客户心跳的协程都没有，最终导致所有客户连接被服务端强制关闭
-		//两害相权取其轻
+		//写入错误
+		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
+		if totalLen == len(data[writeLen:]) {
+			log.Logger.Error().Err(err).Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Str("workerToBusinessData", base64.StdEncoding.EncodeToString(data)).Msg("Worker send to business failed")
+			return
+		}
+		//写入过部分数据，tcp管道已污染，对端已经无法拆包，必须关闭连接
 		r.ForceClose()
-		log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Bytes("workerToBusinessData", data).Msg("Worker send to business failed")
+		log.Logger.Error().Err(err).Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Msg("Worker send to business failed")
 		return
 	}
 }
@@ -172,17 +186,24 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//收到关闭信号，不再生产数据
 		return 0
 	default:
-		//可能有大量的协程阻塞在这里
-		data, err := proto.Marshal(message)
-		if err != nil {
-			return 0
+		data := make([]byte, 8)
+		//先写业务层的cmd
+		binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
+		if message == nil {
+			//再写包头
+			binary.BigEndian.PutUint32(data[0:4], 4)
+			//发送出去
+			r.sendCh <- data
+			return 8
 		}
-		router := objPool.Router.Get()
-		router.Cmd = cmd
-		router.Data = data
-		data, err = proto.Marshal(router)
-		objPool.Router.Put(router)
+		//再编码数据
+		var err error
+		pm := proto.MarshalOptions{}
+		data, err = pm.MarshalAppend(data, message)
 		if err == nil {
+			//再写包头
+			binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
+			//发送出去
 			r.sendCh <- data
 			return len(data)
 		}
@@ -202,14 +223,11 @@ func (r *ConnProcessor) LoopReceive() {
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Msg("Worker receive coroutine is closed")
 		} else {
-			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Msg("Worker receive coroutine is closed")
+			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Str("registerId", r.registerId).Msg("Worker receive coroutine is closed")
 		}
 	}()
 	//包头专用
-	dataLenBuf := make([]byte, 0, 4)
-	//包体专用
-	var dataBufCap uint32 = 0
-	var dataBuf []byte
+	dataLenBuf := make([]byte, 4)
 	var err error
 	var dataLen uint32
 	connReader := bufio.NewReaderSize(r.conn, configs.Config.Worker.ReadBufferSize)
@@ -217,7 +235,7 @@ func (r *ConnProcessor) LoopReceive() {
 		//设置读超时时间，再这个时间之内，business没有发数据过来，则会发生超时错误，导致连接被关闭
 		if err = r.conn.SetReadDeadline(time.Now().Add(configs.Config.Worker.ReadDeadline)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker SetReadDeadline to business conn failed")
+			log.Logger.Error().Err(err).Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Msg("Worker SetReadDeadline to business conn failed")
 			break
 		}
 		//获取前4个字节，确定数据包长度
@@ -230,41 +248,26 @@ func (r *ConnProcessor) LoopReceive() {
 		}
 		//这里采用大端序
 		dataLen = binary.BigEndian.Uint32(dataLenBuf)
-		//判断装载数据的缓存区是否足够
-		if dataLen > dataBufCap {
-			//发送是数据包太大，直接关闭business，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
-			if dataLen > configs.Config.Worker.ReceivePackLimit {
-				log.Logger.Error().Int32("workerId", r.GetWorkerId()).Uint32("dataLen", dataLen).Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack size overflow")
-				r.ForceClose()
-				break
-			}
-			if r.workerId > 0 {
-				dataBufCap = 64 * ((dataLen-1)/64 + 1)
-			} else {
-				dataBufCap = dataLen
-			}
-			dataBuf = make([]byte, 0, dataBufCap)
+		//发送是数据包太大，直接关闭business，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
+		if dataLen > configs.Config.Worker.ReceivePackLimit {
+			log.Logger.Error().Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Uint32("dataLen", dataLen).Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).Msg("Worker receive pack size overflow")
+			r.ForceClose()
+			break
 		}
 		//获取数据包，这里不必设置读取超时，因为接下来大大概率是有数据的，除非business不按包头包体的协议格式发送
-		dataBuf = dataBuf[0:dataLen]
-		if _, err = io.ReadAtLeast(connReader, dataBuf, len(dataBuf)); err != nil {
+		data := make([]byte, dataLen)
+		if _, err = io.ReadAtLeast(connReader, data, len(data)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Worker receive body failed")
+			log.Logger.Error().Err(err).Str("registerId", r.registerId).Int32("workerId", r.GetWorkerId()).Msg("Worker receive body failed")
 			break
 		}
 		//business发来心跳
-		if bytes.Equal(netsvrProtocol.PingMessage, dataBuf) {
+		if bytes.Equal(netsvrProtocol.PingMessage, data) {
 			//响应business的心跳
-			r.sendCh <- netsvrProtocol.PongMessage
+			r.sendCh <- pongMessage
 			continue
 		}
-		router := objPool.Router.Get()
-		if err = proto.Unmarshal(dataBuf, router); err != nil {
-			objPool.Router.Put(router)
-			log.Logger.Error().Err(err).Int32("workerId", r.GetWorkerId()).Msg("Proto unmarshal netsvrProtocol.Router failed")
-			continue
-		}
-		r.receiveCh <- router
+		r.receiveCh <- data
 	}
 }
 
@@ -279,7 +282,7 @@ func (r *ConnProcessor) LoopCmd() {
 			quit.Wg.Add(1)
 			go r.LoopCmd()
 		} else {
-			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Msg("Worker cmd coroutine is closed")
+			log.Logger.Debug().Int32("workerId", r.GetWorkerId()).Str("registerId", r.registerId).Msg("Worker cmd coroutine is closed")
 		}
 	}()
 	for data := range r.receiveCh {
@@ -287,16 +290,18 @@ func (r *ConnProcessor) LoopCmd() {
 	}
 }
 
-func (r *ConnProcessor) cmd(router *netsvrProtocol.Router) {
-	if callback, ok := r.cmdCallback[router.Cmd]; ok {
-		callback(router.Data, r)
-		objPool.Router.Put(router)
-		return
+func (r *ConnProcessor) cmd(data []byte) {
+	var cmd uint32
+	if len(data) > 3 {
+		cmd = binary.BigEndian.Uint32(data[0:4])
+		if callback, ok := r.cmdCallback[netsvrProtocol.Cmd(cmd)]; ok {
+			callback(data[4:], r)
+			return
+		}
 	}
 	//business搞错了指令，直接关闭连接，让business明白，不能瞎传，代码一定要通过测试
 	r.ForceClose()
-	log.Logger.Error().Interface("cmd", router.Cmd).Int32("workerId", r.GetWorkerId()).Msg("Unknown protocol.router.Cmd")
-	objPool.Router.Put(router)
+	log.Logger.Error().Uint32("cmd", cmd).Int32("workerId", r.GetWorkerId()).Msg("Unknown netsvrProtocol.Cmd")
 }
 
 // RegisterCmd 注册各种命令

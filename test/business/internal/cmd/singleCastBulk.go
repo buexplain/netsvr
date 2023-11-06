@@ -19,8 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -64,9 +63,5 @@ func (singleCastBulk) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	}
 	ret.UniqIds = payload.UniqIds
 	//发到网关
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCastBulk
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCastBulk)
 }

@@ -19,7 +19,7 @@
 package worker
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"
@@ -41,7 +41,12 @@ func (r *Server) Start() {
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
-			log.Logger.Error().Err(err).Msg("Worker tcp accept failed")
+			select {
+			case <-quit.ClosedCh:
+				break
+			default:
+				log.Logger.Error().Err(err).Msg("Worker tcp accept failed")
+			}
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				//发生这个错误，大概率是句柄耗尽，https://go.dev/src/syscall/syscall_unix.go#L129
 				time.Sleep(time.Second / 20)

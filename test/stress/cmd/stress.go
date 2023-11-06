@@ -37,7 +37,7 @@ import (
 
 func main() {
 	//初始化连接池
-	utils.InitPool(50, configs.Config.WorkerListenAddress)
+	utils.InitRequestNetSvrPool(50, configs.Config.WorkerListenAddress)
 	go func() {
 		wg := &sync.WaitGroup{}
 		if configs.Config.Concurrent {

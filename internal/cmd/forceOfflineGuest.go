@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/info"
@@ -45,7 +45,7 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 			return
 		}
 		//跳过有session值的连接
-		if session, ok := conn.Session().(*info.Info); ok && session.GetSession() != "" {
+		if session, ok := conn.SessionWithLock().(*info.Info); ok && session.GetSession() != "" {
 			return
 		}
 		//判断是否转发数据

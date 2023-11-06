@@ -44,7 +44,7 @@ func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	if conn == nil {
 		return
 	}
-	session, ok := conn.Session().(*info.Info)
+	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
 		return
 	}

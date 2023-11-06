@@ -19,7 +19,7 @@ package wsClient
 import (
 	"bytes"
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
 	"io"

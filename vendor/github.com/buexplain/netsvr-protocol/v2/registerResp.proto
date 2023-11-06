@@ -39,4 +39,6 @@ enum RegisterRespCode {
 message RegisterResp {
   RegisterRespCode code = 1;
   string message = 2;
+  //注册成功后的id
+  string registerId = 3;
 }

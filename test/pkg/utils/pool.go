@@ -3,7 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/binary"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -15,8 +15,8 @@ import (
 var pool *connPool.ConnPool
 var logger zerolog.Logger
 
-// InitPool 初始化与网关交互所需的连接池
-func InitPool(size int, workerListenAddress string) {
+// InitRequestNetSvrPool 初始化与网关交互所需的连接池
+func InitRequestNetSvrPool(size int, workerListenAddress string) {
 	pool = connPool.NewConnPool(size, func() net.Conn {
 		//连接到网关的worker服务器
 		conn, err := net.Dial("tcp", workerListenAddress)
@@ -47,41 +47,39 @@ func InitPool(size int, workerListenAddress string) {
 
 // RequestNetSvr 负责与网关进程交互的函数，类似于http请求方法，发送一个req请求，接收一个resp响应
 func RequestNetSvr(req proto.Message, cmd netsvrProtocol.Cmd, resp proto.Message) {
-	//构建一个发送到网关的router对象
-	router := &netsvrProtocol.Router{}
-	router.Cmd = cmd
-	if req != nil {
-		//请求体不为空，则将其编码到router对象上
-		router.Data, _ = proto.Marshal(req)
-	}
-	pt, _ := proto.Marshal(router)
-	//把router对象的protobuf数据，按大端序构造一个buf
-	bf := &bytes.Buffer{}
-	length := len(pt)
-	bf.WriteByte(byte(length >> 24))
-	bf.WriteByte(byte(length >> 16))
-	bf.WriteByte(byte(length >> 8))
-	bf.WriteByte(byte(length))
+	data := make([]byte, 8)
+	//先写业务层的cmd
+	binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
 	var err error
-	if _, err = bf.Write(pt); err != nil {
-		logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker buffer failed")
-		return
-	}
-	//获取与网关建立好的连接
-	conn := pool.Get()
-	//将buf数据发送到网关
-	for {
-		_, err = bf.WriteTo(conn)
+	if req != nil {
+		//请求体不为空，则将其编码进去
+		pm := proto.MarshalOptions{}
+		data, err = pm.MarshalAppend(data, req)
 		if err != nil {
-			//写入失败，tcp短写，则继续写入
-			if err == io.ErrShortWrite {
-				continue
-			}
-			//写入数据失败，视为连接已经被损坏，归还一个空连接到连接池
-			pool.Put(nil)
-			logger.Error().Err(err).Type("errorType", err).Msg("Business send to worker failed")
+			logger.Error().Err(err).Msgf("Proto marshal %T failed", req)
 			return
 		}
+	}
+	//再写包头
+	binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
+	//获取与网关建立好的连接
+	conn := pool.Get()
+	//将数据发送到网关
+	var writeLen int
+	for {
+		writeLen, err = conn.Write(data)
+		if err != nil {
+			//写入数据失败，tcp管道已污染，视为对端已经无法拆包，归还一个空连接到连接池
+			pool.Put(nil)
+			logger.Error().Err(err).Msg("Business send to worker failed")
+			return
+		}
+		//没有错误，但是只写入部分数据，继续写入
+		if writeLen < len(data) {
+			data = data[writeLen:]
+			continue
+		}
+		//写入成功
 		break
 	}
 	//不需要接收数据，直接退出
@@ -92,38 +90,33 @@ func RequestNetSvr(req proto.Message, cmd netsvrProtocol.Cmd, resp proto.Message
 	}
 	//需要接收网关返回的数据数据
 loop:
-	dataLenBuf := make([]byte, 4)
-	if _, err = io.ReadFull(conn, dataLenBuf); err != nil {
+	data = make([]byte, 4)
+	if _, err = io.ReadFull(conn, data); err != nil {
 		//读取失败，归还一个空连接到连接池
 		pool.Put(nil)
-		logger.Error().Err(err).Type("errorType", err).Msg("Business read from worker failed")
+		logger.Error().Err(err).Msg("Business read from worker failed")
 		return
 	}
-	dataLen := binary.BigEndian.Uint32(dataLenBuf)
-	dataBuf := make([]byte, dataLen)
-	if _, err = io.ReadAtLeast(conn, dataBuf, int(dataLen)); err != nil {
+	dataLen := binary.BigEndian.Uint32(data)
+	data = make([]byte, dataLen)
+	if _, err = io.ReadAtLeast(conn, data, int(dataLen)); err != nil {
 		//读取失败，归还一个空连接到连接池
 		pool.Put(nil)
-		logger.Error().Err(err).Type("errorType", err).Msg("Business read from worker failed")
+		logger.Error().Err(err).Msg("Business read from worker failed")
 		return
 	}
 	//跳过心跳字符，继续读取数据
-	if bytes.Equal(netsvrProtocol.PongMessage, dataBuf) {
+	if bytes.Equal(netsvrProtocol.PongMessage, data) {
 		goto loop
 	}
 	//归还连接
 	pool.Put(conn)
 	//解析网关返回的数据
-	router.Reset()
-	if err = proto.Unmarshal(dataBuf, router); err != nil {
-		logger.Error().Err(err).Type("errorType", err).Msg("Proto unmarshal internalProtocol.Router failed")
+	if len(data) < 4 {
 		return
 	}
-	if router.Cmd != cmd {
-		logger.Error().Err(err).Int32("response", int32(router.Cmd)).Int32("expect", int32(cmd)).Msg("Worker response cmd error")
-		return
-	}
-	if err = proto.Unmarshal(router.Data, resp); err != nil {
+	//跳过包头的cmd，直接解析数据部分
+	if err = proto.Unmarshal(data[4:], resp); err != nil {
 		logger.Error().Err(err).Type("errorType", err).Msgf("Proto unmarshal %T failed", resp)
 		return
 	}

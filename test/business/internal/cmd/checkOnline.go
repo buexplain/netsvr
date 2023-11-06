@@ -18,8 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
@@ -51,12 +50,8 @@ func (checkOnline) RequestForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	resp := &netsvrProtocol.CheckOnlineResp{}
 	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_CheckOnline, resp)
 	//将结果单播给客户端
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
 	ret.Data = testUtils.NewResponse(protocol.RouterCheckOnlineForUniqId, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.UniqIds})
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

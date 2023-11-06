@@ -19,8 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -78,11 +77,7 @@ func (multicast) ForUserId(tf *netsvrProtocol.Transfer, param string, processor 
 		ret.Data = testUtils.NewResponse(protocol.RouterMulticastForUserId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	}
 	ret.UniqIds = userIds
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_Multicast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_Multicast)
 }
 
 // MulticastForUniqIdParam 客户端发送的组播信息
@@ -111,9 +106,5 @@ func (multicast) ForUniqId(tf *netsvrProtocol.Transfer, param string, processor 
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
 	ret.Data = testUtils.NewResponse(protocol.RouterMulticastForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	//发到网关
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_Multicast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_Multicast)
 }

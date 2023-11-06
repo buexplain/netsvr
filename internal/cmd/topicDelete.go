@@ -49,7 +49,7 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 				if conn == nil {
 					continue
 				}
-				if session, ok := conn.Session().(*info.Info); ok {
+				if session, ok := conn.SessionWithLock().(*info.Info); ok {
 					_ = session.UnsubscribeTopic(topic)
 				}
 			}
@@ -66,7 +66,7 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 			if conn == nil {
 				continue
 			}
-			session, ok := conn.Session().(*info.Info)
+			session, ok := conn.SessionWithLock().(*info.Info)
 			if !ok {
 				continue
 			}

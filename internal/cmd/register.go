@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"google.golang.org/protobuf/proto"
 	"math"
 	"netsvr/configs"
@@ -72,9 +72,10 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	log.Logger.Info().Int32("workerId", payload.WorkerId).Msg("Register a business")
+	log.Logger.Info().Int32("workerId", payload.WorkerId).Str("registerId", processor.GetRegisterId()).Msg("Register a business")
 	ret.Code = netsvrProtocol.RegisterRespCode_Success
 	ret.Message = ret.Code.String()
+	ret.RegisterId = processor.GetRegisterId()
 	processor.Send(ret, netsvrProtocol.Cmd_Register)
 	//最后，将该workerId登记到worker管理器中，一定要最后加入，确保注册成功的数据是第一个到达business进程，因为加入管理器后就有可能被转发数据
 	workerManager.Manager.Set(processor.GetWorkerId(), processor)

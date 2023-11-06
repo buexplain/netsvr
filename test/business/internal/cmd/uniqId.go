@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -45,11 +44,7 @@ func (uniqId) RequestList(tf *netsvrProtocol.Transfer, _ string, processor *conn
 		"uniqIds": resp.UniqIds,
 	}
 	ret.Data = testUtils.NewResponse(protocol.RouterUniqIdList, map[string]interface{}{"code": 0, "message": "获取网关所有的uniqId成功", "data": msg})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }
 
 // RequestCount 获取网关中uniqId的数量
@@ -63,9 +58,5 @@ func (uniqId) RequestCount(tf *netsvrProtocol.Transfer, _ string, processor *con
 		"count": resp.Count,
 	}
 	ret.Data = testUtils.NewResponse(protocol.RouterUniqIdCount, map[string]interface{}{"code": 0, "message": "获取网关中uniqId的数量成功", "data": msg})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

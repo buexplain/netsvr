@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
@@ -56,11 +56,7 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 		},
 	})
 	//发送到网关
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }
 
 // ConnClose 客户端关闭连接

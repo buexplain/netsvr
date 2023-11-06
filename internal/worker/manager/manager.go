@@ -17,7 +17,7 @@
 package manager
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -54,11 +54,11 @@ func (r *collect) Set(conn *ConnProcessor) {
 	}
 }
 
-func (r *collect) Del(conn *ConnProcessor) bool {
+func (r *collect) Del(registerId string) bool {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for k, v := range r.conn {
-		if v == conn {
+		if v.GetRegisterId() == registerId {
 			r.conn = append(r.conn[0:k], r.conn[k+1:]...)
 			return true
 		}
@@ -78,9 +78,9 @@ func (r manager) Set(workerId int32, conn *ConnProcessor) {
 	}
 }
 
-func (r manager) Del(workerId int32, conn *ConnProcessor) bool {
+func (r manager) Del(workerId int32, registerId string) bool {
 	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
-		return r[workerId].Del(conn)
+		return r[workerId].Del(registerId)
 	}
 	return false
 }

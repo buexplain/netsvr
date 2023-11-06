@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -40,9 +39,5 @@ func (metrics) Request(tf *netsvrProtocol.Transfer, _ string, processor *connPro
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
 	ret.Data = testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的统计信息成功", "data": resp.Items})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

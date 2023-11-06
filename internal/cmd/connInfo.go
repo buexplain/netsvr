@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
@@ -38,7 +38,7 @@ func ConnInfo(param []byte, processor *workerManager.ConnProcessor) {
 		if conn == nil {
 			continue
 		}
-		session, ok := conn.Session().(*info.Info)
+		session, ok := conn.SessionWithLock().(*info.Info)
 		if !ok {
 			continue
 		}

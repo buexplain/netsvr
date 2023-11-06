@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"

@@ -18,8 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -65,11 +64,7 @@ func (sign) SignInForForge(tf *netsvrProtocol.Transfer, _ string, processor *con
 	//伪造的session值，存粹是为了模拟正常业务的数据大小
 	ret.NewSession = forgeSession
 	ret.Data = testUtils.NewResponse(protocol.RouterSignInForForge, map[string]interface{}{"code": 0, "message": "登录成功", "data": userDb.ClientInfo{UniqId: ret.NewUniqId}})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ConnInfoUpdate
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoUpdate)
 }
 
 func (sign) SignOutForForge(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
@@ -80,11 +75,7 @@ func (sign) SignOutForForge(tf *netsvrProtocol.Transfer, _ string, processor *co
 	ret.DelSession = true
 	ret.DelTopic = true
 	ret.Data = testUtils.NewResponse(protocol.RouterSignOutForForge, map[string]interface{}{"code": 0, "message": "退出登录成功"})
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ConnInfoDelete
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoDelete)
 }
 
 // SignIn 登录
@@ -118,17 +109,12 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string, processor *connPro
 		ret.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 0, "message": "登录成功", "data": data})
 	}
 	//回写给网关服务器
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_ConnInfoUpdate
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoUpdate)
 }
 
 // SignOut 退出登录
 func (sign) SignOut(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
 	currentUser := userDb.ParseNetSvrInfo(tf.Session)
-	router := &netsvrProtocol.Router{}
 	if currentUser != nil {
 		user := userDb.Collect.GetUserById(currentUser.Id)
 		if user != nil {
@@ -140,10 +126,7 @@ func (sign) SignOut(tf *netsvrProtocol.Transfer, _ string, processor *connProces
 			ret.DelSession = true
 			ret.DelTopic = true
 			ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 0, "message": "退出登录成功"})
-			router.Cmd = netsvrProtocol.Cmd_ConnInfoDelete
-			router.Data, _ = proto.Marshal(ret)
-			pt, _ := proto.Marshal(router)
-			processor.Send(pt)
+			processor.Send(ret, netsvrProtocol.Cmd_ConnInfoDelete)
 			return
 		}
 	}
@@ -151,8 +134,5 @@ func (sign) SignOut(tf *netsvrProtocol.Transfer, _ string, processor *connProces
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
 	ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 1, "message": "您已经是退出登录状态！"})
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

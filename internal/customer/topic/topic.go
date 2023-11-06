@@ -18,7 +18,7 @@
 package topic
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/internal/utils/slicePool"
 	"sync"
 )

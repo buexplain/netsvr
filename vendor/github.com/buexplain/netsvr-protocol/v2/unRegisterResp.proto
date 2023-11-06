@@ -14,21 +14,14 @@
 * limitations under the License.
  */
 
-package cmd
+syntax = "proto3";
 
-import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"netsvr/test/business/internal/connProcessor"
-)
+package netsvr.unRegisterResp;
 
-type unregister struct{}
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-var Unregister = unregister{}
-
-func (r unregister) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterWorkerCmd(netsvrProtocol.Cmd_Unregister, r.UnregisterWorkerOk)
-}
-
-func (unregister) UnregisterWorkerOk(_ []byte, processor *connProcessor.ConnProcessor) {
-	processor.UnregisterWorkerOk()
+//business向worker请求，worker响应取消注册的结果
+message UnRegisterResp {
 }

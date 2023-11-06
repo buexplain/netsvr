@@ -14,35 +14,16 @@
 * limitations under the License.
  */
 
-package objPool
+syntax = "proto3";
 
-import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"sync"
-)
+package netsvr.unRegisterReq;
 
-type router struct {
-	pool *sync.Pool
-}
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-var Router *router
-
-func (r *router) Get() *netsvrProtocol.Router {
-	return r.pool.Get().(*netsvrProtocol.Router)
-}
-
-func (r *router) Put(router *netsvrProtocol.Router) {
-	router.Cmd = 0
-	router.Data = nil
-	r.pool.Put(router)
-}
-
-func init() {
-	Router = &router{
-		pool: &sync.Pool{
-			New: func() any {
-				return &netsvrProtocol.Router{}
-			},
-		},
-	}
+//business向worker请求，取消一个已经被注册的连接
+message UnRegisterReq {
+  int32 workerId = 1;
+  string registerId = 2;
 }

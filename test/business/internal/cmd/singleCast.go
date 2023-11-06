@@ -19,8 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/netsvr"
-	"google.golang.org/protobuf/proto"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -71,11 +70,7 @@ func (singleCast) ForUserId(tf *netsvrProtocol.Transfer, param string, processor
 		msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
 		ret.Data = testUtils.NewResponse(protocol.RouterSingleCastForUserId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	}
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }
 
 // SingleCastForUniqIdParam 客户端发送的单播信息
@@ -104,9 +99,5 @@ func (singleCast) ForUniqId(tf *netsvrProtocol.Transfer, param string, processor
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
 	ret.Data = testUtils.NewResponse(protocol.RouterSingleCastForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	//发到网关
-	router := &netsvrProtocol.Router{}
-	router.Cmd = netsvrProtocol.Cmd_SingleCast
-	router.Data, _ = proto.Marshal(ret)
-	pt, _ := proto.Marshal(router)
-	processor.Send(pt)
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }
