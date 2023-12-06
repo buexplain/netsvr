@@ -32,14 +32,16 @@ for i in "${!system[@]}"; do
     echo "building ${system[$i]} ${cpu[$j]}"
     export "GOARCH=${cpu[$j]}"
     export "GOOS=${system[$i]}"
+    # 删除编译缓存
+    go clean -cache
     if [ -f "$current_dir/${system[$i]}/${cpu[$j]}-cpu.pprof" ]; then
       # 关于pgo，请移步：https://go.dev/doc/pgo
-      go build -trimpath -pgo="$current_dir/${system[$i]}/${cpu[$j]}-cpu.pprof" -ldflags "-s -w -X 'netsvr/configs.BuildVersion=${build_version}' -X 'netsvr/configs.BuildGoVersion=${go_version}' -X 'netsvr/configs.BuildTimestamp=${current_timestamp}'" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
+      go build -a -trimpath -pgo="$current_dir/${system[$i]}/${cpu[$j]}-cpu.pprof" -ldflags "-s -w -X 'netsvr/configs.BuildVersion=${build_version}' -X 'netsvr/configs.BuildGoVersion=${go_version}' -X 'netsvr/configs.BuildTimestamp=${current_timestamp}'" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
     else
-      go build -trimpath -ldflags "-s -w -X 'netsvr/configs.BuildVersion=${build_version}' -X 'netsvr/configs.BuildGoVersion=${go_version}' -X 'netsvr/configs.BuildTimestamp=${current_timestamp}'" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
+      go build -a -trimpath -ldflags "-s -w -X 'netsvr/configs.BuildVersion=${build_version}' -X 'netsvr/configs.BuildGoVersion=${go_version}' -X 'netsvr/configs.BuildTimestamp=${current_timestamp}'" -o "$build_dir/${system[$i]}/netsvr-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../cmd/netsvr.go"
     fi
-    go build -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/business-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../test/business/cmd/business.go"
-    go build -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/stress-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../test/stress/cmd/stress.go"
+    go build -a -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/business-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../test/business/cmd/business.go"
+    go build -a -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/stress-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../test/stress/cmd/stress.go"
     # 拷贝配置文件
     mkdir -p "$build_dir/${system[$i]}/configs/"
     cp "$current_dir/../configs/netsvr.example.toml" "$build_dir/${system[$i]}/configs/netsvr.toml"

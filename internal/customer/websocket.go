@@ -246,6 +246,7 @@ func onClose(conn *websocket.Conn, _ error) {
 	topic.Topic.DelByMap(topics, uniqId, "")
 	//释放锁
 	session.MuxUnLock()
+	log.Logger.Debug().Str("uniqId", uniqId).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Customer websocket close")
 	//连接关闭消息回传给business
 	if configs.Config.Customer.ConnCloseWorkerId == 0 {
 		//配置为0，表示当前业务不关心连接的关闭信息
