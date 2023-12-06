@@ -16,7 +16,7 @@
 
 syntax = "proto3";
 
-package netsvr.router;
+package netsvr.cmd;
 
 option go_package = "netsvr/";
 option php_namespace = "Netsvr";
