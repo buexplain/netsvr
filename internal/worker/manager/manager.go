@@ -55,6 +55,9 @@ func (r *collect) Set(conn *ConnProcessor) {
 }
 
 func (r *collect) Del(registerId string) bool {
+	if registerId == "" {
+		return false
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for k, v := range r.conn {

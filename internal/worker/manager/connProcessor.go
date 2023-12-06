@@ -215,10 +215,8 @@ func (r *ConnProcessor) LoopReceive() {
 	defer func() {
 		//关闭数据管道，不再生产数据进去，让消费者协程退出
 		close(r.receiveCh)
-		//也许business没有主动发送注销指令，只是关闭了连接，所以这里必须去操作一次注销函数，确保business连接从连接管理器中移除，不再接受的数据转发
-		if unregisterWorker, ok := r.cmdCallback[netsvrProtocol.Cmd_Unregister]; ok {
-			unregisterWorker(nil, r)
-		}
+		//也许business没有主动发送注销指令，只是关闭了连接，所以这里必须确保business连接从连接管理器中移除，不再接受的数据转发
+		Manager.Del(r.workerId, r.registerId)
 		//打印日志信息
 		if err := recover(); err != nil {
 			log.Logger.Error().Stack().Err(nil).Type("recoverType", err).Interface("recover", err).Msg("Worker receive coroutine is closed")
