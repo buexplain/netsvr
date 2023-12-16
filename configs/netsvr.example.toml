@@ -10,11 +10,11 @@ ShutdownWaitTime = "5s"
 PprofListenAddress = "127.0.0.1:6062"
 # business的限流器
 Limit = [
-    # 表示网关每秒最多向workerId为1的business转发10000次客户发送的数据或连接打开的数据
-    { workerIds = [1], concurrency = 10000, name = "1" },
-    # 表示网关每秒最多向workerId为{2,3,4,5}的这批business转发1000次客户发送的数据或连接打开的数据
-    # 注意不是每个workerId都1000，而是这批workerId加起来才1000，因为这批workerId共用一个限流器
-    { workerIds = [2, 3, 4, 5], concurrency = 1000, name = "2-5" }
+    # 表示网关每秒最多向workerId为1的business转发100000次客户发送的数据或连接打开的数据
+    { workerIds = [1], concurrency = 100000, name = "1" },
+    # 表示网关每秒最多向workerId为{2,3,4,5}的这批business转发100000次客户发送的数据或连接打开的数据
+    # 注意不是每个workerId都100000，而是这批workerId加起来才100000，因为这批workerId共用一个限流器
+    { workerIds = [2, 3, 4, 5], concurrency = 100000, name = "2-5" }
 ]
 # 客户服务器配置
 [Customer]
