@@ -18,10 +18,10 @@ import (
 
 // Start init and start pollers.
 func (g *Engine) Start() error {
-	udpListeners := make([]*net.UDPConn, len(g.addrs))[0:0]
-	switch g.network {
+	udpListeners := make([]*net.UDPConn, len(g.Addrs))[0:0]
+	switch g.Network {
 	case "tcp", "tcp4", "tcp6":
-		for i := range g.addrs {
+		for i := range g.Addrs {
 			ln, err := newPoller(g, true, i)
 			if err != nil {
 				for j := 0; j < i; j++ {
@@ -29,31 +29,31 @@ func (g *Engine) Start() error {
 				}
 				return err
 			}
-			g.addrs[i] = ln.listener.Addr().String()
+			g.Addrs[i] = ln.listener.Addr().String()
 			g.listeners = append(g.listeners, ln)
 		}
 	case "udp", "udp4", "udp6":
-		for i, addrStr := range g.addrs {
-			addr, err := net.ResolveUDPAddr(g.network, addrStr)
+		for i, addrStr := range g.Addrs {
+			addr, err := net.ResolveUDPAddr(g.Network, addrStr)
 			if err != nil {
 				for j := 0; j < i; j++ {
 					udpListeners[j].Close()
 				}
 				return err
 			}
-			ln, err := g.listenUDP("udp", addr)
+			ln, err := g.ListenUDP("udp", addr)
 			if err != nil {
 				for j := 0; j < i; j++ {
 					udpListeners[j].Close()
 				}
 				return err
 			}
-			g.addrs[i] = ln.LocalAddr().String()
+			g.Addrs[i] = ln.LocalAddr().String()
 			udpListeners = append(udpListeners, ln)
 		}
 	}
 
-	for i := 0; i < g.pollerNum; i++ {
+	for i := 0; i < g.NPoller; i++ {
 		p, err := newPoller(g, false, i)
 		if err != nil {
 			for j := 0; j < len(g.listeners); j++ {
@@ -68,7 +68,7 @@ func (g *Engine) Start() error {
 		g.pollers[i] = p
 	}
 
-	for i := 0; i < g.pollerNum; i++ {
+	for i := 0; i < g.NPoller; i++ {
 		g.Add(1)
 		go g.pollers[i].start()
 	}
@@ -98,10 +98,10 @@ func (g *Engine) Start() error {
 
 	// g.Timer.Start()
 
-	if len(g.addrs) == 0 {
-		logging.Info("NBIO[%v] start", g.Name)
+	if len(g.Addrs) == 0 {
+		logging.Info("NBIO Engine[%v] start", g.Name)
 	} else {
-		logging.Info("NBIO[%v] start listen on: [\"%v@%v\"]", g.Name, g.network, strings.Join(g.addrs, `", "`))
+		logging.Info("NBIO Engine[%v] start listen on: [\"%v@%v\"]", g.Name, g.Network, strings.Join(g.Addrs, `", "`))
 	}
 	return nil
 }
@@ -126,28 +126,18 @@ func NewEngine(conf Config) *Engine {
 	}
 
 	g := &Engine{
-		Timer:              timer.New(conf.Name, conf.TimerExecute),
-		Name:               conf.Name,
-		network:            conf.Network,
-		addrs:              conf.Addrs,
-		listen:             conf.Listen,
-		listenUDP:          conf.ListenUDP,
-		pollerNum:          conf.NPoller,
-		readBufferSize:     conf.ReadBufferSize,
-		maxWriteBufferSize: conf.MaxWriteBufferSize,
-		udpReadTimeout:     conf.UDPReadTimeout,
-		lockListener:       conf.LockListener,
-		lockPoller:         conf.LockPoller,
-		listeners:          make([]*poller, len(conf.Addrs))[0:0],
-		pollers:            make([]*poller, conf.NPoller),
-		connsStd:           map[*Conn]struct{}{},
+		Config:    conf,
+		Timer:     timer.New(conf.Name),
+		listeners: make([]*poller, len(conf.Addrs))[0:0],
+		pollers:   make([]*poller, conf.NPoller),
+		connsStd:  map[*Conn]struct{}{},
 	}
 
 	g.initHandlers()
 
 	g.OnReadBufferAlloc(func(c *Conn) []byte {
 		if c.ReadBuffer == nil {
-			c.ReadBuffer = make([]byte, g.readBufferSize)
+			c.ReadBuffer = make([]byte, g.ReadBufferSize)
 		}
 		return c.ReadBuffer
 	})

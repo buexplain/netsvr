@@ -1,9 +1,9 @@
 # NBIO - NON-BLOCKING IO
 
 
-[![Slack][1]][2]
+<!-- [![Slack][1]][2] -->
 
-[![Mentioned in Awesome Go][3]][4] [![MIT licensed][5]][6] [![Go Version][7]][8] [![Build Status][9]][10] [![Go Report Card][11]][12] [![Coverage Statusd][13]][14]
+[![Mentioned in Awesome Go][3]][4] [![MIT licensed][5]][6] [![Go Version][7]][8] [![Build Status][9]][10] [![Go Report Card][11]][12]
 
 [1]: https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=green
 [2]: https://join.slack.com/t/arpcnbio/shared_invite/zt-vh3g1z2v-qqoDp1hQ45fJZqwPrSz4~Q
@@ -32,19 +32,23 @@
 		- [Protocols Supported](#protocols-supported)
 		- [Interfaces](#interfaces)
 	- [Quick Start](#quick-start)
-	- [TCP Echo Examples](#tcp-echo-examples)
-	- [UDP Echo Examples](#udp-echo-examples)
-	- [TLS Examples](#tls-examples)
-	- [HTTP Examples](#http-examples)
-	- [HTTPS Examples](#https-examples)
-	- [Websocket Examples](#websocket-examples)
-	- [Websocket TLS Examples](#websocket-tls-examples)
-	- [Use With Other STD Based Frameworkds](#use-with-other-std-based-frameworkds)
+	- [Examples](#examples)
+		- [TCP Echo Examples](#tcp-echo-examples)
+		- [UDP Echo Examples](#udp-echo-examples)
+		- [TLS Examples](#tls-examples)
+		- [HTTP Examples](#http-examples)
+		- [HTTPS Examples](#https-examples)
+		- [Websocket Examples](#websocket-examples)
+		- [Websocket TLS Examples](#websocket-tls-examples)
+		- [Use With Other STD Based Frameworkds](#use-with-other-std-based-frameworkds)
+		- [More Examples](#more-examples)
+	- [1M Websocket Connections Benchmark](#1m-websocket-connections-benchmark)
 	- [Magics For HTTP and Websocket](#magics-for-http-and-websocket)
 		- [Different IOMod](#different-iomod)
 		- [Using Websocket With Std Server](#using-websocket-with-std-server)
-	- [More Examples](#more-examples)
 	- [Credits](#credits)
+	- [Contributors](#contributors)
+	- [Star History](#star-history)
 
 ## Features
 ### Cross Platform
@@ -106,56 +110,132 @@ func main() {
 }
 ```
 
-## TCP Echo Examples
+## Examples
+### TCP Echo Examples
 
 - [echo-server](https://github.com/lesismal/nbio_examples/blob/master/echo/server/server.go)
 - [echo-client](https://github.com/lesismal/nbio_examples/blob/master/echo/client/client.go)
 
-## UDP Echo Examples
+### UDP Echo Examples
 
 - [udp-server](https://github.com/lesismal/nbio-examples/blob/master/udp/server/server.go)
 - [udp-client](https://github.com/lesismal/nbio-examples/blob/master/udp/client/client.go)
 
-## TLS Examples
+### TLS Examples
 
 - [tls-server](https://github.com/lesismal/nbio_examples/blob/master/tls/server/server.go)
 - [tls-client](https://github.com/lesismal/nbio_examples/blob/master/tls/client/client.go)
 
-## HTTP Examples
+### HTTP Examples
 
 - [http-server](https://github.com/lesismal/nbio_examples/blob/master/http/server/server.go)
 - [http-client](https://github.com/lesismal/nbio_examples/blob/master/http/client/client.go)
 
-## HTTPS Examples
+### HTTPS Examples
 
 - [http-tls_server](https://github.com/lesismal/nbio_examples/blob/master/http/server_tls/server.go)
 - visit: https://localhost:8888/echo
 
-## Websocket Examples
+### Websocket Examples
 
 - [websocket-server](https://github.com/lesismal/nbio_examples/blob/master/websocket/server/server.go)
 - [websocket-client](https://github.com/lesismal/nbio_examples/blob/master/websocket/client/client.go)
 
-## Websocket TLS Examples
+### Websocket TLS Examples
 
 - [websocket-tls-server](https://github.com/lesismal/nbio_examples/blob/master/websocket_tls/server/server.go)
 - [websocket-tls-client](https://github.com/lesismal/nbio_examples/blob/master/websocket_tls/client/client.go)
 
-## Use With Other STD Based Frameworkds
+### Use With Other STD Based Frameworkds
 
 - [echo-http-and-websocket-server](https://github.com/lesismal/nbio_examples/blob/master/http_with_other_frameworks/echo_server/echo_server.go)
 - [gin-http-and-websocket-server](https://github.com/lesismal/nbio_examples/blob/master/http_with_other_frameworks/gin_server/gin_server.go)
 - [go-chi-http-and-websocket-server](https://github.com/lesismal/nbio_examples/blob/master/http_with_other_frameworks/go-chi_server/go-chi_server.go)
 
+### More Examples
+
+- [nbio-examples](https://github.com/lesismal/nbio-examples)
+
+
+
+## 1M Websocket Connections Benchmark
+
+For more details: [go-websocket-benchmark](https://github.com/lesismal/go-websocket-benchmark)
+
+```sh
+# lsb_release -a
+LSB Version:    core-11.1.0ubuntu2-noarch:security-11.1.0ubuntu2-noarch
+Distributor ID: Ubuntu
+Description:    Ubuntu 20.04.6 LTS
+Release:        20.04
+Codename:       focal
+
+# free
+              total        used        free      shared  buff/cache   available
+Mem:       24969564    15656352     3422212        1880     5891000     8899604
+Swap:             0           0           0
+
+# cat /proc/cpuinfo | grep processor
+processor       : 0
+processor       : 1
+processor       : 2
+processor       : 3
+processor       : 4
+processor       : 5
+processor       : 6
+processor       : 7
+processor       : 8
+processor       : 9
+processor       : 10
+processor       : 11
+processor       : 12
+processor       : 13
+processor       : 14
+processor       : 15
+
+
+# taskset
+run nbio_nonblocking server on cpu 0-7
+
+--------------------------------------------------------------
+BenchType  : BenchEcho
+Framework  : nbio_nonblocking
+TPS        : 104713
+EER        : 280.33
+Min        : 56.90us
+Avg        : 95.36ms
+Max        : 2.29s
+TP50       : 62.82ms
+TP75       : 65.38ms
+TP90       : 89.38ms
+TP95       : 409.55ms
+TP99       : 637.95ms
+Used       : 47.75s
+Total      : 5000000
+Success    : 5000000
+Failed     : 0
+Conns      : 1000000
+Concurrency: 10000
+Payload    : 1024
+CPU Min    : 0.00%
+CPU Avg    : 373.53%
+CPU Max    : 602.33%
+MEM Min    : 978.70M
+MEM Avg    : 979.88M
+MEM Max    : 981.14M
+--------------------------------------------------------------
+```
+
+
 ## Magics For HTTP and Websocket
 
 ### Different IOMod
 
-| IOMod            |                                                                                                                  Remarks                                                                                                                   |
-| ---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| IOModNonBlocking |                                                         There's no difference between this IOMod and the old version with no IOMod. All the connections will be handled by poller.                                                         |
-| IOModBlocking    | All the connections will be handled by at least one goroutine, for websocket, we can set Upgrader.BlockingModAsyncWrite=true to handle writting with a separated goroutine and then avoid Head-of-line blocking on broadcasting scenarios. |
-| IOModMixed       |                   We set the Engine.MaxBlockingOnline, if the online num is smaller than it, the new connection will be handled by single goroutine as IOModBlocking, else the new connection will be handled by poller.                   |
+| IOMod            |                                                                                                                  Remarks                                                                                                                  |
+| ---------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| IOModNonBlocking |                                                        There's no difference between this IOMod and the old version with no IOMod. All the connections will be handled by poller.                                                         |
+| IOModBlocking    | All the connections will be handled by at least one goroutine, for websocket, we can set Upgrader.BlockingModAsyncWrite=true to handle writing with a separated goroutine and then avoid Head-of-line blocking on broadcasting scenarios. |
+| IOModMixed       |                  We set the Engine.MaxBlockingOnline, if the online num is smaller than it, the new connection will be handled by single goroutine as IOModBlocking, else the new connection will be handled by poller.                   |
 
 The `IOModBlocking` aims to improve the performance for low online service, it runs faster than std. 
 The `IOModMixed` aims to keep a balance between performance and cpu/mem cost in different scenarios: when there are not too many online connections, it performs better than std, or else it can serve lots of online connections and keep healthy.
@@ -212,12 +292,33 @@ func main() {
 }
 ```
 
-## More Examples
-
-- [nbio-examples](https://github.com/lesismal/nbio-examples)
-
 
 ## Credits
 - [xtaci/gaio](https://github.com/xtaci/gaio)
 - [gorilla/websocket](https://github.com/gorilla/websocket)
 - [crossbario/autobahn](https://github.com/crossbario)
+
+
+## Contributors
+Thanks Everyone:
+- [acgreek](https://github.com/acgreek)
+- [arunsathiya](https://github.com/arunsathiya)
+- [guonaihong](https://github.com/guonaihong)
+- [isletnet](https://github.com/isletnet)
+- [liwnn](https://github.com/liwnn)
+- [manjun21](https://github.com/manjun21)
+- [om26er](https://github.com/om26er)
+- [rfyiamcool](https://github.com/rfyiamcool)
+- [sunny352](https://github.com/sunny352)
+- [sunvim](https://github.com/sunvim)
+- [wuqinqiang](https://github.com/wuqinqiang)
+- [wziww](https://github.com/wziww)
+- [youzhixiaomutou](https://github.com/youzhixiaomutou)
+- [zbh255](https://github.com/zbh255)
+- [IceflowRE](https://github.com/IceflowRE)
+- [YanKawaYu](https://github.com/YanKawaYu)
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=lesismal/nbio&type=Date)](https://star-history.com/#lesismal/nbio&Date)

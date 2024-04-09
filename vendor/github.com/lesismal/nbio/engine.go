@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/lesismal/nbio/logging"
+	"github.com/lesismal/nbio/taskpool"
 	"github.com/lesismal/nbio/timer"
 )
 
@@ -78,14 +79,14 @@ type Config struct {
 	// UDPReadTimeout sets the timeout for udp sessions.
 	UDPReadTimeout time.Duration
 
-	// TimerExecute sets the executor for timer callbacks.
-	TimerExecute func(f func())
-
 	// Listen is used to create listener for Engine.
 	Listen func(network, addr string) (net.Listener, error)
 
 	// ListenUDP is used to create udp listener for Engine.
 	ListenUDP func(network string, laddr *net.UDPAddr) (*net.UDPConn, error)
+
+	AsyncRead bool
+	IOExecute func(f func([]byte))
 }
 
 // Gopher keeps old type to compatible with new name Engine.
@@ -97,32 +98,16 @@ func NewGopher(conf Config) *Gopher {
 
 // Engine is a manager of poller.
 type Engine struct {
+	Config
 	*timer.Timer
 	sync.WaitGroup
 
-	Name string
+	Execute func(f func())
+	mux     sync.Mutex
 
-	Execute      func(f func())
-	TimerExecute func(f func())
-
-	mux sync.Mutex
+	isOneshot bool
 
 	wgConn sync.WaitGroup
-
-	network   string
-	addrs     []string
-	listen    func(network, addr string) (net.Listener, error)
-	listenUDP func(network string, laddr *net.UDPAddr) (*net.UDPConn, error)
-
-	pollerNum                    int
-	readBufferSize               int
-	maxWriteBufferSize           int
-	maxConnReadTimesPerEventLoop int
-	udpReadTimeout               time.Duration
-	epollMod                     uint32
-	epollOneshot                 uint32
-	lockListener                 bool
-	lockPoller                   bool
 
 	connsStd  map[*Conn]struct{}
 	connsUnix []*Conn
@@ -134,13 +119,15 @@ type Engine struct {
 	onClose           func(c *Conn, err error)
 	onRead            func(c *Conn)
 	onData            func(c *Conn, data []byte)
+	onWrittenSize     func(c *Conn, b []byte, n int)
 	onReadBufferAlloc func(c *Conn) []byte
 	onReadBufferFree  func(c *Conn, buffer []byte)
-	// onWriteBufferFree func(c *Conn, buffer []byte)
-	beforeRead  func(c *Conn)
-	afterRead   func(c *Conn)
-	beforeWrite func(c *Conn)
-	onStop      func()
+	beforeRead        func(c *Conn)
+	afterRead         func(c *Conn)
+	beforeWrite       func(c *Conn)
+	onStop            func()
+
+	ioTaskPool *taskpool.IOTaskPool
 }
 
 // Stop closes listeners/pollers/conns/timer.
@@ -180,7 +167,11 @@ func (g *Engine) Stop() {
 
 	g.Timer.Stop()
 
-	for i := 0; i < g.pollerNum; i++ {
+	if g.ioTaskPool != nil {
+		g.ioTaskPool.Stop()
+	}
+
+	for i := 0; i < g.NPoller; i++ {
 		g.pollers[i].stop()
 	}
 
@@ -251,6 +242,16 @@ func (g *Engine) OnData(h func(c *Conn, data []byte)) {
 		panic("invalid nil handler")
 	}
 	g.onData = h
+}
+
+// OnWrittenSize registers callback for written size.
+// If len(b) is bigger than 0, it represents that it's writing a buffer,
+// else it's operating by Sendfile.
+func (g *Engine) OnWrittenSize(h func(c *Conn, b []byte, n int)) {
+	if h == nil {
+		panic("invalid nil handler")
+	}
+	g.onWrittenSize = h
 }
 
 // OnReadBufferAlloc registers callback for memory allocating.
