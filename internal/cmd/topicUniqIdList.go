@@ -17,9 +17,8 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -33,7 +32,11 @@ func TopicUniqIdList(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &netsvrProtocol.TopicUniqIdListResp{Items: map[string]*netsvrProtocol.TopicUniqIdListRespItem{}}
-	ret.ServerId = int32(configs.Config.ServerId)
-	topic.Topic.GetToProtocolTopicUniqIdListResp(ret, payload.Topics)
+	topicUniqIds := topic.Topic.GetUniqIdsByTopics(payload.Topics)
+	for tpc, uniqIds := range topicUniqIds {
+		item := &netsvrProtocol.TopicUniqIdListRespItem{}
+		item.UniqIds = uniqIds
+		ret.Items[tpc] = item
+	}
 	processor.Send(ret, netsvrProtocol.Cmd_TopicUniqIdList)
 }

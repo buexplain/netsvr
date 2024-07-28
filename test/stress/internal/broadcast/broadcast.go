@@ -38,8 +38,8 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("broadcast running")
-	if configs.Config.Broadcast.MessageInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.Broadcast.MessageInterval 必须是个大于0的值")
+	if configs.Config.Broadcast.SendInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Broadcast.SendInterval 必须是个大于0的值")
 		return
 	}
 	message := "我是一条广播信息"
@@ -54,7 +54,7 @@ func Run(wg *sync.WaitGroup) {
 				ws.OnMessage = nil
 			})
 			if ws != nil {
-				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.MessageInterval), func() {
+				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.SendInterval), func() {
 					ws.Send(protocol.RouterBroadcast, data)
 				})
 			}

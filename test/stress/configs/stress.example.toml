@@ -2,12 +2,10 @@
 LogLevel = "debug"
 # customer服务的websocket连接地址
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
+# 客户端websocket发送的心跳消息
+CustomerHeartbeatMessage = "~6YOt5rW35piO~"
 # worker服务的监听地址
 WorkerListenAddress = "127.0.0.1:6061"
-# 该值与netsvr.toml的配置保持一致
-ConnOpenCustomUniqIdKey = ""
-# 表示消息被哪个workerId的业务进程处理
-WorkerId = 1
 # 每个连接间隔多少秒进行心跳
 Heartbeat = 30
 # 是否并发初始化每个压测模块
@@ -19,75 +17,127 @@ Suspend = 180
 Enable = true
 Step = [
     #每个阶段初始化的连接数、每秒初始化的连接数、本阶段初始化完毕后的暂停秒数
-    { ConnNum = 600, ConnectNum = 100, Suspend = 20 },
-    { ConnNum = 600, ConnectNum = 100, Suspend = 20 },
-    { ConnNum = 800, ConnectNum = 100, Suspend = 20 },
+    { ConnNum = 600, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 600, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 800, ConnectNum = 100, Suspend = 10 },
 ]
+[Silent.SignIn]
+# 是否让每个沉默的连接都进行登录操作
+Enable = true
+# 模拟登录后订阅的主题个数
+TopicNum = 10
+# 模拟登录后存储的session长度
+SessionLen = 1024
 
 # 疯狂登录登出的连接
 [Sign]
 Enable = true
+# 模拟登录后订阅的主题个数
+TopicNum = 10
+# 模拟登录后存储的session长度
+SessionLen = 1024
 # 每个连接间隔多少秒进行一次登录、登出操作
-MessageInterval = 5
+SendInterval = 5
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
 ]
 
-# 疯狂单播的连接
+# 疯狂按uniqId单播的连接
 [SingleCast]
 Enable = true
 # 单播时发送的消息大小
-MessageLen = 128
+MessageLen = 1024
 # 每个连接间隔多少秒进行一次单播操作
-MessageInterval = 5
+SendInterval = 5
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
 ]
 
-# 疯狂批量单播的连接
+# 疯狂按customerId单播的连接
+[SingleCastByCustomerId]
+Enable = true
+# 单播时发送的消息大小
+MessageLen = 1024
+# 每个连接间隔多少秒进行一次单播操作
+SendInterval = 5
+Step = [
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+]
+
+# 疯狂按uniqId批量单播的连接
 [SingleCastBulk]
 Enable = true
-MessageLen = 256
+MessageLen = 1024
 # 一组包含的uniqId数量
 UniqIdNum = 15
 # 每个连接间隔多少秒进行一次批量单播操作
-MessageInterval = 5
+SendInterval = 5
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
 ]
 
-# 疯狂组播的连接
+# 疯狂按customerId批量单播的连接
+[SingleCastBulkByCustomerId]
+Enable = true
+MessageLen = 1024
+# 一组包含的customerId数量
+CustomerIdNum = 10
+# 每个连接间隔多少秒进行一次批量单播操作
+SendInterval = 5
+Step = [
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+]
+
+# 疯狂按uniqId组播的连接
 [Multicast]
 Enable = true
-MessageLen = 256
+MessageLen = 1024
 # 一组包含的uniqId数量
-UniqIdNum = 15
+UniqIdNum = 10
 # 每个连接间隔多少秒进行一次组播操作
-MessageInterval = 5
+SendInterval = 5
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+]
+
+# 疯狂按customerId组播的连接
+[MulticastByCustomerId]
+Enable = true
+MessageLen = 1024
+# 一组包含的customerId数量
+CustomerIdNum = 10
+# 每个连接间隔多少秒进行一次组播操作
+SendInterval = 5
+Step = [
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂订阅、取消订阅、发布，下面这套配置下，主题总数是1225个主题，平均每个主题被80个连接订阅，当然因为机器性能、网络等原因，实际订阅数可能不一样
 [Topic]
 Enable = true
 # 每个连接的备选主题数量，该值是随机产生的，该值越大，则一个主题会被多个连接订阅的概率越小
-AlternateTopicNum = 600
+AlternateTopicNum = 500
 # 主题字符串的长度，n=4有不少于1679616种结果 n=3有不少于46656种结果，n=2有不少于1296种结果，n=1有不少于36种结果，该值越大，则一个主题会被多个连接订阅的概率越小
 AlternateTopicLen = 2
 # 连接建立的步骤
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 60 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 60 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
 ]
 [Topic.Subscribe]
 # 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
@@ -95,7 +145,7 @@ Mode = 1
 # 延长或间隔的秒数
 ModeSecond = 5
 # 每次订阅的主题数量，该值是轮询AlternateTopicNum得到的，第零个主题一定会被订阅
-TopicNum = 100
+TopicNum = 150
 [Topic.Unsubscribe]
 # 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
 Mode = 1
@@ -105,7 +155,7 @@ ModeSecond = 5
 TopicNum = 50
 [Topic.Publish]
 # 发布数据的大小
-MessageLen = 512
+MessageLen = 1024
 # 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
 Mode = 1
 # 延长或间隔的秒数
@@ -114,22 +164,22 @@ ModeSecond = 5
 TopicNum = 1
 [Topic.PublishBulk]
 # 发布数据的大小
-MessageLen = 512
+MessageLen = 1024
 # 运行模式 0 延长多少秒执行，1 间隔多少秒执行一次
 Mode = 1
 # 延长或间隔的秒数
 ModeSecond = 5
 # 每次发布消息的主题数量，该值是轮询AlternateTopicNum得到的，但是连接订阅的第零个主题是一定会被用于消息发布的
-TopicNum = 1
+TopicNum = 10
 
 # 疯狂广播的连接
 [Broadcast]
 Enable = true
 MessageLen = 1024
 # 每个连接间隔多少秒进行一次广播操作
-MessageInterval = 5
+SendInterval = 5
 Step = [
-    { ConnNum = 2, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 4, ConnectNum = 10, Suspend = 60 },
-    { ConnNum = 6, ConnectNum = 10, Suspend = 60 },
+    { ConnNum = 3, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 3, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 4, ConnectNum = 100, Suspend = 10 },
 ]

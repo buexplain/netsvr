@@ -19,30 +19,35 @@ package configs
 import (
 	"flag"
 	"github.com/BurntSushi/toml"
-	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
+	"log/slog"
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
 )
+
+type BytesConfigItem []byte
+
+func (r *BytesConfigItem) UnmarshalText(text []byte) error {
+	*r = text
+	return nil
+}
 
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
 	//worker服务的监听地址
 	WorkerListenAddress string
-	//网关服务唯一编号，如果配置不对，网关会拒绝连接
-	ServerId uint32
 	//customer服务的websocket连接地址
 	ClientListenAddress string
-	//该值与netsvr.toml的配置保持一致
-	ConnOpenCustomUniqIdKey string
 	//输出客户端界面的http服务的监听地址
 	CustomerWsAddress string
 	//让worker为我开启n条协程来处理我的请求
 	ProcessCmdGoroutineNum int
-	//业务进程注册到网关的工作id
-	WorkerId int32
+	//客户端websocket发送的心跳消息
+	CustomerHeartbeatMessage BytesConfigItem
+	//business进程向网关的worker服务器发送的心跳消息
+	WorkerHeartbeatMessage BytesConfigItem
 }
 
 func (r *config) GetLogLevel() zerolog.Level {
@@ -68,16 +73,13 @@ func init() {
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("Read business.toml failed：%s", err)
+		slog.Error("Read business.toml failed", "error", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
-	if metaData, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("Parse business.toml failed：%s", err)
-		os.Exit(1)
-	} else if metaData.IsDefined("ShutdownWaitTime") {
-		logging.Error("Process working directory is error: %s", wd.RootPath)
+	if _, err := toml.Decode(string(c), Config); err != nil {
+		slog.Error("Parse business.toml failed", "error", err)
 		os.Exit(1)
 	}
 	if Config.ProcessCmdGoroutineNum <= 0 {

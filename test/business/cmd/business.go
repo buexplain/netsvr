@@ -19,26 +19,26 @@ package main
 
 import (
 	_ "embed"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	"errors"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"html/template"
 	"net"
 	"net/http"
 	"netsvr/pkg/quit"
+	"netsvr/test/business/assets"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
-	"netsvr/test/business/web"
 	"netsvr/test/pkg/protocol"
-	"netsvr/test/pkg/utils"
+	"netsvr/test/pkg/utils/netSvrPool"
 	"os"
-	"strconv"
 	"strings"
 )
 
 func main() {
 	//初始化连接池
-	utils.InitRequestNetSvrPool(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress)
+	netSvrPool.Init(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress, configs.Config.WorkerHeartbeatMessage)
 	//连接到网关的worker服务器
 	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
 	if err != nil {
@@ -47,13 +47,13 @@ func main() {
 	}
 	//启动html客户端的服务器
 	go clientServer()
-	processor := connProcessor.NewConnProcessor(conn, configs.Config.WorkerId, configs.Config.ServerId)
-	//注册到worker
-	if err = processor.RegisterWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
-		log.Logger.Error().Int32("workerId", processor.GetWorkerId()).Err(err).Msg("注册到worker服务器失败")
+	processor := connProcessor.NewConnProcessor(conn, int32(netsvrProtocol.Event_OnOpen|netsvrProtocol.Event_OnClose|netsvrProtocol.Event_OnMessage))
+	//注册到网关进程的worker服务器
+	if err = processor.RegisterToNetsvrWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
+		log.Logger.Error().Int32("events", processor.GetEvents()).Err(err).Msg("注册到worker服务器失败")
 		os.Exit(1)
 	}
-	log.Logger.Debug().Int32("workerId", processor.GetWorkerId()).Msg("注册到worker服务器成功")
+	log.Logger.Debug().Int32("events", processor.GetEvents()).Msg("注册到worker服务器成功")
 	//注册各种回调函数
 	cmd.CheckOnline.Init(processor)
 	cmd.Broadcast.Init(processor)
@@ -66,8 +66,10 @@ func main() {
 	cmd.ForceOfflineGuest.Init(processor)
 	cmd.Topic.Init(processor)
 	cmd.UniqId.Init(processor)
+	cmd.CustomerId.Init(processor)
 	cmd.Metrics.Init(processor)
 	cmd.Limit.Init(processor)
+	cmd.ConnInfo.Init(processor)
 	//心跳
 	go processor.LoopHeartbeat()
 	//循环处理worker发来的指令
@@ -122,7 +124,8 @@ func clientServer() {
 			_ = c.Close()
 			return true
 		}
-		if e, ok := err.(*net.OpError); ok && strings.Contains(e.Err.Error(), "No connection") {
+		var e *net.OpError
+		if errors.As(err, &e) && (strings.Contains(e.Err.Error(), "No connection") || strings.Contains(e.Err.Error(), "connection refused")) {
 			return false
 		}
 		return true
@@ -132,7 +135,7 @@ func clientServer() {
 		return
 	}
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		t, err := template.New("").Delims("{!", "!}").Parse(web.Client)
+		t, err := template.New("").Delims("{!", "!}").Parse(assets.GetClientHtml())
 		if err != nil {
 			log.Logger.Error().Err(err).Msg("模板解析失败")
 			return
@@ -140,28 +143,12 @@ func clientServer() {
 		data := map[string]interface{}{}
 		//注入连接地址
 		connUrl := configs.Config.CustomerWsAddress
-		if configs.Config.ConnOpenCustomUniqIdKey != "" {
-			resp := &netsvrProtocol.ConnOpenCustomUniqIdTokenResp{}
-			utils.RequestNetSvr(nil, netsvrProtocol.Cmd_ConnOpenCustomUniqIdToken, resp)
-			if strings.Contains(connUrl, "?") {
-				connUrl = connUrl + "&" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
-			} else {
-				connUrl = connUrl + "?" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
-			}
-		}
 		data["conn"] = connUrl
 		//把所有的命令注入到客户端
 		for c, name := range protocol.CmdName {
 			data[name] = int(c)
 		}
-		data["pingMessage"] = string(netsvrProtocol.PingMessage)
-		data["pongMessage"] = string(netsvrProtocol.PongMessage)
-		//如果workerId不够三位数，则补上0
-		workerId := strconv.Itoa(int(configs.Config.WorkerId))
-		for i := len(workerId); i < 3; i++ {
-			workerId = "0" + workerId
-		}
-		data["workerId"] = workerId
+		data["heartbeatMessage"] = string(configs.Config.CustomerHeartbeatMessage)
 		err = t.Execute(writer, data)
 		if err != nil {
 			log.Logger.Error().Msgf("模板输出失败：%s", err)

@@ -20,28 +20,28 @@ package userDb
 import (
 	"encoding/json"
 	testUtils "netsvr/test/pkg/utils"
-	"strconv"
 	"time"
 )
 
 type User struct {
-	Id       int
+	Id       uint32
 	Name     string
 	Password string
 	IsOnline bool
+	UniqId   string
 	Topics   []string
 }
 
 // ClientInfo 返回给客户的信息
 type ClientInfo struct {
-	Id     int    `json:"id"`
+	Id     uint32 `json:"id"`
 	Name   string `json:"name"`
 	UniqId string `json:"uniqId"`
 }
 
 // NetSvrInfo 存储到网关的用户信息
 type NetSvrInfo struct {
-	Id             int
+	Id             uint32
 	Name           string
 	LastUpdateTime time.Time
 }
@@ -78,17 +78,17 @@ func (r User) ToClientInfo() ClientInfo {
 	return ClientInfo{
 		Id:     r.Id,
 		Name:   r.Name,
-		UniqId: strconv.Itoa(r.Id),
+		UniqId: r.UniqId,
 	}
 }
 
 type collect struct {
-	idMap   map[int]*User
+	idMap   map[uint32]*User
 	nameMap map[string]*User
 }
 
-func (r *collect) Add(id int, name string, password string, topics []string) {
-	tmp := &User{id, name, password, false, []string{}}
+func (r *collect) Add(id uint32, name string, password string, topics []string) {
+	tmp := &User{id, name, password, false, "", []string{}}
 	r.idMap[tmp.Id] = tmp
 	r.nameMap[tmp.Name] = tmp
 	for _, v := range topics {
@@ -105,16 +105,16 @@ func (r *collect) GetUser(name string) *User {
 }
 
 // GetUserById 根据用户id查询用户
-func (r *collect) GetUserById(userId int) *User {
+func (r *collect) GetUserById(userId uint32) *User {
 	if ret, ok := r.idMap[userId]; ok {
 		return &(*ret)
 	}
 	return nil
 }
 
-func (r *collect) SetOnline(userId int, online bool) {
+func (r *collect) SetOnlineInfo(userId uint32, uniqId string) {
 	if ret, ok := r.idMap[userId]; ok {
-		ret.IsOnline = online
+		ret.UniqId = uniqId
 	}
 }
 
@@ -122,7 +122,7 @@ func (r *collect) SetOnline(userId int, online bool) {
 var Collect *collect
 
 func init() {
-	Collect = &collect{idMap: map[int]*User{}, nameMap: map[string]*User{}}
+	Collect = &collect{idMap: map[uint32]*User{}, nameMap: map[string]*User{}}
 	Collect.Add(1, "玄德", "123456", []string{"桃园结义", "小品频道"})
 	Collect.Add(2, "云长", "123456", []string{"桃园结义", "相声频道"})
 	Collect.Add(3, "翼德", "123456", []string{"桃园结义", "戏曲频道"})

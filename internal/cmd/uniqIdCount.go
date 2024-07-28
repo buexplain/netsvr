@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
-	"netsvr/configs"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
@@ -28,7 +27,6 @@ import (
 func UniqIdCount(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := objPool.UniqIdCountResp.Get()
 	defer objPool.UniqIdCountResp.Put(ret)
-	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Count = int32(customerManager.Manager.Len())
 	processor.Send(ret, netsvrProtocol.Cmd_UniqIdCount)
 }

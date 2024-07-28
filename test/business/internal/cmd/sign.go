@@ -18,13 +18,15 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
+	"strconv"
 	"strings"
+	"sync/atomic"
 )
 
 type sign struct{}
@@ -44,26 +46,46 @@ type SignInParam struct {
 	Password string
 }
 
-// 一个伪造的session值
-var forgeSession = strings.Repeat("s", 1024)
+// SignInForForgeParam 伪造登录时，需要初始化的数据
+type SignInForForgeParam struct {
+	TopicNum   uint `json:"topicNum"`
+	SessionLen uint `json:"sessionLen"`
+}
 
-func (sign) SignInForForge(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
+// 一个伪造的session值
+var forgeCustomerId uint32
+
+func init() {
+	forgeCustomerId = 0
+}
+
+func (sign) SignInForForge(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := new(SignInForForgeParam)
+	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SignInForForgeParam failed")
+		return
+	}
 	ret := &netsvrProtocol.ConnInfoUpdate{}
 	ret.UniqId = tf.UniqId
-	//伪造uniqId
-	if len(tf.UniqId) >= 18 {
-		ret.NewUniqId = tf.UniqId[0:18] + testUtils.GetRandStr(2)
-	} else {
-		ret.NewUniqId = tf.UniqId + testUtils.GetRandStr(2)
-	}
 	//伪造主题
-	ret.NewTopics = make([]string, 0, 10)
-	for i := 0; i < 10; i++ {
-		ret.NewTopics = append(ret.NewTopics, testUtils.GetRandStr(2))
+	if payload.TopicNum > 0 && payload.TopicNum <= 10000 {
+		ret.NewTopics = make([]string, 0, payload.TopicNum)
+		for i := 0; i < int(payload.TopicNum); i++ {
+			ret.NewTopics = append(ret.NewTopics, testUtils.GetRandStr(2))
+		}
 	}
-	//伪造的session值，存粹是为了模拟正常业务的数据大小
-	ret.NewSession = forgeSession
-	ret.Data = testUtils.NewResponse(protocol.RouterSignInForForge, map[string]interface{}{"code": 0, "message": "登录成功", "data": userDb.ClientInfo{UniqId: ret.NewUniqId}})
+	//伪造客户id
+	customerId := atomic.AddUint32(&forgeCustomerId, 1)
+	ret.NewCustomerId = strconv.FormatInt(int64(customerId), 10)
+	//伪造的session值
+	if payload.SessionLen > 0 && payload.SessionLen <= 1024*1024 {
+		ret.NewSession = strings.Repeat("s", int(payload.SessionLen))
+	}
+	ret.Data = testUtils.NewResponse(protocol.RouterSignInForForge, map[string]interface{}{"code": 0, "message": "登录成功", "data": userDb.ClientInfo{
+		Id:     customerId,
+		Name:   ret.NewCustomerId,
+		UniqId: tf.UniqId,
+	}})
 	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoUpdate)
 }
 
@@ -71,7 +93,7 @@ func (sign) SignOutForForge(tf *netsvrProtocol.Transfer, _ string, processor *co
 	//删除网关信息
 	ret := &netsvrProtocol.ConnInfoDelete{}
 	ret.UniqId = tf.UniqId
-	ret.DelUniqId = true
+	ret.DelCustomerId = true
 	ret.DelSession = true
 	ret.DelTopic = true
 	ret.Data = testUtils.NewResponse(protocol.RouterSignOutForForge, map[string]interface{}{"code": 0, "message": "退出登录成功"})
@@ -85,54 +107,51 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string, processor *connPro
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SignInParam failed")
 		return
 	}
-	if login.Username == "" && login.Password == "" {
+	//校验参数
+	if login.Username == "" || login.Password == "" {
+		invalidArgument := &netsvrProtocol.SingleCast{}
+		invalidArgument.UniqId = tf.UniqId
+		invalidArgument.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "请输入账号、密码", "data": nil})
+		processor.Send(invalidArgument, netsvrProtocol.Cmd_SingleCast)
 		return
 	}
-	ret := &netsvrProtocol.ConnInfoUpdate{}
-	ret.UniqId = tf.UniqId
 	//查找用户
 	user := userDb.Collect.GetUser(login.Username)
 	//校验账号密码，判断是否登录成功
 	if user == nil || user.Password != login.Password {
-		ret.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误"})
-	} else {
-		if tf.Session == "" && user.IsOnline {
-			//账号已经被登录了，通知已经登录者
-			ret.DataAsNewUniqIdExisted = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您的帐号在另一地点登录！"})
-		}
-		//设置当前登录信息
-		data := user.ToClientInfo()
-		userDb.Collect.SetOnline(user.Id, true)
-		ret.NewUniqId = data.UniqId
-		ret.NewSession = user.ToNetSvrInfo()
-		ret.NewTopics = user.Topics
-		ret.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 0, "message": "登录成功", "data": data})
+		invalidArgument := &netsvrProtocol.SingleCast{}
+		invalidArgument.UniqId = tf.UniqId
+		invalidArgument.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误", "data": nil})
+		processor.Send(invalidArgument, netsvrProtocol.Cmd_SingleCast)
+		return
 	}
-	//回写给网关服务器
+	//将当前登录信息存储到网关
+	ret := &netsvrProtocol.ConnInfoUpdate{}
+	userDb.Collect.SetOnlineInfo(user.Id, tf.UniqId)
+	ret.UniqId = tf.UniqId
+	ret.NewCustomerId = strconv.FormatInt(int64(user.Id), 10)
+	ret.NewSession = user.ToNetSvrInfo()
+	ret.NewTopics = user.Topics
+	ret.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})
 	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoUpdate)
 }
 
 // SignOut 退出登录
 func (sign) SignOut(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
+	//删除网关信息
+	ret := &netsvrProtocol.ConnInfoDelete{}
+	ret.UniqId = tf.UniqId
+	ret.DelCustomerId = true
+	ret.DelSession = true
+	ret.DelTopic = true
+	ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 0, "message": "退出登录成功"})
+	processor.Send(ret, netsvrProtocol.Cmd_ConnInfoDelete)
+	//删除数据库信息
 	currentUser := userDb.ParseNetSvrInfo(tf.Session)
 	if currentUser != nil {
 		user := userDb.Collect.GetUserById(currentUser.Id)
 		if user != nil {
-			userDb.Collect.SetOnline(user.Id, false)
-			//删除网关信息
-			ret := &netsvrProtocol.ConnInfoDelete{}
-			ret.UniqId = tf.UniqId
-			ret.DelUniqId = true
-			ret.DelSession = true
-			ret.DelTopic = true
-			ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 0, "message": "退出登录成功"})
-			processor.Send(ret, netsvrProtocol.Cmd_ConnInfoDelete)
-			return
+			userDb.Collect.SetOnlineInfo(user.Id, "")
 		}
 	}
-	//还未登录
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	ret.Data = testUtils.NewResponse(protocol.RouterSignOut, map[string]interface{}{"code": 1, "message": "您已经是退出登录状态！"})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

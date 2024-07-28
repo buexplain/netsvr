@@ -17,76 +17,12 @@
 package utils
 
 import (
-	"encoding/binary"
-	"math/rand"
+	"net"
 	"net/http"
-	"netsvr/configs"
+	"os"
 	"strings"
-	"sync/atomic"
-	"time"
 	"unsafe"
 )
-
-// BytesToInt 截取前digit个字节并转成int
-// 该方法比strconv.Atoi快三倍,单个耗时在8.557纳秒
-func BytesToInt(data []byte, digit int) int {
-	if len(data) < digit {
-		return 0
-	}
-	var step = 1
-	var ret = 0
-	digit--
-	for ; digit >= 0; digit-- {
-		ret += byteToInt(data[digit]) * step
-		step *= 10
-	}
-	return ret
-}
-
-func byteToInt(b byte) int {
-	switch b {
-	case '0':
-		return 0
-	case '1':
-		return 1
-	case '2':
-		return 2
-	case '3':
-		return 3
-	case '4':
-		return 4
-	case '5':
-		return 5
-	case '6':
-		return 6
-	case '7':
-		return 7
-	case '8':
-		return 8
-	case '9':
-		return 9
-	default:
-		return 0
-	}
-}
-
-var uniqIdSuffix = uint32(rand.Int31())
-
-// UniqId 生成一个唯一id，格式是：网关服务编号(2个字符)+时间戳(8个字符)+自增值(8个字符)，共18个16进制的字符
-func UniqId() string {
-	buf := make([]byte, 18)
-	buf[9] = configs.Config.ServerId
-	binary.BigEndian.PutUint32(buf[10:], uint32(time.Now().Unix()))
-	binary.BigEndian.PutUint32(buf[14:], atomic.AddUint32(&uniqIdSuffix, 1))
-	var j int8
-	for _, v := range buf[9:] {
-		//这里保持字母大写，作为网关服务编号之外的第二个特征吧
-		buf[j] = "0123456789ABCDEF"[v>>4]
-		buf[j+1] = "0123456789ABCDEF"[v&0x0f]
-		j += 2
-	}
-	return unsafe.String(&buf[0], 18)
-}
 
 // ParseSubProtocols 解析websocket的子协议
 func ParseSubProtocols(r *http.Request) []string {
@@ -107,4 +43,83 @@ func StrToReadOnlyBytes(s string) []byte {
 		return nil
 	}
 	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
+
+// GetHostByName 返回主机名 name 对应的 IPv4 互联网地址。成功时返回 IPv4 地址，失败时原封不动返回 name 字符串。
+func GetHostByName(name string) string {
+	addrList, err := net.LookupHost(name)
+	if err != nil {
+		return name
+	}
+	global := name
+	loopBack := name
+	unspecified := name
+	for _, addr := range addrList {
+		ip := net.ParseIP(addr)
+		if ip.IsGlobalUnicast() {
+			global = ip.To4().String()
+		}
+		if ip.IsLoopback() {
+			loopBack = ip.To4().String()
+		}
+		if ip.IsUnspecified() {
+			unspecified = "127.0.0.1"
+		}
+	}
+	if global != name {
+		return global
+	}
+	if loopBack != name {
+		return loopBack
+	}
+	return unspecified
+}
+
+// IsValidIPv4 判断是否为有效的 IPv4 地址
+func IsValidIPv4(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP != nil {
+		return parsedIP.To4() != nil
+	}
+	return false
+}
+
+// GetLocalIPAddress 获取第一个非回环的IPv4地址
+func GetLocalIPAddress() string {
+	addrList, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, addr := range addrList {
+		ip, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		if ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		ipV4 := ip.IP.To4()
+		if ipV4 != nil {
+			return ipV4.String()
+		}
+	}
+	return ""
+}
+
+// IsFile 判断给定的文件名是否对应于一个存在的文件。
+// 如果文件存在且不是目录，则返回 true。
+// 如果文件不存在，则返回 false。
+// 如果出现其他错误，则返回错误信息。
+func IsFile(filename string) (bool, error) {
+	fi, err := os.Stat(filename)
+	if err == nil {
+		if fi.IsDir() {
+			return false, nil
+		}
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }

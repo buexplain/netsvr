@@ -31,30 +31,29 @@ import (
 // TopicSubscribe 订阅
 func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.TopicSubscribe.Get()
+	defer objPool.TopicSubscribe.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.TopicSubscribe.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicSubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {
-		objPool.TopicSubscribe.Put(payload)
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
 	if conn == nil {
-		objPool.TopicSubscribe.Put(payload)
 		return
 	}
 	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
-		objPool.TopicSubscribe.Put(payload)
 		return
 	}
-	session.MuxLock()
-	payload.UniqId = session.SubscribeTopics(payload.Topics)
-	//这里根据session里面的uniqId去构建订阅关系，因为有可能当SubscribeTopics得到锁的时候，session里面的uniqId与当前的payload.UniqId不一致了
+	session.Lock()
+	defer session.UnLock()
+	if session.GetUniqId() == "" {
+		return
+	}
+	session.SubscribeTopics(payload.Topics)
 	topic.Topic.SetBySlice(payload.Topics, payload.UniqId)
-	session.MuxUnLock()
 	if len(payload.Data) > 0 {
 		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
@@ -63,5 +62,4 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		}
 	}
-	objPool.TopicSubscribe.Put(payload)
 }

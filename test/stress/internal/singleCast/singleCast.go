@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-// Package singleCast 对网关单播进行压测
+// Package singleCast 对网关根据uniqId单播的功能进行压测
 package singleCast
 
 import (
@@ -38,11 +38,11 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("singleCast running")
-	if configs.Config.SingleCast.MessageInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.SingleCast.MessageInterval 必须是个大于0的值")
+	if configs.Config.SingleCast.SendInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.SingleCast.SendInterval 必须是个大于0的值")
 		return
 	}
-	message := "我是一条单播信息"
+	message := "我是一条按uniqId的单播的信息"
 	if configs.Config.SingleCast.MessageLen > 0 {
 		message = strings.Repeat("s", configs.Config.SingleCast.MessageLen)
 	}
@@ -55,8 +55,8 @@ func Run(wg *sync.WaitGroup) {
 			if ws == nil {
 				return
 			}
-			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCast.MessageInterval), func() {
-				ws.Send(protocol.RouterSingleCastForUniqId, map[string]string{"message": message, "uniqId": ws.UniqId})
+			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCast.SendInterval), func() {
+				ws.Send(protocol.RouterSingleCast, map[string]string{"message": message, "uniqId": ws.UniqId})
 			})
 		})
 		metrics.RecordConnectOK()

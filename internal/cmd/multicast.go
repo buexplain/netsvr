@@ -26,16 +26,15 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// Multicast 组播
+// Multicast 根据uniqId组播
 func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.Multicast.Get()
+	defer objPool.Multicast.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.Multicast.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Multicast failed")
 		return
 	}
 	if len(payload.Data) == 0 {
-		objPool.Multicast.Put(payload)
 		return
 	}
 	for _, uniqId := range payload.UniqIds {
@@ -50,5 +49,4 @@ func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		}
 	}
-	objPool.Multicast.Put(payload)
 }

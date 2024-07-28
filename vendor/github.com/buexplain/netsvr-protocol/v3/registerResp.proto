@@ -1,0 +1,42 @@
+/**
+* Copyright 2023 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
+syntax = "proto3";
+
+package netsvr.registerResp;
+
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
+
+enum RegisterRespCode {
+  //注册成功
+  Success = 0;
+  //解析注册proto协议失败
+  UnmarshalError = 1;
+  //需要接收的事件设置错误
+  InvalidEvent = 2;
+  //连接已经注册过，不允许重复发起注册请求
+  DuplicateRegister = 3;
+}
+
+//business向worker请求，注册自己，worker响应注册结果
+message RegisterResp {
+  RegisterRespCode code = 1;
+  string message = 2;
+  //注册成功后的id
+  string connId = 3;
+}

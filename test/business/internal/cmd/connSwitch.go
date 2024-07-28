@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
@@ -53,6 +53,8 @@ func (connSwitch) ConnOpen(param []byte, processor *connProcessor.ConnProcessor)
 			"rawQuery":      payload.RawQuery,
 			"subProtocol":   payload.SubProtocol,
 			"xForwardedFor": payload.XForwardedFor,
+			"xRealIp":       payload.XRealIp,
+			"remoteAddr":    payload.RemoteAddr,
 		},
 	})
 	//发送到网关
@@ -70,6 +72,6 @@ func (connSwitch) ConnClose(param []byte, _ *connProcessor.ConnProcessor) {
 	user := userDb.ParseNetSvrInfo(payload.Session)
 	if user != nil {
 		//更新数据库，标记用户已经下线
-		userDb.Collect.SetOnline(user.Id, false)
+		userDb.Collect.SetOnlineInfo(user.Id, "")
 	}
 }

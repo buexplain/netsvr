@@ -17,14 +17,16 @@
 package configs
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
-	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"github.com/rs/zerolog"
+	"log/slog"
+	"net"
+	"netsvr/internal/utils"
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
@@ -33,26 +35,30 @@ import (
 	"time"
 )
 
+type BytesConfigItem []byte
+
+func (r *BytesConfigItem) UnmarshalText(text []byte) error {
+	*r = text
+	return nil
+}
+
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
-	// 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址
+	// 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址，最好配置绝对路径
 	LogFile string
-	//网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀，16进制表示，占两个字符
-	ServerId uint8
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 	ShutdownWaitTime time.Duration
-	//pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空值，则不会开启
+	//pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
 	PprofListenAddress string
-	//business的限流器
-	Limit []struct {
-		//需要被限制的workerId集合，每个workerId只允许配置一次
-		WorkerIds []int
-		//每秒的并发数
-		Concurrency int
-		//限流器名字，这个名字必须是唯一的
-		Name string
+	//限流器，如果配置是0，则表示不启用限流器
+	Limit struct {
+		//网关允许每秒打开多少个连接，配置为0，则不做任何限制
+		OnOpen int32
+		//网关允许每秒收到多少个消息，配置为0，则不做任何限制
+		OnMessage int32
 	}
+	//客户端的websocket服务器配置
 	Customer struct {
 		//客户服务器监听的地址，ip:port，这个地址一般是外网地址
 		ListenAddress string
@@ -60,7 +66,7 @@ type config struct {
 		HandlePattern string
 		//允许连接的origin，空表示不限制，否则会进行包含匹配
 		AllowOrigin []string
-		//网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
+		//websocket服务器读取客户端连接的超时时间，该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
 		ReadDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
@@ -72,23 +78,17 @@ type config struct {
 		ReceivePackLimit int
 		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 		SendMessageType websocket.MessageType
-		//指定处理连接打开的worker id，允许设置为0，表示不关心连接的打开
-		ConnOpenWorkerId int
-		//指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
-		ConnCloseWorkerId int
-		//连接打开时，通过url的queryString传递自定义uniqId的字段名字，客户端如果传递该字段，则token必须一并传递过来
-		//如果配置了该值，则网关会启用自定义uniqId的模式来接入连接
-		//假设该值配置为 ConnOpenCustomUniqIdKey="myUniqId"，则客户端发起连接的示例：ws://127.0.0.1:6060/netsvr?myUniqId=01xxx&token=o0o0o
-		ConnOpenCustomUniqIdKey string
-		//自定义uniqId连接的token的过期时间
-		ConnOpenCustomUniqIdTokenExpire time.Duration
+		// 回调脚本文件，如果需要，最好配置绝对路径，不需要，请配置为空字符串
+		CallbackScriptFile string
 		//tls配置
 		TLSCert string
 		TLSKey  string
+		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
+		HeartbeatMessage BytesConfigItem
 	}
-
+	//业务进程的tcp服务器配置
 	Worker struct {
-		//监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问
+		// 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 		ListenAddress string
 		//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 		ReadDeadline time.Duration
@@ -100,10 +100,13 @@ type config struct {
 		ReadBufferSize int
 		//worker发送给business的缓通道大小
 		SendChanCap int
+		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
+		HeartbeatMessage BytesConfigItem
 	}
 
 	Metrics struct {
-		//统计服务的各种状态，空，则不统计任何状态，0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的情况
+		// 统计服务的各种状态，空，则不统计任何状态
+		// 1：统计客户连接的打开情况，2：统计客户连接的关闭情况，3：统计客户连接的心跳情况，4：统计客户数据转发到worker的次数情况，5：统计客户数据转发到worker的字节数情况，6：统计往客户写入数据次数，7：统计往客户写入字节数
 		Item []int
 		//统计服务的各种状态里记录最大值的间隔时间
 		MaxRecordInterval time.Duration
@@ -114,12 +117,8 @@ func (r *config) GetLogFile() string {
 	if r.LogFile == "" {
 		return ""
 	}
-	if strings.HasPrefix(r.LogFile, "/") {
+	if strings.HasPrefix(r.LogFile, "/") || r.LogFile[1:2] == ":" {
 		//绝对路径开头
-		return r.LogFile
-	}
-	if r.LogFile[1:2] == ":" {
-		//盘符开头
 		return r.LogFile
 	}
 	//拼接上相对路径
@@ -160,7 +159,7 @@ func init() {
 	if version {
 		t, err := strconv.ParseInt(BuildTimestamp, 10, 0)
 		if err != nil {
-			logging.Error("Prints the build information failed：%s", err)
+			slog.Error("Prints the build information failed", "error", err)
 			os.Exit(1)
 		}
 		fmt.Printf("Go version: %s\nBuild version: %s\nBuild date: %s\n", BuildGoVersion, BuildVersion, time.Unix(t, 0).Format(time.RFC3339))
@@ -169,13 +168,13 @@ func init() {
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("Read netsvr.toml failed：%s", err)
+		slog.Error("Read netsvr.toml failed", "error", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
 	if _, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("Parse netsvr.toml failed：%s", err)
+		slog.Error("Parse netsvr.toml failed", "error", err)
 		os.Exit(1)
 	}
 	//检查各种参数
@@ -197,7 +196,7 @@ func init() {
 	if Config.Customer.SendMessageType == 0 {
 		Config.Customer.SendMessageType = websocket.TextMessage
 	} else if Config.Customer.SendMessageType != websocket.TextMessage && Config.Customer.SendMessageType != websocket.BinaryMessage {
-		logging.Error("Config Customer.SendMessageType, must be in [%d,%d]", websocket.TextMessage, websocket.BinaryMessage)
+		slog.Error(fmt.Sprintf("Config Customer.SendMessageType, must be in [%d,%d]", websocket.TextMessage, websocket.BinaryMessage))
 		os.Exit(1)
 	}
 	if Config.Customer.ReadDeadline <= 0 {
@@ -206,6 +205,16 @@ func init() {
 	}
 	if Config.Customer.HandlePattern == "" {
 		Config.Customer.HandlePattern = "/"
+	}
+	if Config.Customer.CallbackScriptFile != "" {
+		if ok, err := utils.IsFile(Config.Customer.CallbackScriptFile); !ok {
+			slog.Error("Config Customer.CallbackScriptFile is not a file", "error", err)
+			os.Exit(1)
+		}
+	}
+	if len(Config.Customer.HeartbeatMessage) == 0 {
+		slog.Error("Config Customer.HeartbeatMessage is required")
+		os.Exit(1)
 	}
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒
@@ -224,19 +233,39 @@ func init() {
 	if Config.Worker.SendChanCap <= 0 {
 		Config.Worker.SendChanCap = 1024
 	}
+	//检查网关的worker服务的监听地址
+	if host, port, err := net.SplitHostPort(Config.Worker.ListenAddress); err != nil {
+		slog.Error("Config Worker.ListenAddress, split failed", "error", err)
+		os.Exit(1)
+	} else {
+		if !utils.IsValidIPv4(host) {
+			//将域名转为内网地址
+			slog.Warn("Config Worker.ListenAddress, host is not a valid ipv4 address", "host", host)
+			ipv4 := utils.GetHostByName(host)
+			if ipv4 == host {
+				slog.Warn("Config Worker.ListenAddress, convert " + host + " to ipv4 failed")
+				os.Exit(1)
+			}
+			slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
+			Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
+		} else if host == "0.0.0.0" {
+			//转为内网地址
+			ipv4 := utils.GetLocalIPAddress()
+			if ipv4 == "" {
+				slog.Error("Config Worker.ListenAddress, Not allowed to configure 0.0.0.0")
+				os.Exit(1)
+			}
+			slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
+			Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
+		}
+	}
+	if len(Config.Worker.HeartbeatMessage) == 0 {
+		slog.Error("Config Worker.HeartbeatMessage is required")
+		os.Exit(1)
+	}
 	if Config.Metrics.MaxRecordInterval <= 0 {
 		//默认10秒
 		Config.Metrics.MaxRecordInterval = time.Second * 10
-	}
-	//允许设置为0，表示不关心连接的打开
-	if Config.Customer.ConnOpenWorkerId < netsvrProtocol.WorkerIdMin-1 || Config.Customer.ConnOpenWorkerId > netsvrProtocol.WorkerIdMax {
-		logging.Error("Config Customer.ConnOpenWorkerId range overflow, must be in [%d,%d]", netsvrProtocol.WorkerIdMin-1, netsvrProtocol.WorkerIdMax)
-		os.Exit(1)
-	}
-	//允许设置为0，表示不关心连接的关闭
-	if Config.Customer.ConnCloseWorkerId < netsvrProtocol.WorkerIdMin-1 || Config.Customer.ConnCloseWorkerId > netsvrProtocol.WorkerIdMax {
-		logging.Error("Config Customer.ConnCloseWorkerId range overflow, must be in [%d,%d]", netsvrProtocol.WorkerIdMin-1, netsvrProtocol.WorkerIdMax)
-		os.Exit(1)
 	}
 	fileIsExist := func(path string) bool {
 		fi, err := os.Stat(path)

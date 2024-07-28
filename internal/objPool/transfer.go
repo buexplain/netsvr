@@ -17,7 +17,7 @@
 package objPool
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"sync"
 )
 
@@ -32,9 +32,11 @@ func (r *transfer) Get() *netsvrProtocol.Transfer {
 }
 
 func (r *transfer) Put(transfer *netsvrProtocol.Transfer) {
-	transfer.Data = nil
 	transfer.UniqId = ""
+	transfer.CustomerId = ""
 	transfer.Session = ""
+	transfer.Topics = nil
+	transfer.Data = nil
 	r.pool.Put(transfer)
 }
 

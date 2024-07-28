@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# 如果出现错误：坏的解释器: 没有那个文件或目录，则需要执行：sed -i 's/\r$//' build.sh
 # 获取go版本
 go_version=$(go version)
 go_version=${go_version/go version go/v}
@@ -44,6 +44,7 @@ for i in "${!system[@]}"; do
     go build -a -trimpath -ldflags "-s -w" -o "$build_dir/${system[$i]}/stress-${system[$i]}-${cpu[$j]}.bin" "$current_dir/../test/stress/cmd/stress.go"
     # 拷贝配置文件
     mkdir -p "$build_dir/${system[$i]}/configs/"
+    cp "$current_dir/../configs/callback.go" "$build_dir/${system[$i]}/configs/callback.go"
     cp "$current_dir/../configs/netsvr.example.toml" "$build_dir/${system[$i]}/configs/netsvr.toml"
     cp "$current_dir/../test/business/configs/business.example.toml" "$build_dir/${system[$i]}/configs/business.toml"
     cp "$current_dir/../test/stress/configs/stress.example.toml" "$build_dir/${system[$i]}/configs/stress.toml"

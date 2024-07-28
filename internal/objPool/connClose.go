@@ -17,7 +17,7 @@
 package objPool
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"sync"
 )
 
@@ -33,7 +33,9 @@ func (r *connClose) Get() *netsvrProtocol.ConnClose {
 
 func (r *connClose) Put(connClose *netsvrProtocol.ConnClose) {
 	connClose.UniqId = ""
+	connClose.CustomerId = ""
 	connClose.Session = ""
+	connClose.Topics = nil
 	r.pool.Put(connClose)
 }
 

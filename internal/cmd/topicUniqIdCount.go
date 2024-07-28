@@ -17,9 +17,8 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -33,7 +32,6 @@ func TopicUniqIdCount(param []byte, processor *workerManager.ConnProcessor) {
 		return
 	}
 	ret := &netsvrProtocol.TopicUniqIdCountResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Items = map[string]int32{}
 	if payload.CountAll == true {
 		topic.Topic.CountAll(ret.Items)

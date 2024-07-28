@@ -19,15 +19,17 @@ package main
 
 import (
 	"netsvr/pkg/quit"
-	"netsvr/test/pkg/utils"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/broadcast"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/multicast"
+	"netsvr/test/stress/internal/multicastByCustomerId"
 	"netsvr/test/stress/internal/sign"
 	"netsvr/test/stress/internal/silent"
 	"netsvr/test/stress/internal/singleCast"
 	"netsvr/test/stress/internal/singleCastBulk"
+	"netsvr/test/stress/internal/singleCastBulkByCustomerId"
+	"netsvr/test/stress/internal/singleCastByCustomerId"
 	"netsvr/test/stress/internal/topic"
 	"netsvr/test/stress/internal/wsMetrics"
 	"os"
@@ -36,8 +38,6 @@ import (
 )
 
 func main() {
-	//初始化连接池
-	utils.InitRequestNetSvrPool(50, configs.Config.WorkerListenAddress)
 	go func() {
 		wg := &sync.WaitGroup{}
 		if configs.Config.Concurrent {
@@ -48,9 +48,15 @@ func main() {
 			wg.Add(1)
 			go singleCast.Run(wg)
 			wg.Add(1)
+			go singleCastByCustomerId.Run(wg)
+			wg.Add(1)
 			go singleCastBulk.Run(wg)
 			wg.Add(1)
+			go singleCastBulkByCustomerId.Run(wg)
+			wg.Add(1)
 			go multicast.Run(wg)
+			wg.Add(1)
+			go multicastByCustomerId.Run(wg)
 			wg.Add(1)
 			go topic.Run(wg)
 			wg.Add(1)
@@ -59,8 +65,11 @@ func main() {
 			silent.Run(nil)
 			sign.Run(nil)
 			singleCast.Run(nil)
+			singleCastByCustomerId.Run(nil)
 			singleCastBulk.Run(nil)
+			singleCastBulkByCustomerId.Run(nil)
 			multicast.Run(nil)
+			multicastByCustomerId.Run(nil)
 			topic.Run(nil)
 			broadcast.Run(nil)
 		}

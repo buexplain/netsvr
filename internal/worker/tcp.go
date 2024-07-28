@@ -19,7 +19,8 @@
 package worker
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	"errors"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"
@@ -38,28 +39,35 @@ func (r *Server) Start() {
 	defer func() {
 		log.Logger.Debug().Int("pid", os.Getpid()).Msg("Worker tcp stop accept")
 	}()
+	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
 			select {
 			case <-quit.ClosedCh:
-				break
+				//进程收到停止信号，不再受理新的连接
+				return
 			default:
-				log.Logger.Error().Err(err).Msg("Worker tcp accept failed")
-			}
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				//发生这个错误，大概率是句柄耗尽，https://go.dev/src/syscall/syscall_unix.go#L129
-				time.Sleep(time.Second / 20)
-				continue
-			} else {
-				//未知错误，触发进程关闭信号
-				quit.Execute("Worker tcp accept failed")
+				var ne net.Error
+				if errors.As(err, &ne) && ne.Temporary() {
+					if tempDelay == 0 {
+						tempDelay = 5 * time.Millisecond
+					} else {
+						tempDelay *= 2
+					}
+					if maxDelay := 1 * time.Second; tempDelay > maxDelay {
+						tempDelay = maxDelay
+					}
+					log.Logger.Error().Msgf("Worker tcp accept error: %v; retrying in %v", err, tempDelay)
+					time.Sleep(tempDelay)
+					continue
+				}
 			}
 			return
 		}
 		select {
-		case <-quit.Ctx.Done():
-			//进程即将停止，不再受理新的连接
+		case <-quit.ClosedCh:
+			//进程收到停止信号，不再受理新的连接
 			_ = conn.Close()
 			continue
 		default:
@@ -70,12 +78,16 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfoUpdate, cmd.ConnInfoUpdate)
 			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfoDelete, cmd.ConnInfoDelete)
 			c.RegisterCmd(netsvrProtocol.Cmd_ForceOffline, cmd.ForceOffline)
+			c.RegisterCmd(netsvrProtocol.Cmd_ForceOfflineByCustomerId, cmd.ForceOfflineByCustomerId)
 			c.RegisterCmd(netsvrProtocol.Cmd_ForceOfflineGuest, cmd.ForceOfflineGuest)
 			c.RegisterCmd(netsvrProtocol.Cmd_Multicast, cmd.Multicast)
+			c.RegisterCmd(netsvrProtocol.Cmd_MulticastByCustomerId, cmd.MulticastByCustomerId)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicPublish, cmd.TopicPublish)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicPublishBulk, cmd.TopicPublishBulk)
 			c.RegisterCmd(netsvrProtocol.Cmd_SingleCast, cmd.SingleCast)
+			c.RegisterCmd(netsvrProtocol.Cmd_SingleCastByCustomerId, cmd.SingleCastByCustomerId)
 			c.RegisterCmd(netsvrProtocol.Cmd_SingleCastBulk, cmd.SingleCastBulk)
+			c.RegisterCmd(netsvrProtocol.Cmd_SingleCastBulkByCustomerId, cmd.SingleCastBulkByCustomerId)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicSubscribe, cmd.TopicSubscribe)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicUnsubscribe, cmd.TopicUnsubscribe)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicDelete, cmd.TopicDelete)
@@ -86,10 +98,14 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicCount, cmd.TopicCount)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicList, cmd.TopicList)
 			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfo, cmd.ConnInfo)
+			c.RegisterCmd(netsvrProtocol.Cmd_ConnInfoByCustomerId, cmd.ConnInfoByCustomerId)
 			c.RegisterCmd(netsvrProtocol.Cmd_Metrics, cmd.Metrics)
 			c.RegisterCmd(netsvrProtocol.Cmd_CheckOnline, cmd.CheckOnline)
 			c.RegisterCmd(netsvrProtocol.Cmd_Limit, cmd.Limit)
-			c.RegisterCmd(netsvrProtocol.Cmd_ConnOpenCustomUniqIdToken, cmd.ConnOpenCustomUniqIdToken)
+			c.RegisterCmd(netsvrProtocol.Cmd_CustomerIdCount, cmd.CustomerIdCount)
+			c.RegisterCmd(netsvrProtocol.Cmd_CustomerIdList, cmd.CustomerIdList)
+			c.RegisterCmd(netsvrProtocol.Cmd_TopicCustomerIdList, cmd.TopicCustomerIdList)
+			c.RegisterCmd(netsvrProtocol.Cmd_TopicCustomerIdCount, cmd.TopicCustomerIdCount)
 			//将该连接添加到关闭管理器中
 			manager.Shutter.Add(c)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启

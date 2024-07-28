@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
-	"netsvr/configs"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/internal/metrics"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -26,11 +25,13 @@ import (
 // Metrics 返回网关统计的服务状态
 func Metrics(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.MetricsResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Items = map[int32]*netsvrProtocol.MetricsRespItem{}
-	for _, v := range metrics.Registry {
+	for item, v := range metrics.Registry {
+		if item == 0 {
+			continue
+		}
 		if tmp := v.ToStatusResp(); tmp != nil {
-			ret.Items[int32(v.Item)] = tmp
+			ret.Items[tmp.Item] = tmp
 		}
 	}
 	processor.Send(ret, netsvrProtocol.Cmd_Metrics)

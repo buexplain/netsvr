@@ -19,13 +19,13 @@ package cmd
 import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
+	"netsvr/internal/customer/binder"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
-	"netsvr/internal/utils"
 	workerManager "netsvr/internal/worker/manager"
 )
 
@@ -48,41 +48,27 @@ func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	if !ok {
 		return
 	}
-	if session.IsClosed() {
+	session.Lock()
+	defer session.UnLock()
+	if session.GetUniqId() == "" {
 		return
 	}
-	session.MuxLock()
-	if session.IsClosed() {
-		session.MuxUnLock()
-		return
-	}
-	//记录下老的uniqId
-	previousUniqId := payload.UniqId
-	//在高并发下，这个payload.UniqId不一定是manager.Manager.Get时候的，所以一定要重新再从session里面拿出来，保持一致，否则接下来的逻辑会导致连接泄漏
-	payload.UniqId = session.GetUniqId()
 	//删除主题
 	if payload.DelTopic {
 		topics := session.PullTopics()
-		topic.Topic.DelByMap(topics, payload.UniqId, previousUniqId)
+		topic.Topic.DelByMap(topics, payload.UniqId)
 	}
 	//删除session
 	if payload.DelSession {
 		session.SetSession("")
 	}
-	//删除uniqId
-	if payload.DelUniqId {
-		//生成一个新的uniqId
-		newUniqId := utils.UniqId()
-		//处理连接管理器中的关系
-		manager.Manager.Del(payload.UniqId)
-		manager.Manager.Set(newUniqId, conn)
-		//处理主题管理器中的关系
-		topics := session.SetUniqIdAndGetTopics(newUniqId)
-		//删除旧关系，构建新关系
-		topic.Topic.DelBySlice(topics, payload.UniqId, previousUniqId)
-		topic.Topic.SetBySlice(topics, newUniqId)
+	if payload.DelCustomerId {
+		//如果客户id为空，则没必要去解除绑定关系，因为解除绑定关系需要获取互斥锁
+		if session.GetCustomerId() != "" {
+			binder.Binder.DelUniqId(payload.UniqId)
+		}
+		session.SetCustomerId("")
 	}
-	session.MuxUnLock()
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
 		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {

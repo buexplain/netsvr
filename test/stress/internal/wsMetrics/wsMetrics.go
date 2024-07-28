@@ -1,3 +1,19 @@
+/**
+* Copyright 2023 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
 package wsMetrics
 
 import (
@@ -7,6 +23,7 @@ import (
 	gMetrics "github.com/rcrowley/go-metrics"
 	"math"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -69,13 +86,13 @@ func (r *WsStatus) ToTableRow() map[string]string {
 	ret["模块"] = r.Name
 	ret["阶段"] = fmt.Sprintf("%d", r.Step)
 	ret["连接数"] = fmt.Sprintf("%d", r.Online.Count())
-	ret["构建中耗时 "] = r.ConnectOK.SpendTime.String()
+	ret["构建中耗时 "] = (time.Duration(r.ConnectOK.SpendTime.Milliseconds()) * time.Millisecond).String()
 	ret["构建中发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.SendByte), r.ConnectOK.SendNum)
 	ret["构建中接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.ReceiveByte), r.ConnectOK.ReceiveNum)
-	ret["构建后耗时"] = (currentTime.Sub(r.StartTime) - r.ConnectOK.SpendTime).String()
+	ret["构建后耗时"] = (time.Duration((currentTime.Sub(r.StartTime) - r.ConnectOK.SpendTime).Milliseconds()) * time.Millisecond).String()
 	ret["构建后发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()-r.ConnectOK.SendByte), r.SendNum.Count()-r.ConnectOK.SendNum)
 	ret["构建后接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()-r.ConnectOK.ReceiveByte), r.ReceiveNum.Count()-r.ConnectOK.ReceiveNum)
-	ret["总耗时"] = currentTime.Sub(r.StartTime).String()
+	ret["总耗时"] = (time.Duration(currentTime.Sub(r.StartTime).Milliseconds()) * time.Millisecond).String()
 	ret["总发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()), r.SendNum.Count())
 	ret["总接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()), r.ReceiveNum.Count())
 	return ret
@@ -142,6 +159,7 @@ func (r *collect) add(status *WsStatus) {
 
 func bytesToNice(x int64) string {
 	sizes := []string{"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
+	precision := []int{0, 0, 1, 1, 2, 3, 4}
 	intPartIndex := 0
 	tmp := x
 	for {
@@ -152,7 +170,8 @@ func bytesToNice(x int64) string {
 		intPartIndex++
 	}
 	intPart := math.Pow(1024, float64(intPartIndex))
-	return fmt.Sprintf("%.3f %s", float64(x)/intPart, sizes[intPartIndex])
+
+	return strconv.FormatFloat(float64(x)/intPart, 'f', precision[intPartIndex], 64) + sizes[intPartIndex]
 }
 
 func (r *collect) CountByName(name string) int64 {

@@ -17,7 +17,7 @@
 package metrics
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	gMetrics "github.com/rcrowley/go-metrics"
 )
 
@@ -36,6 +36,7 @@ func (r *Status) ToStatusResp() *netsvrProtocol.MetricsRespItem {
 		return nil
 	}
 	ret := netsvrProtocol.MetricsRespItem{}
+	ret.Item = int32(r.Item)
 	r.recordMax()
 	ret.Count = r.Meter.Count()
 	sp := r.Meter.Snapshot()

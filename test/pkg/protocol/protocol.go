@@ -24,34 +24,41 @@ func (r Cmd) String() string {
 
 // 客户端Cmd路由
 const (
-	RouterRespConnOpen Cmd = iota + 1
+	Placeholder Cmd = iota
+	RouterRespConnOpen
 	RouterRespConnClose
 	RouterMetrics
 	RouterLimit
 	RouterUniqIdList
 	RouterUniqIdCount
-	RouterTopicMyList
+	RouterCustomerIdList
+	RouterCustomerIdCount
+	RouterConnInfo
+	RouterConnInfoByCustomerId
 	RouterTopicCount
 	RouterTopicList
 	RouterSignIn
 	RouterSignOut
 	RouterSignInForForge
 	RouterSignOutForForge
-	RouterCheckOnlineForUniqId
-	RouterForceOfflineForUserId
-	RouterForceOfflineForUniqId
-	RouterForceOfflineGuestForUniqId
-	RouterSingleCastForUserId
-	RouterSingleCastForUniqId
-	RouterSingleCastBulkForUniqId
-	RouterMulticastForUserId
-	RouterMulticastForUniqId
+	RouterCheckOnline
+	RouterForceOfflineByCustomerId
+	RouterForceOffline
+	RouterForceOfflineGuest
+	RouterSingleCastByCustomerId
+	RouterSingleCast
+	RouterSingleCastBulk
+	RouterSingleCastBulkByCustomerId
+	RouterMulticast
+	RouterMulticastByCustomerId
 	RouterBroadcast
 	RouterTopicSubscribe
 	RouterTopicUnsubscribe
 	RouterTopicDelete
 	RouterTopicUniqIdCount
 	RouterTopicUniqIdList
+	RouterTopicCustomerIdList
+	RouterTopicCustomerIdCount
 	RouterTopicPublish
 	RouterTopicPublishBulk
 )
@@ -63,28 +70,34 @@ var CmdName = map[Cmd]string{
 	RouterLimit:                      "RouterLimit",                      //更新限流配置、获取网关中的限流配置的真实情况
 	RouterUniqIdList:                 "RouterUniqIdList",                 //获取网关中全部的uniqId
 	RouterUniqIdCount:                "RouterUniqIdCount",                //获取网关中uniqId的数量
-	RouterTopicMyList:                "RouterTopicMyList",                //获取已订阅的主题列表
+	RouterCustomerIdList:             "RouterCustomerIdList",             //获取网关所有customerId
+	RouterCustomerIdCount:            "RouterCustomerIdCount",            //获取网关中的customerId数量
+	RouterConnInfo:                   "RouterConnInfo",                   //获取我的连接信息
+	RouterConnInfoByCustomerId:       "RouterConnInfoByCustomerId",       //获取customerId的连接信息
 	RouterTopicCount:                 "RouterTopicCount",                 //获取网关中的主题
 	RouterTopicList:                  "RouterTopicList",                  //获取网关中的主题数量
 	RouterSignIn:                     "RouterSignIn",                     //登录
 	RouterSignOut:                    "RouterSignOut",                    //退出登录
 	RouterSignInForForge:             "RouterSignInForForge",             //伪造登录
 	RouterSignOutForForge:            "RouterSignOutForForge",            //伪造退出登录
-	RouterCheckOnlineForUniqId:       "RouterCheckOnlineForUniqId",       //检查某几个连接是否在线
-	RouterForceOfflineForUserId:      "RouterForceOfflineForUserId",      //强制关闭某个连接
-	RouterForceOfflineForUniqId:      "RouterForceOfflineForUniqId",      //强制关闭某个连接
-	RouterForceOfflineGuestForUniqId: "RouterForceOfflineGuestForUniqId", //将某个没有session值的连接强制关闭
-	RouterSingleCastForUserId:        "RouterSingleCastForUserId",        //单播给某个用户
-	RouterSingleCastBulkForUniqId:    "RouterSingleCastBulkForUniqId",    //批量单播给某几个uniqId
-	RouterSingleCastForUniqId:        "RouterSingleCastForUniqId",        //单播给某个uniqId
-	RouterMulticastForUserId:         "RouterMulticastForUserId",         //组播给多个用户
-	RouterMulticastForUniqId:         "RouterMulticastForUniqId",         //组播给多个uniqId
+	RouterCheckOnline:                "RouterCheckOnline",                //检查某几个连接是否在线
+	RouterForceOfflineByCustomerId:   "RouterForceOfflineByCustomerId",   //强制关闭某个连接
+	RouterForceOffline:               "RouterForceOffline",               //强制关闭某个连接
+	RouterForceOfflineGuest:          "RouterForceOfflineGuest",          //将某个没有session值的连接强制关闭
+	RouterSingleCastByCustomerId:     "RouterSingleCastByCustomerId",     //单播给某个用户
+	RouterSingleCastBulk:             "RouterSingleCastBulk",             //批量单播给某几个uniqId
+	RouterSingleCastBulkByCustomerId: "RouterSingleCastBulkByCustomerId", //批量单播给某几个customerId
+	RouterSingleCast:                 "RouterSingleCast",                 //单播给某个uniqId
+	RouterMulticast:                  "RouterMulticast",                  //组播给多个uniqId
+	RouterMulticastByCustomerId:      "RouterMulticastByCustomerId",      //组播给多个customerId
 	RouterBroadcast:                  "RouterBroadcast",                  //广播给所有用户
 	RouterTopicSubscribe:             "RouterTopicSubscribe",             //订阅
 	RouterTopicUnsubscribe:           "RouterTopicUnsubscribe",           //取消订阅
 	RouterTopicDelete:                "RouterTopicDelete",                //删除主题
 	RouterTopicUniqIdCount:           "RouterTopicUniqIdCount",           //获取网关中的某几个主题的连接数
 	RouterTopicUniqIdList:            "RouterTopicUniqIdList",            //获取网关中的某个主题包含的uniqId
+	RouterTopicCustomerIdList:        "RouterTopicCustomerIdList",        //获取网关中某几个主题的customerId
+	RouterTopicCustomerIdCount:       "RouterTopicCustomerIdCount",       //获取网关中某几个主题的customerId数量
 	RouterTopicPublish:               "RouterTopicPublish",               //发布信息
 	RouterTopicPublishBulk:           "RouterTopicPublishBulk",           //批量发布信息
 }

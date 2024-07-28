@@ -28,5 +28,32 @@ var Logger zerolog.Logger
 
 func init() {
 	Logger = log.New(configs.Config.GetLogLevel(), configs.Config.GetLogFile())
-	logging.DefaultLogger = log.NewLoggingSubstitute(&Logger)
+	logging.DefaultLogger = newLoggingSubstitute(&Logger)
+}
+
+type loggingSubstitute struct {
+	zero *zerolog.Logger
+}
+
+func newLoggingSubstitute(zero *zerolog.Logger) logging.Logger {
+	return &loggingSubstitute{
+		zero: zero,
+	}
+}
+
+func (r *loggingSubstitute) SetLevel(_ int) {
+}
+
+func (r *loggingSubstitute) Debug(_ string, _ ...interface{}) {
+}
+
+func (r *loggingSubstitute) Info(_ string, _ ...interface{}) {
+}
+
+func (r *loggingSubstitute) Warn(format string, v ...interface{}) {
+	r.zero.Warn().CallerSkipFrame(2).Msgf(format, v...)
+}
+
+func (r *loggingSubstitute) Error(format string, v ...interface{}) {
+	r.zero.Error().CallerSkipFrame(2).Msgf(format, v...)
 }

@@ -29,18 +29,16 @@ import (
 // SingleCast 单播
 func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.SingleCast.Get()
+	defer objPool.SingleCast.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.SingleCast.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.SingleCast failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Data) == 0 {
-		objPool.SingleCast.Put(payload)
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
 	if conn == nil {
-		objPool.SingleCast.Put(payload)
 		return
 	}
 	if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
@@ -49,5 +47,4 @@ func SingleCast(param []byte, _ *workerManager.ConnProcessor) {
 	} else {
 		_ = conn.Close()
 	}
-	objPool.SingleCast.Put(payload)
 }

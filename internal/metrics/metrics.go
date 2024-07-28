@@ -27,14 +27,22 @@ type Item int
 
 // 支持统计的服务状态
 const (
-	ItemCustomerConnOpen       Item = iota //统计客户连接的打开情况
-	ItemCustomerConnClose                  //统计客户连接的关闭情况
-	ItemCustomerHeartbeat                  //统计客户连接的心跳情况
-	ItemCustomerTransferNumber             //统计客户数据转发到worker的次数情况
-	ItemCustomerTransferByte               //统计客户数据转发到worker的字节数情况
-	ItemCustomerWriteNumber                //统计往客户写入数据次数
-	ItemCustomerWriteByte                  //统计往客户写入字节数
-	itemLen                                //结束符
+	// ItemCustomerConnOpen 统计客户连接的打开情况
+	ItemCustomerConnOpen Item = iota + 1
+	// ItemCustomerConnClose 统计客户连接的关闭情况
+	ItemCustomerConnClose
+	// ItemCustomerHeartbeat 统计客户连接的心跳情况
+	ItemCustomerHeartbeat
+	// ItemCustomerTransferNumber 统计客户数据转发到worker的次数情况
+	ItemCustomerTransferNumber
+	// ItemCustomerTransferByte 统计客户数据转发到worker的字节数情况
+	ItemCustomerTransferByte
+	// ItemCustomerWriteNumber 统计往客户写入数据次数
+	ItemCustomerWriteNumber
+	// ItemCustomerWriteByte 统计往客户写入字节数
+	ItemCustomerWriteByte
+	//结束符
+	itemLen
 )
 
 var Registry = make([]*Status, itemLen)
@@ -54,6 +62,11 @@ func init() {
 		return false
 	}
 	for item := 0; item < len(Registry); item++ {
+		//0号元素是空壳子，不进行统计
+		if item == 0 {
+			Registry[0] = nil
+			continue
+		}
 		s := Status{Item: Item(item)}
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
@@ -85,7 +98,10 @@ func init() {
 			ticker.Stop()
 		}()
 		for range ticker.C {
-			for _, v := range Registry {
+			for item, v := range Registry {
+				if item == 0 {
+					continue
+				}
 				v.recordMax()
 			}
 		}

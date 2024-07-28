@@ -17,10 +17,8 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
-	"math"
-	"netsvr/configs"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 	"netsvr/pkg/quit"
@@ -37,32 +35,34 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 		processor.Send(ret, netsvrProtocol.Cmd_Register)
 		return
 	}
-	//检查workerId是否在允许的范围内
-	if netsvrProtocol.WorkerIdMin > payload.WorkerId || payload.WorkerId > netsvrProtocol.WorkerIdMax {
-		ret.Code = netsvrProtocol.RegisterRespCode_WorkerIdOverflow
-		log.Logger.Error().Int32("workerId", payload.WorkerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow")
+	//判断设置的事件是否有效
+	invalidEvent := true
+	for _, v := range netsvrProtocol.Event_value {
+		if v == int32(netsvrProtocol.Event_Placeholder) {
+			continue
+		}
+		if payload.Events&v == v {
+			invalidEvent = false
+			break
+		}
+	}
+	if invalidEvent {
+		ret.Code = netsvrProtocol.RegisterRespCode_InvalidEvent
+		log.Logger.Error().Int32("events", payload.Events).Msg("Invalid RegisterReqEvent")
 		ret.Message = ret.Code.String()
 		processor.Send(ret, netsvrProtocol.Cmd_Register)
 		return
 	}
-	//检查business报出的serverId是否与本网关配置的serverId一致，如果不一致，则断开连接
-	if payload.ServerId > math.MaxUint8 || uint8(payload.ServerId) != configs.Config.ServerId {
-		ret.Code = netsvrProtocol.RegisterRespCode_ServerIdInconsistent
-		log.Logger.Error().Uint8("correctServerId", configs.Config.ServerId).Uint32("errorServerId", payload.ServerId).Msg("ServerId is error")
-		ret.Message = ret.Code.String()
-		processor.Send(ret, netsvrProtocol.Cmd_Register)
-		return
-	}
-	//检查当前的business连接是否已经注册过workerId了，不允许重复注册
-	if processor.GetWorkerId() > 0 {
+	//检查当前的business连接是否已经注册，不允许重复注册
+	if processor.GetEvents() > 0 {
 		ret.Code = netsvrProtocol.RegisterRespCode_DuplicateRegister
 		log.Logger.Error().Msg("Duplicate register are not allowed")
 		ret.Message = ret.Code.String()
 		processor.Send(ret, netsvrProtocol.Cmd_Register)
 		return
 	}
-	//设置business连接的workerId
-	processor.SetWorkerId(payload.WorkerId)
+	//设置business连接的events
+	processor.SetEvents(payload.Events)
 	//判断该business连接是否要开启更多的协程去处理它发来的请求命令
 	if payload.ProcessCmdGoroutineNum > 1 {
 		var i uint32 = 1
@@ -72,11 +72,18 @@ func Register(param []byte, processor *workerManager.ConnProcessor) {
 			go processor.LoopCmd()
 		}
 	}
-	log.Logger.Info().Int32("workerId", payload.WorkerId).Str("registerId", processor.GetRegisterId()).Msg("Register a business")
+	//先将注册结果返回给business
 	ret.Code = netsvrProtocol.RegisterRespCode_Success
 	ret.Message = ret.Code.String()
-	ret.RegisterId = processor.GetRegisterId()
+	ret.ConnId = processor.GetConnId()
 	processor.Send(ret, netsvrProtocol.Cmd_Register)
-	//最后，将该workerId登记到worker管理器中，一定要最后加入，确保注册成功的数据是第一个到达business进程，因为加入管理器后就有可能被转发数据
-	workerManager.Manager.Set(processor.GetWorkerId(), processor)
+	//记录日志
+	log.Logger.Info().
+		Str("remoteAddr", processor.GetConnRemoteAddr()).
+		Int32("events", payload.Events).
+		Int("processCmdGoroutineNum", int(payload.ProcessCmdGoroutineNum)).
+		Str("connId", processor.GetConnId()).
+		Msg("Register a business")
+	//最后，将该business连接登记到worker管理器中，一定要最后加入，确保注册结果的数据是第一个到达business进程，因为加入管理器后随时可能被转发数据
+	workerManager.Manager.Set(processor)
 }

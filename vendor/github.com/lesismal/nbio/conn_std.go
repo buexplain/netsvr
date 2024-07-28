@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/lesismal/nbio/timer"
@@ -40,11 +41,13 @@ type Conn struct {
 	// user session.
 	session interface{}
 
-	execList []func()
+	jobList []func()
 
 	cache *bytes.Buffer
 
 	dataHandler func(c *Conn, data []byte)
+
+	onConnected func(c *Conn, err error)
 }
 
 // Hash returns a hashcode.
@@ -69,24 +72,6 @@ func (c *Conn) Read(b []byte) (int, error) {
 	return nread, err
 }
 
-// ReadUDP .
-func (c *Conn) ReadUDP(b []byte) (*Conn, int, error) {
-	if c.closeErr != nil {
-		return c, 0, c.closeErr
-	}
-
-	var reader io.Reader = c.conn
-	if c.cache != nil {
-		reader = c.cache
-	}
-	nread, err := reader.Read(b)
-	if c.closeErr == nil {
-		c.closeErr = err
-	}
-
-	return c, nread, err
-}
-
 func (c *Conn) read(b []byte) (int, error) {
 	var err error
 	var nread int
@@ -104,7 +89,7 @@ func (c *Conn) read(b []byte) (int, error) {
 
 func (c *Conn) readTCP(b []byte) (int, error) {
 	g := c.p.g
-	g.beforeRead(c)
+	// g.beforeRead(c)
 	nread, err := c.conn.Read(b)
 	if c.closeErr == nil {
 		c.closeErr = err
@@ -187,8 +172,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 }
 
 func (c *Conn) writeTCP(b []byte) (int, error) {
-	c.p.g.beforeWrite(c)
-
+	// c.p.g.beforeWrite(c)
 	nwrite, err := c.conn.Write(b)
 	if err != nil {
 		if c.closeErr == nil {
@@ -453,16 +437,6 @@ func (c *Conn) SetLinger(onoff int32, linger int32) error {
 	return nil
 }
 
-// Session returns user session.
-func (c *Conn) Session() interface{} {
-	return c.session
-}
-
-// SetSession sets user session.
-func (c *Conn) SetSession(session interface{}) {
-	c.session = session
-}
-
 func newConn(conn net.Conn) *Conn {
 	c := &Conn{}
 	addr := conn.LocalAddr().String()
@@ -564,4 +538,13 @@ func (u *udpConn) getConn(p *poller, rAddr *net.UDPAddr) (*Conn, bool) {
 	}
 
 	return c, ok
+}
+
+func (c *Conn) SyscallConn() (syscall.RawConn, error) {
+	if rc, ok := c.conn.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	}); ok {
+		return rc.SyscallConn()
+	}
+	return nil, ErrUnsupported
 }

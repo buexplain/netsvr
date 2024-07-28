@@ -107,17 +107,20 @@ type Config struct {
 	// NListener represents listner goroutine num for each ConfAddr, it's set to 1 by default.
 	NListener int
 
-	// NPoller represents poller goroutine num, it's set to runtime.NumCPU() by default.
+	// NPoller represents poller goroutine num.
 	NPoller int
 
 	// ReadLimit represents the max size for parser reading, it's set to 64M by default.
 	ReadLimit int
 
+	// MaxHTTPBodySize represents the max size of HTTP body for parser reading.
+	MaxHTTPBodySize int
+
 	// ReadBufferSize represents buffer size for reading, it's set to 64k by default.
 	ReadBufferSize int
 
-	// MaxWriteBufferSize represents max write buffer size for Conn, it's set to 1m by default.
-	// if the connection's Send-Q is full and the data cached by nbio is
+	// MaxWriteBufferSize represents max write buffer size for Conn, 0 by default, represents no limit for writeBuffer
+	// if MaxWriteBufferSize is set greater than to 0, and the connection's Send-Q is full and the data cached by nbio is
 	// more than MaxWriteBufferSize, the connection would be closed by nbio.
 	MaxWriteBufferSize int
 
@@ -193,11 +196,23 @@ type Config struct {
 	// ReadBufferPool .
 	ReadBufferPool mempool.Allocator
 
+	// Deprecated.
 	// WebsocketCompressor .
 	WebsocketCompressor func(w io.WriteCloser, level int) io.WriteCloser
 
+	// Deprecated.
 	// WebsocketDecompressor .
 	WebsocketDecompressor func(r io.Reader) io.ReadCloser
+
+	// AsyncReadInPoller represents how the reading events and reading are handled
+	// by epoll goroutine:
+	// true : epoll goroutine handles the reading events only, another goroutine
+	//        pool will handles the reading.
+	// false: epoll goroutine handles both the reading events and the reading.
+	//        false is by defalt.
+	AsyncReadInPoller bool
+	// IOExecute is used to handle the aysnc reading, users can customize it.
+	IOExecute func(f func([]byte))
 }
 
 // Engine .
@@ -413,6 +428,29 @@ func (e *Engine) stopListeners() {
 	}
 }
 
+// SetETAsyncRead .
+func (e *Engine) SetETAsyncRead() {
+	if e.NPoller <= 0 {
+		e.NPoller = 1
+	}
+	e.EpollMod = nbio.EPOLLET
+	e.AsyncReadInPoller = true
+	e.Engine.SetETAsyncRead()
+}
+
+// SetLTSyncRead .
+func (e *Engine) SetLTSyncRead() {
+	if e.NPoller <= 0 {
+		e.NPoller = runtime.NumCPU() / 4
+		if e.NPoller == 0 {
+			e.NPoller = 1
+		}
+	}
+	e.EpollMod = nbio.EPOLLLT
+	e.AsyncReadInPoller = false
+	e.Engine.SetLTSyncRead()
+}
+
 // Start .
 func (e *Engine) Start() error {
 	modNames := map[int]string{
@@ -490,17 +528,17 @@ func (e *Engine) DataHandler(c *nbio.Conn, data []byte) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			logging.Error("execute ReadCloser failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+			logging.Error("execute ParserCloser failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
 		}
 	}()
-	readerCloser := c.Session().(ReadCloser)
+	readerCloser := c.Session().(ParserCloser)
 	if readerCloser == nil {
-		logging.Error("nil ReadCloser")
+		logging.Error("nil ParserCloser")
 		return
 	}
-	err := readerCloser.Read(data)
+	err := readerCloser.Parse(data)
 	if err != nil {
-		logging.Debug("ReadCloser.Read failed: %v", err)
+		logging.Debug("ParserCloser.Read failed: %v", err)
 		c.CloseWithError(err)
 	}
 }
@@ -512,16 +550,16 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			logging.Error("execute ReadCloser failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
+			logging.Error("execute ParserCloser failed: %v\n%v\n", err, *(*string)(unsafe.Pointer(&buf)))
 		}
 	}()
-	readCloser := c.Session().(ReadCloser)
-	if readCloser == nil {
-		logging.Error("nil ReadCloser")
+	parserCloser := c.Session().(ParserCloser)
+	if parserCloser == nil {
+		logging.Error("nil ParserCloser")
 		c.Close()
 		return
 	}
-	nbhttpConn, ok := readCloser.UnderlayerConn().(*Conn)
+	nbhttpConn, ok := parserCloser.UnderlayerConn().(*Conn)
 	if ok {
 		if tlsConn, ok := nbhttpConn.Conn.(*tls.Conn); ok {
 			defer tlsConn.ResetOrFreeBuffer()
@@ -536,9 +574,9 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 					return
 				}
 				if nread > 0 {
-					err := readCloser.Read(buffer[:nread])
+					err := parserCloser.Parse(buffer[:nread])
 					if err != nil {
-						logging.Debug("ReadCloser.Read failed: %v", err)
+						logging.Debug("ParserCloser.Read failed: %v", err)
 						c.CloseWithError(err)
 						return
 					}
@@ -552,7 +590,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 	}
 }
 
-// AddConnTLSNonBlocking .
+// AddTransferredConn .
 func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
 	key, err := conn2Array(nbc)
 	if err != nil {
@@ -570,8 +608,14 @@ func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
 	}
 	engine.conns[key] = struct{}{}
 	engine.mux.Unlock()
+	_, err = engine.AddConn(nbc)
+	if err != nil {
+		engine.mux.Lock()
+		delete(engine.conns, key)
+		engine.mux.Unlock()
+		return err
+	}
 	engine._onOpen(nbc)
-	engine.AddConn(nbc)
 	return nil
 }
 
@@ -618,7 +662,13 @@ func (engine *Engine) AddConnNonTLSNonBlocking(conn *Conn, tlsConfig *tls.Config
 	conn.Parser = parser
 	nbc.SetSession(parser)
 	nbc.OnData(engine.DataHandler)
-	engine.AddConn(nbc)
+	_, err = engine.AddConn(nbc)
+	if err != nil {
+		engine.mux.Lock()
+		delete(engine.conns, key)
+		engine.mux.Unlock()
+		return
+	}
 	nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 }
 
@@ -712,7 +762,12 @@ func (engine *Engine) AddConnTLSNonBlocking(conn *Conn, tlsConfig *tls.Config, d
 	nbc.SetSession(parser)
 
 	nbc.OnData(engine.TLSDataHandler)
-	engine.AddConn(nbc)
+	_, err = engine.AddConn(nbc)
+	if err != nil {
+		engine.mux.Lock()
+		delete(engine.conns, key)
+		engine.mux.Unlock()
+	}
 	nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 }
 
@@ -773,11 +828,11 @@ func (engine *Engine) readConnBlocking(conn *Conn, parser *Parser, decrease func
 	}
 
 	buffer := readBufferPool.Malloc(engine.BlockingReadBufferSize)
-	var readCloser ReadCloser = parser
+	var parserCloser ParserCloser = parser
 	defer func() {
 		readBufferPool.Free(buffer)
 		if !conn.Trasfered {
-			readCloser.CloseAndClean(err)
+			parserCloser.CloseAndClean(err)
 		}
 		engine.mux.Lock()
 		switch vt := conn.Conn.(type) {
@@ -796,14 +851,14 @@ func (engine *Engine) readConnBlocking(conn *Conn, parser *Parser, decrease func
 		if err != nil {
 			return
 		}
-		readCloser.Read(buffer[:n])
+		parserCloser.Parse(buffer[:n])
 		if conn.Trasfered {
 			parser.onClose = nil
 			parser.CloseAndClean(nil)
 			return
 		}
-		if parser != nil && parser.ReadCloser != nil {
-			readCloser = parser.ReadCloser
+		if parser != nil && parser.ParserCloser != nil {
+			parserCloser = parser.ParserCloser
 			parser.onClose = nil
 			parser.CloseAndClean(nil)
 			parser = nil
@@ -822,11 +877,11 @@ func (engine *Engine) readTLSConnBlocking(conn *Conn, rconn net.Conn, tlsConn *t
 		readBufferPool = getReadBufferPool(engine.BlockingReadBufferSize)
 	}
 	buffer := readBufferPool.Malloc(engine.BlockingReadBufferSize)
-	var readCloser ReadCloser = parser
+	var parserCloser ParserCloser = parser
 	defer func() {
 		readBufferPool.Free(buffer)
 		if !conn.Trasfered {
-			readCloser.CloseAndClean(err)
+			parserCloser.CloseAndClean(err)
 			tlsConn.Close()
 		}
 		engine.mux.Lock()
@@ -854,7 +909,7 @@ func (engine *Engine) readTLSConnBlocking(conn *Conn, rconn net.Conn, tlsConn *t
 				return
 			}
 			if nread > 0 {
-				err = readCloser.Read(buffer[:nread])
+				err = parserCloser.Parse(buffer[:nread])
 				if err != nil {
 					logging.Debug("parser.Read failed: %v", err)
 					return
@@ -864,8 +919,8 @@ func (engine *Engine) readTLSConnBlocking(conn *Conn, rconn net.Conn, tlsConn *t
 					parser.CloseAndClean(nil)
 					return
 				}
-				if parser != nil && parser.ReadCloser != nil {
-					readCloser = parser.ReadCloser
+				if parser != nil && parser.ParserCloser != nil {
+					parserCloser = parser.ParserCloser
 					parser.onClose = nil
 					parser.CloseAndClean(nil)
 					parser = nil
@@ -888,6 +943,9 @@ func NewEngine(conf Config) *Engine {
 	}
 	if conf.NPoller <= 0 {
 		conf.NPoller = runtime.NumCPU() / 4
+		if conf.AsyncReadInPoller && conf.EpollMod == nbio.EPOLLET {
+			conf.NPoller = 1
+		}
 		if conf.NPoller == 0 {
 			conf.NPoller = 1
 		}
@@ -986,6 +1044,8 @@ func NewEngine(conf Config) *Engine {
 		LockListener:                 conf.LockListener,
 		EpollMod:                     conf.EpollMod,
 		EPOLLONESHOT:                 conf.EPOLLONESHOT,
+		AsyncReadInPoller:            conf.AsyncReadInPoller,
+		IOExecute:                    conf.IOExecute,
 	}
 	g := nbio.NewEngine(gopherConf)
 	g.Execute = serverExecutor
@@ -1035,7 +1095,7 @@ func NewEngine(conf Config) *Engine {
 	g.OnClose(func(c *nbio.Conn, err error) {
 		c.MustExecute(func() {
 			switch vt := c.Session().(type) {
-			case ReadCloser:
+			case ParserCloser:
 				vt.CloseAndClean(err)
 			default:
 			}

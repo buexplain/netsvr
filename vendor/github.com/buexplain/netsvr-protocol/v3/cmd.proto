@@ -1,0 +1,74 @@
+/**
+* Copyright 2023 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
+syntax = "proto3";
+
+package netsvr.cmd;
+
+option go_package = "netsvr/";
+option php_namespace = "Netsvr";
+option php_metadata_namespace = "Netsvr\\GPBMetadata";
+
+//worker能够处理的指令，分为三块：1、worker单向转发给business的指令，2、business单向请求worker的指令，3、business请求worker，worker再响应business的指令
+enum Cmd {
+  //毫无意义的占位符，目的是避免枚举从零开始
+  Placeholder = 0;
+  //--------------------------------worker单向转发给business的指令 开始--------------------------------
+  ConnOpen = 900001001; //websocket连接打开
+  ConnClose = 900001002;//websocket连接关闭
+  Transfer = 900001003;//透传客户端的websocket数据
+  //--------------------------------worker单向转发给business的指令 结束--------------------------------
+
+  //--------------------------------business单向请求worker的指令，worker不会响应business 开始--------------------------------
+  ConnInfoUpdate = 900002001;//更新连接的信息
+  ConnInfoDelete = 900002002;//删除连接的信息
+  Broadcast = 900002003; //广播
+  Multicast = 900002004; //根据uniqId组播
+  MulticastByCustomerId = 900002005; //根据customerId组播
+  SingleCast = 900002006;//根据uniqId单播
+  SingleCastBulk = 900002007;//根据uniqId批量单播
+  SingleCastByCustomerId = 900002008;//根据customerId单播
+  SingleCastBulkByCustomerId = 900002009;//根据customerId批量单播
+  TopicSubscribe = 900002010;//订阅某几个主题
+  TopicUnsubscribe = 900002011;//取消订阅某几个主题
+  TopicDelete = 900002012;//删除某几个主题
+  TopicPublish = 900002013;//给某几个主题发布信息,一份消息发布到多个主题
+  TopicPublishBulk = 900002014;//批量发布到某几个主题,多份消息发布到多个主题，或者多份消息发布到一个主题
+  ForceOffline = 900002015;//强制关闭某几个连接
+  ForceOfflineByCustomerId = 900002016;//强制关闭某几个客户的所有连接
+  ForceOfflineGuest = 900002017;//强制关闭某几个空session、空customerId的连接
+  //--------------------------------business单向请求worker的指令 结束--------------------------------
+
+  //--------------------------------business请求worker的指令，worker会响应business 开始--------------------------------
+  Register = 900003001; //业务进程向网关的worker服务器发出注册指令，注册成功后，business会收到worker服务器转发的客户端websocket消息
+  Unregister = 900003002; //业务进程向网关的worker服务器发出取消注册指令，取消注册成功后，业务进程不会再收到客户端websocket消息
+  CheckOnline = 900003003; //判断某几个uniqId是否在在线，有则返回uniqId值
+  CustomerIdList = 900003004; //获取网关中全部的customerId
+  CustomerIdCount = 900003005; //获取网关中customerId的数量
+  UniqIdList = 900003006; //获取网关中全部的uniqId
+  UniqIdCount = 900003007; //获取网关中uniqId的数量
+  TopicList = 900003008; //获取网关中的主题
+  TopicCount = 900003009; //获取网关中的主题数量
+  TopicUniqIdList = 900003010; //获取网关中某个主题包含的uniqId
+  TopicUniqIdCount = 900003011; //获取网关中的主题包含的连接数
+  TopicCustomerIdList = 900003012; //获取网关中某几个主题的customerId
+  TopicCustomerIdCount = 900003013; //获取网关某个主题的customerId数量
+  ConnInfo = 900003014; //获取连接的信息
+  ConnInfoByCustomerId = 900003015; //获取连接的信息
+  Metrics = 900003016; //获取网关统计的服务状态
+  Limit = 900003017; //更新限流配置、获取网关中的限流配置的真实情况
+  //--------------------------------business请求worker的指令，worker会响应business 结束--------------------------------
+}

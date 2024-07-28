@@ -17,7 +17,7 @@
 package objPool
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"sync"
 )
 
@@ -32,7 +32,6 @@ func (r *uniqIdCountResp) Get() *netsvrProtocol.UniqIdCountResp {
 }
 
 func (r *uniqIdCountResp) Put(uniqIdCountResp *netsvrProtocol.UniqIdCountResp) {
-	uniqIdCountResp.ServerId = 0
 	uniqIdCountResp.Count = 0
 	r.pool.Put(uniqIdCountResp)
 }

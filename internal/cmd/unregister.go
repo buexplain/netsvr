@@ -17,21 +17,21 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// Unregister business取消已注册的workerId
+// Unregister business取消注册状态
 func Unregister(param []byte, processor *workerManager.ConnProcessor) {
 	payload := netsvrProtocol.UnRegisterReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.UnRegisterReq failed")
 		return
 	}
-	if workerManager.Manager.Del(payload.WorkerId, payload.RegisterId) {
-		log.Logger.Info().Int32("workerId", payload.WorkerId).Str("registerId", payload.RegisterId).Msg("Unregister a business")
+	if workerManager.Manager.Del(payload.ConnId) {
+		log.Logger.Info().Str("remoteAddr", processor.GetConnRemoteAddr()).Str("connId", payload.ConnId).Msg("Unregister a business")
 	}
 	processor.Send(&netsvrProtocol.UnRegisterResp{}, netsvrProtocol.Cmd_Unregister)
 }

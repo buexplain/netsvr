@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/info"
@@ -44,8 +44,8 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 		if conn == nil {
 			return
 		}
-		//跳过有session值的连接
-		if session, ok := conn.SessionWithLock().(*info.Info); ok && session.GetSession() != "" {
+		//跳过登录状态的连接
+		if session, ok := conn.SessionWithLock().(*info.Info); ok && session.IsLogin() {
 			return
 		}
 		//判断是否转发数据
@@ -55,7 +55,7 @@ func ForceOfflineGuest(param []byte, _ *workerManager.ConnProcessor) {
 		} else {
 			//写入数据，并在一定倒计时后关闭连接
 			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-				timer.Timer.AfterFunc(time.Second*3, func() {
+				timer.Timer.AfterFunc(time.Millisecond*100, func() {
 					defer func() {
 						_ = recover()
 					}()

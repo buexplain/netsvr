@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
@@ -25,10 +25,10 @@ import (
 	workerManager "netsvr/internal/worker/manager"
 )
 
-// ConnInfo 获取连接的信息
+// ConnInfo 获取uniqId的连接信息
 func ConnInfo(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.ConnInfoReq{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := &netsvrProtocol.ConnInfoReq{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.ConnInfoReq failed")
 		return
 	}
@@ -43,7 +43,7 @@ func ConnInfo(param []byte, processor *workerManager.ConnProcessor) {
 			continue
 		}
 		item := &netsvrProtocol.ConnInfoRespItem{}
-		session.GetToProtocolInfoResp(item)
+		session.GetConnInfoOnSafe(payload, item)
 		ret.Items[uniqId] = item
 	}
 	processor.Send(ret, netsvrProtocol.Cmd_ConnInfo)

@@ -19,7 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -32,20 +32,21 @@ type singleCastBulk struct{}
 var SingleCastBulk = singleCastBulk{}
 
 func (r singleCastBulk) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterSingleCastBulkForUniqId, r.BulkForUniqId)
+	processor.RegisterBusinessCmd(protocol.RouterSingleCastBulk, r.UniqId)
+	processor.RegisterBusinessCmd(protocol.RouterSingleCastBulkByCustomerId, r.CustomerId)
 }
 
-// SingleCastBulkForUniqIdParam 客户端发送的单播信息
-type SingleCastBulkForUniqIdParam struct {
+// SingleCastBulkParam 客户端发送的单播信息
+type SingleCastBulkParam struct {
 	Message []string
 	UniqIds []string `json:"uniqIds"`
 }
 
-// BulkForUniqId 批量单播给某几个uniqId
-func (singleCastBulk) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
-	payload := SingleCastBulkForUniqIdParam{}
+// UniqId 批量单播给某几个uniqId
+func (singleCastBulk) UniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := SingleCastBulkParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastBulkForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastBulkParam failed")
 		return
 	}
 	var fromUser string
@@ -59,9 +60,40 @@ func (singleCastBulk) BulkForUniqId(tf *netsvrProtocol.Transfer, param string, p
 	ret := &netsvrProtocol.SingleCastBulk{UniqIds: make([]string, 0, len(payload.UniqIds)), Data: make([][]byte, 0, len(payload.UniqIds))}
 	for _, data := range payload.Message {
 		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
-		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterSingleCastBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 	}
 	ret.UniqIds = payload.UniqIds
 	//发到网关
 	processor.Send(ret, netsvrProtocol.Cmd_SingleCastBulk)
+}
+
+// SingleCastBulkByCustomerIdParam 客户端发送的单播信息
+type SingleCastBulkByCustomerIdParam struct {
+	Message     []string
+	CustomerIds []string `json:"customerIds"`
+}
+
+// CustomerId 批量单播给某几个customerId
+func (singleCastBulk) CustomerId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := SingleCastBulkByCustomerIdParam{}
+	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastBulkByCustomerIdParam failed")
+		return
+	}
+	var fromUser string
+	currentUser := userDb.ParseNetSvrInfo(tf.Session)
+	if currentUser == nil {
+		fromUser = fmt.Sprintf("uniqId(%s)", tf.UniqId)
+	} else {
+		fromUser = currentUser.Name
+	}
+	//构建批量单播数据
+	ret := &netsvrProtocol.SingleCastBulkByCustomerId{CustomerIds: make([]string, 0, len(payload.CustomerIds)), Data: make([][]byte, 0, len(payload.CustomerIds))}
+	for _, data := range payload.Message {
+		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
+		ret.Data = append(ret.Data, testUtils.NewResponse(protocol.RouterSingleCastBulkByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	}
+	ret.CustomerIds = payload.CustomerIds
+	//发到网关
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCastBulkByCustomerId)
 }

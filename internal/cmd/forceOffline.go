@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
@@ -58,7 +58,7 @@ func ForceOffline(param []byte, _ *workerManager.ConnProcessor) {
 		}
 		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			//倒计时的目的是确保数据发送成功
-			timer.Timer.AfterFunc(time.Second*3, func() {
+			timer.Timer.AfterFunc(time.Millisecond*100, func() {
 				defer func() {
 					_ = recover()
 				}()

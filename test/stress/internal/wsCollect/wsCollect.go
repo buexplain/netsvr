@@ -60,3 +60,23 @@ func (r *Collect) RandomGetUniqIds(num int) []string {
 	}
 	return ret
 }
+
+func (r *Collect) RandomGetCustomerIds(num int) []string {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	if num <= 0 {
+		return nil
+	}
+	ret := make([]string, 0, num)
+	for ws := range r.collect {
+		if len(ret) > num {
+			break
+		}
+		customerId := ws.GetCustomerId()
+		if customerId == "" {
+			break
+		}
+		ret = append(ret, ws.GetCustomerId())
+	}
+	return ret
+}

@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="zh-cn">
+<head>
+    <meta charset="utf-8">
+    <title>测试网关的各种功能实现</title>
+    <style>
+        .case {
+            margin-bottom: 15px;
+        }
+
+        .case:first-child {
+            margin-top: 15px;
+        }
+
+        .line-center {
+            display: flex;
+            align-items: center;
+        }
+
+        .m-r-5 {
+            margin-right: 5px;
+        }
+
+        .input-max, .select-max {
+            width: 400px;
+        }
+
+        .input-min {
+            width: 200px;
+        }
+
+        label {
+            user-select: none;
+            margin: 5px 0 5px 0;
+            display: inline-block;
+        }
+    </style>
+    <script>
+        /**
+         * 转成 int[]
+         * @param value
+         * @returns {*[]}
+         */
+        window.processorToIntArr = function (value) {
+            let ret = [];
+            value.toString().trim().replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
+                v = v.toString().trim();
+                v = parseInt(v);
+                if (typeof v === 'number') {
+                    ret.push(v);
+                }
+            });
+            return ret;
+        }
+
+        /**
+         * 转成 string[]
+         * @param value
+         * @returns {*[]}
+         */
+        window.processorToStringArr = function (value) {
+            let ret = [];
+            value.toString().trim().replaceAll(/[，、]/ig, ',').split(',').forEach(function (v) {
+                v = v.toString().trim();
+                if (v !== '') {
+                    ret.push(v);
+                }
+            });
+            return ret;
+        }
+
+        /**
+         * 转成string
+         * @param value
+         * @returns {int}
+         */
+        window.processorToInt = function (value) {
+            value = value.toString().trim();
+            return parseInt(value === '' ? '0' : value);
+        }
+
+        /**
+         * 转成string
+         * @param value
+         * @returns {boolean}
+         */
+        window.processorToBool = function (value) {
+            return !(value === null || value === '' || value === 'false' || value === '0' || value === 'no');
+        }
+
+        /**
+         * 转成string
+         * @param value
+         * @returns {string}
+         */
+        window.processorToString = function (value) {
+            return value.toString().trim();
+        }
+    </script>
+</head>
+<body>
+<div style="display:flex">
+    <div style="width: 70%;max-height: 90vh;overflow-y: auto;">
+        <div class="case">
+            <label for="address">
+                <input class="input-max" type="text" id="address" placeholder="请输入连接地址" value="{!.conn!}">
+            </label>
+            <button onclick="openWebsocket()">打开连接</button>
+            <button onclick="closeWebsocket()">关闭连接</button>
+            <button onclick="clearScreen()">清屏</button>
+        </div>
+
+        <div class="case line-center">
+            <div class="m-r-5">
+                <label>
+                    <input class="input-max" type="number" min="0" step="1" name="onOpen"
+                           data-processor="processorToInt"
+                           placeholder="网关允许每秒转发多少个连接打开事件到business进程"
+                           value="">
+                </label>
+                <br>
+                <label>
+                    <input class="input-max" type="number" min="0" step="1" name="onMessage"
+                           data-processor="processorToInt"
+                           placeholder="网关允许每秒转发多少个消息到business进程"
+                           value="">
+                </label>
+            </div>
+            <button onclick="send(this,routerCmd.limit)">更新限流配置
+            </button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.metrics)">获取网关状态的统计信息</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <select class="select-max" name="username" data-processor="processorToString">
+                    <option>请选择账号</option>
+                    <option>玄德</option>
+                    <option>云长</option>
+                    <option>翼德</option>
+                    <option>奉先</option>
+                </select>
+            </label>
+            <input type="hidden" name="password" data-processor="processorToString" value="123456">
+            <button onclick="send(this,routerCmd.signIn)">登录</button>
+            <button onclick="send(null,routerCmd.signOut)">退出登录</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-min" type="number" min="0" step="1" max="10000" name="topicNum"
+                       data-processor="processorToInt"
+                       placeholder="请输入初始化主题的个数"
+                       value="10">
+                <input class="input-min" type="number" min="0" step="1" max="1048576" name="sessionLen"
+                       data-processor="processorToInt"
+                       placeholder="请输入初始化session的长度"
+                       value="1024">
+            </label>
+            <input type="hidden" name="password" data-processor="processorToString" value="123456">
+            <button onclick="send(this,routerCmd.signInForForge)">伪造登录</button>
+            <button onclick="send(null,routerCmd.signOutForForge)">伪造退出登录</button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.connInfo)">获取当前连接信息</button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.uniqIdList)">获取网关所有uniqId</button>
+            <button onclick="send(null,routerCmd.uniqIdCount)">获取网关中的uniqId数量</button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.customerIdList)">获取网关所有customerId</button>
+            <button onclick="send(null,routerCmd.customerIdCount)">获取网关中的customerId数量</button>
+        </div>
+
+        <div class="case">
+            <button onclick="send(null,routerCmd.topicList)">获取网关中的主题</button>
+            <button onclick="send(null,routerCmd.topicCount)">获取网关中的主题数量</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="customerIds" data-processor="processorToStringArr"
+                       placeholder="请输入customerId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.connInfoByCustomerId)">获取customerId的连接信息</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入主题，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.topicCustomerIdList)">获取主题的customerId列表</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入主题，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.topicCustomerIdCount)">获取主题的customerId数量</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="uniqIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标uniqId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.checkOnline)">检查uniqId是否在线</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="customerIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标customerId，多个用逗号分割"
+                       value="1">
+            </label>
+            <button onclick="send(this,routerCmd.forceOfflineByCustomerId)">按customerId强制下线</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.forceOffline)">按uniqId强制下线</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <label>
+                <input class="input-min" type="number" step="1" name="delay" data-processor="processorToInt"
+                       placeholder="请输入需要延迟下线的秒数"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.forceOfflineGuest)">按uniqId强制下线游客</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
+                       value="我是一条按customerId的单播的信息">
+            </label>
+            <label>
+                <input class="input-min" type="text" name="customerId" data-processor="processorToString"
+                       placeholder="请输入目标customerId"
+                       value="1">
+            </label>
+            <button onclick="send(this,routerCmd.singleCastByCustomerId)">按customerId单播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
+                       value="我是一条按uniqId单播的信息">
+            </label>
+            <label>
+                <input class="input-min" type="text" name="uniqId" data-processor="processorToString"
+                       placeholder="请输入目标uniqId"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.singleCast)">按uniqId单播</button>
+        </div>
+
+        <div class="case line-center">
+            <div class="m-r-5">
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按customerId批量单播的信息1">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="customerIds[]" data-processor="processorToString"
+                           placeholder="请输入目标customerId"
+                           value="">
+                </label>
+                <br>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按customerId批量单播的信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="customerIds[]" data-processor="processorToString"
+                           placeholder="请输入目标customerId"
+                           value="">
+                </label>
+            </div>
+            <button onclick="send(this,routerCmd.singleCastBulkByCustomerId)"
+                    title="可以将多条消息发布到多个customerId或者是多条消息发布到一个customerId">按customerId批量单播
+            </button>
+        </div>
+
+        <div class="case line-center">
+            <div class="m-r-5">
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按uniqId批量单播的信息1">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="uniqIds[]" data-processor="processorToString"
+                           placeholder="请输入目标uniqId"
+                           value="">
+                </label>
+                <br>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发送的信息"
+                           value="我是一条按uniqId批量单播的信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="uniqIds[]" data-processor="processorToString"
+                           placeholder="请输入目标uniqId"
+                           value="">
+                </label>
+            </div>
+            <button onclick="send(this,routerCmd.singleCastBulk)"
+                    title="可以将多条消息发布到多个连接或者是多条消息发布到一个连接">按uniqId批量单播
+            </button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
+                       value="我是一条按customerId组播的信息">
+            </label>
+            <label>
+                <input class="input-min" type="text" name="customerIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标customerId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.multicastByCustomerId)">按customerId组播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
+                       value="我是一条按uniqId组播的信息">
+            </label>
+            <label>
+                <input class="input-min" type="text" name="uniqIds" data-processor="processorToStringArr"
+                       placeholder="请输入目标uniqId，多个用逗号分割"
+                       value="">
+            </label>
+            <button onclick="send(this,routerCmd.multicast)">按uniqId组播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发送的信息"
+                       value="我是一条广播信息">
+            </label>
+            <button onclick="send(this,routerCmd.broadcast)">广播</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要订阅的主题，多个用逗号分割"
+                       value="小品频道，相声频道，戏曲频道，评书频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicSubscribe)">订阅</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要取消订阅的主题，多个用逗号分割"
+                       value="相声频道，小品频道，评书频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicUnsubscribe)">取消订阅</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要删除的主题，多个用逗号分割"
+                       value="相声频道，小品频道，评书频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicDelete)">删除主题</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicUniqIdCount)">获取主题连接数</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topic" data-processor="processorToString"
+                       placeholder="请输入主题" value="戏曲频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicUniqIdList)">获取主题的uniqId</button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="message" data-processor="processorToString"
+                       placeholder="请输入要发布的信息"
+                       value="我是一条发布信息">
+            </label>
+            <label>
+                <input class="input-min" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入要发布的主题，多个用逗号分割"
+                       value="戏曲频道">
+            </label>
+            <button onclick="send(this,routerCmd.topicPublish)">发布</button>
+        </div>
+
+        <div class="case line-center">
+            <div class="m-r-5">
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发布的信息"
+                           value="我是一条批量发布信息1">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
+                           placeholder="请输入要发布的主题"
+                           value="小品频道">
+                </label>
+                <br>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要发布的信息"
+                           value="我是一条批量发布信息2">
+                </label>
+                <label>
+                    <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
+                           placeholder="请输入要发布的主题"
+                           value="相声频道">
+                </label>
+            </div>
+            <button onclick="send(this,routerCmd.topicPublishBulk)"
+                    title="可以将多条消息发布到多个主题或者是多条消息发布到一个主题">批量发布
+            </button>
+        </div>
+    </div>
+    <div style="width: 30%;max-height: 90vh;overflow-y: auto;">
+        <div id="topInfo"></div>
+        <div id="output"></div>
+    </div>
+</div>
+
+<script>
+    /**
+     * 发送给business的指令，这个指令与go的business的protocol一致
+     */
+    const routerCmd = {
+        connOpen: parseInt("{!.RouterRespConnOpen!}"), //连接成功
+        connClose: parseInt("{!.RouterRespConnClose!}"), //连接关闭
+        metrics: parseInt("{!.RouterMetrics!}"),//获取网关状态的统计信息
+        limit: parseInt("{!.RouterLimit!}"),//更新限流配置、获取网关中的限流配置的真实情况
+        uniqIdList: parseInt("{!.RouterUniqIdList!}"), //获取网关中全部的uniqId
+        uniqIdCount: parseInt("{!.RouterUniqIdCount!}"), //获取网关中uniqId的数量
+        customerIdCount: parseInt("{!.RouterCustomerIdCount!}"), //获取网关中customerId的数量
+        customerIdList: parseInt("{!.RouterCustomerIdList!}"), //获取网关中全部的customerId
+        connInfo: parseInt("{!.RouterConnInfo!}"), //获取当前连接信息
+        connInfoByCustomerId: parseInt("{!.RouterConnInfoByCustomerId!}"), //获取customerId的连接信息
+        topicCount: parseInt("{!.RouterTopicCount!}"), //获取网关中的主题
+        topicList: parseInt("{!.RouterTopicList!}"), //获取网关中的主题数量
+        signIn: parseInt("{!.RouterSignIn!}"), //登录
+        signOut: parseInt("{!.RouterSignOut!}"), //退出登录
+        signInForForge: parseInt("{!.RouterSignInForForge!}"), //登录
+        signOutForForge: parseInt("{!.RouterSignOutForForge!}"), //退出登录
+        checkOnline: parseInt("{!.RouterCheckOnline!}"),//检查某个连接是否在线
+        forceOfflineByCustomerId: parseInt("{!.RouterForceOfflineByCustomerId!}"), //强制关闭
+        forceOffline: parseInt("{!.RouterForceOffline!}"), //强制关闭
+        forceOfflineGuest: parseInt("{!.RouterForceOfflineGuest!}"), //按uniqId强制下线游客
+        singleCastByCustomerId: parseInt("{!.RouterSingleCastByCustomerId!}"), //单播给某个用户
+        singleCast: parseInt("{!.RouterSingleCast!}"), //单播给某个uniqId
+        singleCastBulk: parseInt("{!.RouterSingleCastBulk!}"), //批量单播给某几个uniqId
+        singleCastBulkByCustomerId: parseInt("{!.RouterSingleCastBulkByCustomerId!}"), //批量单播给某几个customerId
+        multicast: parseInt("{!.RouterMulticast!}"), //组播给多个uniqId
+        multicastByCustomerId: parseInt("{!.RouterMulticastByCustomerId!}"), //组播给多个customerId
+        broadcast: parseInt("{!.RouterBroadcast!}"), //广播
+        topicSubscribe: parseInt("{!.RouterTopicSubscribe!}"), //订阅
+        topicUnsubscribe: parseInt("{!.RouterTopicUnsubscribe!}"), //取消订阅
+        topicDelete: parseInt("{!.RouterTopicDelete!}"), //删除主题
+        topicUniqIdCount: parseInt("{!.RouterTopicUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
+        topicUniqIdList: parseInt("{!.RouterTopicUniqIdList!}"), //获取网关中的某个主题包含的uniqId
+        topicCustomerIdList: parseInt("{!.RouterTopicCustomerIdList!}"), //获取网关中某几个主题的customerId
+        topicCustomerIdCount: parseInt("{!.RouterTopicCustomerIdCount!}"), //获取网关中某几个主题的customerId数量
+        topicPublish: parseInt("{!.RouterTopicPublish!}"), //发布
+        topicPublishBulk: parseInt("{!.RouterTopicPublishBulk!}"), //批量发布
+    };
+
+    //当前连接
+    let ws;
+
+    //心跳间隔函数的index
+    let heartbeatInterval = 0;
+
+    //输出屏幕
+    let output = document.getElementById("output");
+
+    //输出函数
+    let print = function (message) {
+        let d = document.createElement("pre");
+        d.textContent = message;
+        output.appendChild(d);
+        d.scrollIntoView();
+    };
+
+    //心跳字符串
+    let heartbeatMessage = "{!.heartbeatMessage!}";
+
+    /**
+     * 关闭连接
+     */
+    function closeWebsocket() {
+        ws && ws.close();
+    }
+
+    /**
+     * 清空屏幕
+     */
+    function clearScreen() {
+        output.innerHTML = '';
+    }
+
+    /**
+     * 发送
+     * @param btn
+     * @param cmd
+     */
+    function send(btn, cmd) {
+        let param = {};
+        if (btn) {
+            ['input[type="text"]', 'input[type="number"]', 'input[type="hidden"]', 'select'].forEach(function (selectors) {
+                btn.parentNode.querySelectorAll(selectors).forEach(function (input) {
+                    let processor = input.getAttribute('data-processor');
+                    let name = input.name;
+                    let value = processor ? window[processor](input.value) : input.value;
+                    if (value === '') {
+                        return;
+                    }
+                    if (name.indexOf('[]') !== -1) {
+                        name = name.substring(0, name.length - 2);
+                        if (param.hasOwnProperty(name)) {
+                            param[name].push(value);
+                        } else {
+                            param[name] = [value];
+                        }
+                    } else {
+                        param[name] = value;
+                    }
+                });
+            });
+            btn.parentNode.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                if (input.checked === false) {
+                    return;
+                }
+                let processor = input.getAttribute('data-processor');
+                param[input.name] = processor ? window[processor](input.value) : input.value;
+            });
+        }
+        if (!ws) {
+            print("请先打开连接");
+            return;
+        }
+        ws.send(JSON.stringify({
+            cmd: cmd,
+            data: JSON.stringify(param)
+        }));
+    }
+
+    /**
+     * 打开连接
+     */
+    function openWebsocket() {
+        if (ws) {
+            return;
+        }
+        ws = new WebSocket(document.getElementById("address").value, ["a-1", "b-2"]);
+        ws.onopen = function () {
+            heartbeatInterval = setInterval(function () {
+                //每隔30秒，发送一次心跳信息
+                //这个心跳一定要发，否则服务端会把连接干掉
+                ws.send(heartbeatMessage);
+            }, 1000 * 30);
+        }
+        ws.onclose = function (evt) {
+            ws = null;
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = 0;
+            if (evt.code === 1005) {
+                //客户端主动断开
+                document.getElementById("topInfo").innerText = '断开网关成功';
+            } else if (evt.code === 1006) {
+                //服务端挂了
+                document.getElementById("topInfo").innerText = '连接网关失败，网关服务器异常';
+            } else {
+                document.getElementById("topInfo").innerText = '连接网关失败: ' + evt.code + ' ' + evt.reason;
+            }
+        }
+        ws.onerror = function (evt) {
+            console.error(evt);
+            document.getElementById("topInfo").innerText = '连接网关失败';
+        }
+        ws.onmessage = async function (evt) {
+            try {
+                /**
+                 * 服务器返回信息
+                 * @type {{data: any, cmd: number}}
+                 */
+                let resp;
+                if (evt.data instanceof Blob) {
+                    resp = JSON.parse(await evt.data.text());
+                } else {
+                    resp = JSON.parse(evt.data);
+                }
+
+                //连接打开，服务端发来了相关信息
+                if (resp.cmd === routerCmd.connOpen) {
+                    if (resp.data.code === 0) {
+                        clearScreen();
+                        document.getElementById("topInfo").innerText = resp.data.message + '，uniqId：' + resp.data.data.uniqId;
+                        print(JSON.stringify(resp.data.data, null, "  "));
+                        return
+                    }
+                    print(resp.data.message);
+                    return;
+                }
+
+                //连接关闭，服务端发来了相关信息
+                if (resp.cmd === routerCmd.connClose) {
+                    print(resp.data.message);
+                    closeWebsocket();
+                    return;
+                }
+
+                //服务端响应了登录结果
+                if (resp.cmd === routerCmd.signIn || resp.cmd === routerCmd.signInForForge) {
+                    print(resp.data.message);
+                    if (resp.data.code === 0) {
+                        if (resp.data.data === null) {
+                            print(resp.data.message);
+                        } else {
+                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，uniqId是：' + resp.data.data.uniqId;
+                        }
+                    }
+                    return;
+                }
+
+                //服务端响应了退出登录结果
+                if (resp.cmd === routerCmd.signOut || resp.cmd === routerCmd.signOutForForge) {
+                    if (resp.data.code === 0) {
+                        document.getElementById("topInfo").innerText = resp.data.message;
+                    } else {
+                        print(resp.data.message);
+                    }
+                    return;
+                }
+
+                //服务端响应了在线的连接uniqId
+                if (resp.cmd === routerCmd.checkOnline) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(JSON.stringify(resp.data.data, null, "  "));
+                    return;
+                }
+
+                //服务端响应网关统计的服务状态
+                if (resp.cmd === routerCmd.metrics) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(JSON.stringify(resp.data.data, null, "  "));
+                    return;
+                }
+
+                //服务端响应取网关中的限流配置的真实情况
+                if (resp.cmd === routerCmd.limit) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (!resp.data.data) {
+                        print("网关没有配置过任何的限流")
+                        return;
+                    }
+                    print("限流器配置：\n" + JSON.stringify(resp.data.data, null, "  "));
+                    return;
+                }
+
+                //服务端响应了所有在线的uniqId
+                if (resp.cmd === routerCmd.uniqIdList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(resp.data.message + '：\n' + resp.data.data.uniqIds.join('\n'));
+                    return;
+                }
+
+                //服务端响应了网关中uniqId的数量
+                if (resp.cmd === routerCmd.uniqIdCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print('网关现有uniqId数是：' + resp.data.data.count);
+                    return;
+                }
+
+                //服务端响应了所有在线的customerId
+                if (resp.cmd === routerCmd.customerIdList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data["customerIds"] === null) {
+                        print("没有连接绑定过customerId");
+                        return;
+                    }
+                    print(resp.data.message + '：\n' + resp.data.data["customerIds"].join('\n'));
+                    return;
+                }
+
+                //服务端响应了网关中某几个主题的customerId
+                if (resp.cmd === routerCmd.topicCustomerIdList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data["list"] === null) {
+                        print("没有连接绑定过customerId");
+                        return;
+                    }
+                    for (let i in resp.data.data["list"]) {
+                        print(i + '：' + resp.data.data["list"][i]['customerIds'].join('、'));
+                    }
+                    return;
+                }
+
+                //服务端响应了网关中customerId的数量
+                if (resp.cmd === routerCmd.customerIdCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print('网关现有customerId数是：' + resp.data.data.count);
+                    return;
+                }
+
+                //服务端响应了网关中某几个主题的customerId数量
+                if (resp.cmd === routerCmd.topicCustomerIdCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data["list"] === null) {
+                        print("没有连接绑定过customerId");
+                        return;
+                    }
+                    for (let i in resp.data.data["list"]) {
+                        print(i + '：' + resp.data.data["list"][i]);
+                    }
+                    return;
+                }
+
+                //服务端响应了当前连接信息
+                if (resp.cmd === routerCmd.connInfo) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print("获取当前连接信息成功：" + JSON.stringify(resp.data.data.connInfo, null, "  "));
+                    return;
+                }
+
+                //服务端响应了customerId的连接信息
+                if (resp.cmd === routerCmd.connInfoByCustomerId) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data['connInfo'] === null) {
+                        print("没有找到该customerId的连接信息");
+                        return;
+                    }
+                    for (let customerId in resp.data.data['connInfo']) {
+                        print("customerId：" + customerId + " 的连接信息：" + JSON.stringify(resp.data.data['connInfo'][customerId]['items'], null, "  "));
+                    }
+                    return;
+                }
+
+                //服务端响应了网关中的主题列表
+                if (resp.cmd === routerCmd.topicList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data.topics === null) {
+                        print("没有用户订阅过主题");
+                        return;
+                    }
+                    print("已经订阅的主题有：" + resp.data.data.topics.join('、'));
+                    return;
+                }
+
+                //服务端响应了网关中的主题数量
+                if (resp.cmd === routerCmd.topicCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print("网关现有主题数是：" + resp.data.data.count);
+                    return;
+                }
+
+                //某某某发来了一条信息
+                if (
+                    resp.cmd === routerCmd.singleCastByCustomerId
+                    || resp.cmd === routerCmd.singleCast
+                    || resp.cmd === routerCmd.singleCastBulk
+                    || resp.cmd === routerCmd.singleCastBulkByCustomerId
+                    || resp.cmd === routerCmd.multicast
+                    || resp.cmd === routerCmd.multicastByCustomerId
+                    || resp.cmd === routerCmd.broadcast
+                    || resp.cmd === routerCmd.topicPublish
+                    || resp.cmd === routerCmd.topicPublishBulk
+                ) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    /**
+                     * @type {{fromUser: string, message: string}}
+                     */
+                    let singleCast = resp.data.data;
+                    print(singleCast.fromUser + ": " + singleCast.message);
+                    return;
+                }
+                //服务端响应订阅、取消订阅结果
+                if (resp.cmd === routerCmd.topicSubscribe || resp.cmd === routerCmd.topicUnsubscribe) {
+                    print(resp.data.message);
+                    return;
+                }
+                //服务端响应了某几个主题的uniqId数量
+                if (resp.cmd === routerCmd.topicUniqIdCount) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data === null) {
+                        print("未找到任何主题");
+                        return;
+                    }
+                    for (let topic in resp.data.data) {
+                        if (!resp.data.data.hasOwnProperty(topic)) {
+                            continue;
+                        }
+                        print('主题：' + topic + ' 有 ' + resp.data.data[topic] + ' 个连接');
+                    }
+                    return;
+                }
+                //服务端响应了个主题的uniqId
+                if (resp.cmd === routerCmd.topicUniqIdList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    print(resp.data.message);
+                    if (resp.data.data) {
+                        for (let i in resp.data.data) {
+                            resp.data.data[i]['uniqIds'] && print(i + '-->' + resp.data.data[i]['uniqIds'].join('\n'));
+                        }
+                    }
+                    return;
+                }
+
+                //服务的响应了删除主题的操作
+                if (resp.cmd === routerCmd.topicDelete) {
+                    print(resp.data.message);
+                    return;
+                }
+                print("Unknown response: " + evt.data);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    }
+</script>
+</body>
+</html>

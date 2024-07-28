@@ -17,9 +17,8 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
 	"netsvr/internal/limit"
 	"netsvr/internal/log"
 	workerManager "netsvr/internal/worker/manager"
@@ -27,18 +26,15 @@ import (
 
 // Limit 更新限流配置、获取网关中的限流配置的真实情况
 func Limit(param []byte, processor *workerManager.ConnProcessor) {
-	payload := netsvrProtocol.LimitReq{}
-	if err := proto.Unmarshal(param, &payload); err != nil {
+	payload := &netsvrProtocol.LimitReq{}
+	if err := proto.Unmarshal(param, payload); err != nil {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.LimitReq failed")
 		return
 	}
 	//更新限流配置
-	for _, item := range payload.Items {
-		limit.Manager.Update(item.Concurrency, item.Name)
-	}
+	limit.Manager.Update(payload)
 	//返回网关中的限流配置的真实情况
 	ret := &netsvrProtocol.LimitResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
-	ret.Items = limit.Manager.Count()
+	limit.Manager.Get(ret)
 	processor.Send(ret, netsvrProtocol.Cmd_Limit)
 }

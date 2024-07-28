@@ -30,14 +30,13 @@ import (
 // TopicPublish 发布
 func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.TopicPublish.Get()
+	defer objPool.TopicPublish.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.TopicPublish.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicPublish failed")
 		return
 	}
 	dataLen := int64(len(payload.Data))
 	if dataLen == 0 {
-		objPool.TopicPublish.Put(payload)
 		return
 	}
 	for _, t := range payload.Topics {
@@ -63,5 +62,4 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		}
 		objPool.UniqIdSlice.Put(uniqIds)
 	}
-	objPool.TopicPublish.Put(payload)
 }

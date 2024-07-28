@@ -2,15 +2,13 @@
 LogLevel = "info"
 # worker服务的监听地址
 WorkerListenAddress = "127.0.0.1:6061"
-# 网关服务唯一编号，如果配置不对，网关会返回注册失败的信息
-ServerId = 0
 # 输出客户端界面的http服务的监听地址
 ClientListenAddress = "127.0.0.1:6063"
 # customer服务的websocket连接地址
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
-# 该值与netsvr.toml的配置保持一致
-ConnOpenCustomUniqIdKey = ""
 # 让worker为我开启n条协程来处理我的请求
-ProcessCmdGoroutineNum = 25
-# 业务进程注册到网关的工作id
-WorkerId = 1
+ProcessCmdGoroutineNum = 50
+# 客户端websocket发送的心跳消息
+CustomerHeartbeatMessage = "~6YOt5rW35piO~"
+# business进程向网关的worker服务器发送的心跳消息
+WorkerHeartbeatMessage = "~6YOt5rW35piO~"

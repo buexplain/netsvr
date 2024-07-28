@@ -19,26 +19,27 @@ package configs
 import (
 	"flag"
 	"github.com/BurntSushi/toml"
-	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
+	"log/slog"
 	"netsvr/pkg/wd"
 	"os"
 	"path/filepath"
-	"strconv"
 )
+
+type BytesConfigItem []byte
+
+func (r *BytesConfigItem) UnmarshalText(text []byte) error {
+	*r = text
+	return nil
+}
 
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
-	//worker服务的监听地址
-	WorkerListenAddress string
-	//该值与netsvr.toml的配置保持一致
-	ConnOpenCustomUniqIdKey string
 	//customer服务的websocket连接地址
 	CustomerWsAddress string
-	//表示消息被哪个workerId的业务进程处理
-	WorkerId      int
-	WorkerIdBytes []byte
+	//客户端websocket发送的心跳消息
+	CustomerHeartbeatMessage BytesConfigItem
 	//心跳间隔秒数
 	Heartbeat int
 	//是否并发初始化
@@ -48,27 +49,49 @@ type config struct {
 	//沉默的大多数
 	Silent struct {
 		Enable bool
-		Step   []Step
+		SignIn struct {
+			//是否让每个沉默的连接都进行登录操作
+			Enable bool
+			//模拟登录后订阅的主题个数
+			TopicNum uint
+			//模拟登录后存储的session长度
+			SessionLen uint
+		}
+		Step []Step
 	}
 	//疯狂的登录登出
 	Sign struct {
 		Enable bool
+		//模拟登录后订阅的主题个数
+		TopicNum uint
+		//模拟登录后存储的session长度
+		SessionLen uint
 		//发消息的间隔，单位秒
-		MessageInterval int
+		SendInterval int
 		//阶段式发起连接
 		Step []Step
 	}
-	//疯狂单播
+	//疯狂按uniqId单播的连接
 	SingleCast struct {
 		Enable bool
 		//发送的消息大小
 		MessageLen int
 		//发消息的间隔，单位秒
-		MessageInterval int
+		SendInterval int
 		//阶段式发起连接
 		Step []Step
 	}
-	//疯狂批量单播的连接
+	//疯狂按customerId单播的连接
+	SingleCastByCustomerId struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//发消息的间隔，单位秒
+		SendInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂按uniqId批量单播的连接
 	SingleCastBulk struct {
 		Enable bool
 		//发送的消息大小
@@ -76,11 +99,23 @@ type config struct {
 		//一组包含的uniqId数量
 		UniqIdNum int
 		//发消息的间隔，单位秒
-		MessageInterval int
+		SendInterval int
 		//阶段式发起连接
 		Step []Step
 	}
-	//疯狂组播
+	//疯狂按customerId批量单播的连接
+	SingleCastBulkByCustomerId struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//一组包含的customerId数量
+		CustomerIdNum int
+		//发消息的间隔，单位秒
+		SendInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂按uniqId组播的连接
 	Multicast struct {
 		Enable bool
 		//发送的消息大小
@@ -88,7 +123,19 @@ type config struct {
 		//一组包含的uniqId数量
 		UniqIdNum int
 		//发消息的间隔，单位秒
-		MessageInterval int
+		SendInterval int
+		//阶段式发起连接
+		Step []Step
+	}
+	//疯狂按customerId组播的连接
+	MulticastByCustomerId struct {
+		Enable bool
+		//发送的消息大小
+		MessageLen int
+		//一组包含的customerId数量
+		CustomerIdNum int
+		//发消息的间隔，单位秒
+		SendInterval int
 		//阶段式发起连接
 		Step []Step
 	}
@@ -144,7 +191,7 @@ type config struct {
 		//发送的消息大小
 		MessageLen int
 		//发消息的间隔，单位秒
-		MessageInterval int
+		SendInterval int
 		//阶段式发起连接
 		Step []Step
 	}
@@ -186,25 +233,16 @@ func init() {
 	//读取配置文件
 	c, err := os.ReadFile(configFile)
 	if err != nil {
-		logging.Error("Read stress.toml failed：%s", err)
+		slog.Error("Read stress.toml failed", "error", err)
 		os.Exit(1)
 	}
 	//解析配置文件到对象
 	Config = new(config)
-	if metaData, err := toml.Decode(string(c), Config); err != nil {
-		logging.Error("Parse stress.toml failed：%s", err)
-		os.Exit(1)
-	} else if metaData.IsDefined("ShutdownWaitTime") {
-		logging.Error("Process working directory is error: %s", wd.RootPath)
+	if _, err := toml.Decode(string(c), Config); err != nil {
+		slog.Error("Parse stress.toml failed", "error", err)
 		os.Exit(1)
 	}
 	if Config.Suspend <= 0 {
 		Config.Suspend = 60
 	}
-	//如果workerId不够三位数，则补上0
-	s := strconv.Itoa(Config.WorkerId)
-	for i := len(s); i < 3; i++ {
-		s = "0" + s
-	}
-	Config.WorkerIdBytes = []byte(s)
 }

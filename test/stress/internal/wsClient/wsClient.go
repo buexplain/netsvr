@@ -17,9 +17,7 @@
 package wsClient
 
 import (
-	"bytes"
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
 	"io"
@@ -35,14 +33,14 @@ import (
 	"time"
 )
 
-type connOpenCmd struct {
+type connOpenCmdResp struct {
 	Cmd  int32 `json:"cmd"`
 	Data struct {
 		Code int32 `json:"code"`
 		Data struct {
 			RawQuery      string   `json:"rawQuery"`
 			SubProtocol   []string `json:"subProtocol"`
-			UniqID        string   `json:"uniqId"`
+			UniqId        string   `json:"uniqId"`
 			XForwardedFor string   `json:"xForwardedFor"`
 		} `json:"data"`
 		Message string `json:"message"`
@@ -53,6 +51,7 @@ type Client struct {
 	conn                  *websocket.Conn
 	UniqId                string
 	LocalUniqId           string
+	customerId            string
 	topics                []string
 	topicSubscribeIndex   int
 	topicUnsubscribeIndex int
@@ -61,16 +60,11 @@ type Client struct {
 	OnClose               func()
 	sendCh                chan []byte
 	close                 chan struct{}
-	mux                   *sync.RWMutex
+	rwMutex               *sync.RWMutex
 	wsStatus              *wsMetrics.WsStatus
 }
 
 func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
-	if configs.Config.ConnOpenCustomUniqIdKey != "" {
-		resp := &netsvrProtocol.ConnOpenCustomUniqIdTokenResp{}
-		utils.RequestNetSvr(nil, netsvrProtocol.Cmd_ConnOpenCustomUniqIdToken, resp)
-		connUrl = connUrl + "?" + configs.Config.ConnOpenCustomUniqIdKey + "=" + resp.UniqId + "&token=" + resp.Token
-	}
 	c, resp, err := websocket.DefaultDialer.DialContext(quit.Ctx, connUrl, nil)
 	if err != nil {
 		if resp != nil {
@@ -88,7 +82,7 @@ func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *C
 		log.Logger.Error().Err(err).Msg("websocket SetReadDeadline failed")
 		return nil
 	}
-	ret := connOpenCmd{}
+	cmdResp := connOpenCmdResp{}
 	for {
 		var p []byte
 		_, p, err = c.ReadMessage()
@@ -109,28 +103,28 @@ func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *C
 			continue
 		}
 		//确定是连接打开的命令，再解析结构体
-		err = json.Unmarshal(p, &ret)
+		err = json.Unmarshal(p, &cmdResp)
 		if err != nil {
 			_ = c.Close()
 			log.Logger.Error().Err(err).Str("receiveData", string(p)).Msgf("websocket parse message failed")
 			return nil
 		}
-		if ret.Data.Code != 0 {
+		if cmdResp.Data.Code != 0 {
 			_ = c.Close()
-			log.Logger.Error().Msgf("unknown structure connOpenCmd--> %s", string(p))
+			log.Logger.Error().Msgf("unknown structure connOpenCmdResp--> %s", string(p))
 			return nil
 		}
 		break
 	}
 	client := &Client{
 		conn:        c,
-		UniqId:      ret.Data.Data.UniqID,
-		topics:      make([]string, 0, 0),
-		LocalUniqId: ret.Data.Data.UniqID,
+		UniqId:      cmdResp.Data.Data.UniqId,
+		topics:      make([]string, 0),
+		LocalUniqId: cmdResp.Data.Data.UniqId,
 		OnMessage:   map[protocol.Cmd]func(payload gjson.Result){},
 		sendCh:      make(chan []byte, 10),
 		close:       make(chan struct{}),
-		mux:         &sync.RWMutex{},
+		rwMutex:     &sync.RWMutex{},
 		wsStatus:    status,
 	}
 	if option != nil {
@@ -157,7 +151,7 @@ func (r *Client) Heartbeat() {
 	case <-r.close:
 		return
 	default:
-		r.sendCh <- netsvrProtocol.PingMessage
+		r.sendCh <- configs.Config.CustomerHeartbeatMessage
 	}
 }
 
@@ -177,6 +171,18 @@ func (r *Client) Close() {
 	}
 }
 
+func (r *Client) GetCustomerId() string {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
+	return r.customerId
+}
+
+func (r *Client) SetCustomerId(customerId string) {
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
+	r.customerId = customerId
+}
+
 // InitTopic 伪造主题
 func (r *Client) InitTopic(topicNum int, topicLen int) {
 	topics := make([]string, 0, topicNum)
@@ -187,8 +193,8 @@ func (r *Client) InitTopic(topicNum int, topicLen int) {
 }
 
 func (r *Client) GetPublishTopic(topicNum int) []string {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	ret := make([]string, 0, topicNum)
 	//强制给第零个主题发布消息，因为第零个主题不会被取消订阅
 	ret = append(ret, r.topics[0])
@@ -210,8 +216,8 @@ func (r *Client) GetPublishTopic(topicNum int) []string {
 }
 
 func (r *Client) GetSubscribeTopic(topicNum int) []string {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	ret := make([]string, 0, topicNum)
 	//强制订阅第零个主题
 	if r.topicSubscribeIndex == 0 {
@@ -235,8 +241,8 @@ func (r *Client) GetSubscribeTopic(topicNum int) []string {
 }
 
 func (r *Client) GetUnsubscribeTopic(topicNum int) []string {
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	//如果只有一个备选主题，则没有可取消订阅的主题
 	if len(r.topics) == 1 {
 		return nil
@@ -288,7 +294,6 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 			return
 		}
 		b := make([]byte, 0, len(ret)+3)
-		b = append(b, configs.Config.WorkerIdBytes...)
 		b = append(b, ret...)
 		r.sendCh <- b
 	}
@@ -319,16 +324,13 @@ func (r *Client) LoopRead() {
 				r.wsStatus.ReceiveByte.Inc(int64(len(p)))
 				r.wsStatus.ReceiveNum.Inc(1)
 			}
-			if bytes.Equal(p, netsvrProtocol.PongMessage) {
-				continue
-			}
 			ret := gjson.GetManyBytes(p, "cmd", "data")
 			if len(ret) == 2 && ret[0].Type == gjson.Number && ret[1].Type == gjson.JSON {
 				if r.OnMessage != nil {
 					cmd := protocol.Cmd(ret[0].Int())
 					if c, ok := r.OnMessage[cmd]; ok {
 						c(ret[1])
-					} else {
+					} else if _, ok := r.OnMessage[protocol.Placeholder]; !ok {
 						log.Logger.Debug().Msgf("未找到回调函数 cmd --> %d data --> %s", cmd, ret[1].Raw)
 					}
 				}

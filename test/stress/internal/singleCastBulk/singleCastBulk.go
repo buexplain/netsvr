@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-// Package singleCastBulk 对网关批量单播进行压测
+// Package singleCastBulk 对网关根据uniqId批量单播的功能进行压测
 package singleCastBulk
 
 import (
@@ -45,15 +45,15 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("singleCastBulk running")
-	if configs.Config.SingleCastBulk.MessageInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.SingleCastBulk.MessageInterval 必须是个大于0的值")
+	if configs.Config.SingleCastBulk.SendInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.SingleCastBulk.SendInterval 必须是个大于0的值")
 		return
 	}
 	if configs.Config.SingleCastBulk.UniqIdNum <= 0 {
 		log.Logger.Error().Msg("配置 Config.SingleCastBulk.UniqIdNum 必须是个大于0的值")
 		return
 	}
-	message := "我是一条批量单播信息"
+	message := "我是一条按uniqId的批量单播的信息"
 	if configs.Config.SingleCastBulk.MessageLen > 0 {
 		message = strings.Repeat("s", configs.Config.SingleCastBulk.MessageLen)
 	}
@@ -68,7 +68,7 @@ func Run(wg *sync.WaitGroup) {
 			}
 			collect.Add(ws)
 			uniqIds := collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
-			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCastBulk.MessageInterval), func() {
+			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCastBulk.SendInterval), func() {
 				if len(uniqIds) < configs.Config.SingleCastBulk.UniqIdNum {
 					uniqIds = collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
 				}
@@ -76,7 +76,7 @@ func Run(wg *sync.WaitGroup) {
 				for i := len(uniqIds); i > 0; i-- {
 					data = append(data, message)
 				}
-				ws.Send(protocol.RouterSingleCastBulkForUniqId, map[string]interface{}{"message": data, "uniqIds": uniqIds})
+				ws.Send(protocol.RouterSingleCastBulk, map[string]interface{}{"message": data, "uniqIds": uniqIds})
 			})
 		})
 		metrics.RecordConnectOK()

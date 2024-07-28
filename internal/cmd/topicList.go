@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
-	"netsvr/configs"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/internal/customer/topic"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -26,7 +25,6 @@ import (
 // TopicList 获取网关中的主题
 func TopicList(_ []byte, processor *workerManager.ConnProcessor) {
 	ret := &netsvrProtocol.TopicListResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
 	ret.Topics = topic.Topic.Get()
 	processor.Send(ret, netsvrProtocol.Cmd_TopicList)
 }

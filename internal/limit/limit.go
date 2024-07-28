@@ -15,20 +15,18 @@
  */
 
 // Package limit 限流模块
-// 限制客户连接的打开速度
 // 限制客户消息的转发速度
 package limit
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"golang.org/x/time/rate"
 	"netsvr/configs"
-	"netsvr/internal/log"
-	"os"
 )
 
 type limiter interface {
 	Allow() bool
+	Limit() rate.Limit
 	SetLimit(newLimit rate.Limit)
 }
 
@@ -40,101 +38,49 @@ func (nilLimit) Allow() bool {
 	return true
 }
 
+func (nilLimit) Limit() rate.Limit {
+	return 0
+}
 func (nilLimit) SetLimit(_ rate.Limit) {
 }
 
-type collect [netsvrProtocol.WorkerIdMax + 1]limiter
+type manager map[netsvrProtocol.Event]limiter
 
-type manager struct {
-	collect   collect
-	nameIndex map[string]limiter
-}
-
-func (r manager) Allow(workerId int) bool {
-	return r.collect[workerId].Allow()
+func (r manager) Allow(event netsvrProtocol.Event) bool {
+	return r[event].Allow()
 }
 
 // Update 更新限流器的并发设定
-func (r manager) Update(concurrency int32, name string) {
-	//无效参数，不予处理
-	if concurrency <= 0 {
-		return
+func (r manager) Update(payload *netsvrProtocol.LimitReq) {
+	//更新连接打开事件的限流器
+	if payload.OnOpen > 0 && rate.Limit(payload.OnOpen) != Manager[netsvrProtocol.Event_OnOpen].Limit() {
+		Manager[netsvrProtocol.Event_OnOpen].SetLimit(rate.Limit(payload.OnOpen))
 	}
-	//未找到限流器，不予处理
-	l, ok := r.nameIndex[name]
-	if !ok {
-		return
+	//更新消息事件的限流器
+	if payload.OnMessage > 0 && rate.Limit(payload.OnMessage) != Manager[netsvrProtocol.Event_OnMessage].Limit() {
+		Manager[netsvrProtocol.Event_OnMessage].SetLimit(rate.Limit(payload.OnMessage))
 	}
-	l.SetLimit(rate.Limit(concurrency))
 }
 
-func (r manager) Count() []*netsvrProtocol.LimitRespItem {
-	notes := map[*rate.Limiter]*netsvrProtocol.LimitRespItem{}
-	for workerId, l := range r.collect {
-		//是个空壳子限流器，不予处理
-		if _, ok := l.(nilLimit); ok {
-			continue
-		}
-		//处理真正地限流器
-		rl, ok := l.(*rate.Limiter)
-		if !ok {
-			continue
-		}
-		if _, ok = notes[rl]; !ok {
-			notes[rl] = &netsvrProtocol.LimitRespItem{Concurrency: int32(rl.Limit()), WorkerIds: make([]int32, 0)}
-			for name, l := range r.nameIndex {
-				if l == rl {
-					notes[rl].Name = name
-					break
-				}
-			}
-		}
-		notes[rl].WorkerIds = append(notes[rl].WorkerIds, int32(workerId))
-	}
-	items := make([]*netsvrProtocol.LimitRespItem, 0, len(notes))
-	for _, v := range notes {
-		items = append(items, v)
-	}
-	return items
+func (r manager) Get(payload *netsvrProtocol.LimitResp) {
+	payload.OnOpen = int32(Manager[netsvrProtocol.Event_OnOpen].Limit())
+	payload.OnMessage = int32(Manager[netsvrProtocol.Event_OnMessage].Limit())
 }
 
 var Manager manager
 
 func init() {
-	Manager = manager{collect: collect{}, nameIndex: map[string]limiter{}}
-	//循环处理每一个限流配置
-	for _, v := range configs.Config.Limit {
-		//忽略无效的配置
-		if v.Concurrency <= 0 || len(v.WorkerIds) == 0 {
-			continue
-		}
-		l := rate.NewLimiter(rate.Limit(v.Concurrency), v.Concurrency)
-		if Manager.nameIndex[v.Name] != nil {
-			log.Logger.Error().Str("name", v.Name).Msg("Name is configured multiple times of limiter")
-			os.Exit(1)
-		}
-		for _, workerId := range v.WorkerIds {
-			if workerId < netsvrProtocol.WorkerIdMin || workerId > netsvrProtocol.WorkerIdMax {
-				log.Logger.Error().Int("workerId", workerId).Int("workerIdMin", netsvrProtocol.WorkerIdMin).Int("workerIdMax", netsvrProtocol.WorkerIdMax).Msg("WorkerId range overflow of limiter")
-				os.Exit(1)
-			}
-			//如果这个workerId已经被初始化过，则说明配置的限流范围冲突了，每个workerId只允许配置一次
-			if Manager.collect[workerId] != nil {
-				log.Logger.Error().Int("workerId", workerId).Msg("WorkerId is configured multiple times of limiter")
-				os.Exit(1)
-			}
-			Manager.collect[workerId] = l
-		}
-		Manager.nameIndex[v.Name] = l
+	Manager = make(manager)
+	//初始化连接打开事件的限流器
+	if configs.Config.Limit.OnOpen > 0 {
+		Manager[netsvrProtocol.Event_OnOpen] = rate.NewLimiter(rate.Limit(configs.Config.Limit.OnOpen), int(configs.Config.Limit.OnOpen))
+	} else {
+		Manager[netsvrProtocol.Event_OnOpen] = nilLimit{}
 	}
-	//填充满整个数组
-	l := nilLimit{}
-	for i := netsvrProtocol.WorkerIdMin; i <= netsvrProtocol.WorkerIdMax; i++ {
-		if Manager.collect[i] == nil {
-			Manager.collect[i] = l
-		}
-	}
-	for _, v := range Manager.Count() {
-		log.Logger.Debug().Str("name", v.Name).Int32("concurrency", v.Concurrency).Ints32("workerIds", v.WorkerIds).Msg("limit config")
+	//初始化消息事件的限流器
+	if configs.Config.Limit.OnMessage > 0 {
+		Manager[netsvrProtocol.Event_OnMessage] = rate.NewLimiter(rate.Limit(configs.Config.Limit.OnMessage), int(configs.Config.Limit.OnMessage))
+	} else {
+		Manager[netsvrProtocol.Event_OnMessage] = nilLimit{}
 	}
 }

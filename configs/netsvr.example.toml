@@ -1,30 +1,26 @@
 # 日志级别 debug、info、warn、error
-LogLevel = "info"
-# 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址
+LogLevel = "debug"
+# 日志文件，如果不配置，则输出到控制台，如果配置的是相对地址（不包含盘符或不是斜杠开头），则会自动拼接上进程工作目录的地址，最好配置绝对路径
 LogFile = "log/netSvr.log"
-# 网关服务唯一编号，取值范围是 uint8，会成为uniqId的前缀，16进制表示，占两个字符
-ServerId = 0
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 ShutdownWaitTime = "5s"
-# pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空值，则不会开启
+# pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
 PprofListenAddress = "127.0.0.1:6062"
-# business的限流器
-Limit = [
-    # 表示网关每秒最多向workerId为1的business转发100000次客户发送的数据或连接打开的数据
-    { workerIds = [1], concurrency = 100000, name = "1" },
-    # 表示网关每秒最多向workerId为{2,3,4,5}的这批business转发100000次客户发送的数据或连接打开的数据
-    # 注意不是每个workerId都100000，而是这批workerId加起来才100000，因为这批workerId共用一个限流器
-    { workerIds = [2, 3, 4, 5], concurrency = 100000, name = "2-5" }
-]
-# 客户服务器配置
+# 限流器，如果配置是0，则表示不启用限流器
+[Limit]
+# 网关允许每秒打开多少个连接，配置为0，则不做任何限制
+OnOpen = 10000
+# 网关允许每秒收到多少个消息，配置为0，则不做任何限制
+OnMessage = 50000
+# 客户端的websocket服务器配置
 [Customer]
 # 监听的地址，ip:port，这个地址一般是外网地址
 ListenAddress = "127.0.0.1:6060"
 # url路由
 HandlePattern = "/netsvr"
-# 允许连接的origin，空表示不限制，否则会进行包含匹配
+# 允许连接的origin，空表示不限制，否则会循环列表进行包含匹配
 AllowOrigin = []
-# 网关读取客户连接的超时时间，该时间段内，客户连接没有发消息过来，则会超时，连接会被关闭
+# websocket服务器读取客户端连接的超时时间，该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
 ReadDeadline = "120s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
@@ -36,23 +32,17 @@ MaxBlockingOnline = 10000
 ReceivePackLimit = 2097152
 # 往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 SendMessageType = 1
-# 指定处理连接打开的worker id，允许设置为0，表示不关心连接的打开
-ConnOpenWorkerId = 1
-# 指定处理连接关闭的worker id，允许设置为0，表示不关心连接的关闭
-ConnCloseWorkerId = 1
-# 连接打开时，通过url的queryString传递自定义uniqId的字段名字，客户端如果传递该字段，则token必须一并传递过来
-# 如果配置了该值，则网关会启用自定义uniqId的模式来接入连接
-# 假设该值配置为 ConnOpenCustomUniqIdKey="myUniqId"，则客户端发起连接的示例：ws://127.0.0.1:6060/netsvr?myUniqId=01xxx&token=o0o0o
-ConnOpenCustomUniqIdKey = ""
-# 自定义uniqId连接的token的过期时间
-ConnOpenCustomUniqIdTokenExpire = "30s"
+# 回调脚本文件，如果需要，最好配置绝对路径，不需要，请配置为空字符串
+CallbackScriptFile = "configs/callback.go"
 # tls配置
 TLSCert = ""
 TLSKey = ""
+# 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
+HeartbeatMessage = "~6YOt5rW35piO~"
 
-#worker服务器
+#业务进程的tcp服务器配置
 [Worker]
-# 监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问
+# 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 ListenAddress = "127.0.0.1:6061"
 # worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 ReadDeadline = "120s"
@@ -64,11 +54,13 @@ ReceivePackLimit = 2097152
 ReadBufferSize = 4096
 # worker发送给business的缓通道大小
 SendChanCap = 1024
+# 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
+HeartbeatMessage = "~6YOt5rW35piO~"
 
 # 统计服务
 [Metrics]
 # 统计服务的各种状态，空，则不统计任何状态
-# 0：统计客户连接的打开情况，1：统计客户连接的关闭情况，2：统计客户连接的心跳情况，3：统计客户数据转发到worker的次数情况，4：统计客户数据转发到worker的字节数情况，5：统计往客户写入数据次数，6：统计往客户写入字节数
-Item = [0, 1, 2, 3, 4, 5, 6]
+# 1：统计客户连接的打开情况，2：统计客户连接的关闭情况，3：统计客户连接的心跳情况，4：统计客户数据转发到worker的次数情况，5：统计客户数据转发到worker的字节数情况，6：统计往客户写入数据次数，7：统计往客户写入字节数
+Item = [1, 2, 3, 4, 5, 6, 7]
 # 间隔多少秒记录一次统计服务的各种状态的最大值
 MaxRecordInterval = "10s"

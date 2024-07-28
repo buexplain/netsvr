@@ -18,28 +18,27 @@
 package topic
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
 	"netsvr/internal/utils/slicePool"
 	"sync"
 )
 
 type collect struct {
 	//topic --> []uniqId
-	topics map[string]map[string]struct{}
-	mux    *sync.RWMutex
+	topics  map[string]map[string]struct{}
+	rwMutex *sync.RWMutex
 }
 
 // Len 统计主题个数
 func (r *collect) Len() int {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	return len(r.topics)
 }
 
 // CountAll 统计每个主题的人数
 func (r *collect) CountAll(items map[string]int32) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	for topic, c := range r.topics {
 		items[topic] = int32(len(c))
 	}
@@ -50,8 +49,8 @@ func (r *collect) Count(topics []string, items map[string]int32) {
 	if len(topics) == 0 {
 		return
 	}
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
 		if !ok {
@@ -66,8 +65,8 @@ func (r *collect) SetBySlice(topics []string, uniqId string) {
 	if len(topics) == 0 || uniqId == "" {
 		return
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	for _, topic := range topics {
 		if topic == "" {
 			continue
@@ -90,8 +89,8 @@ func (r *collect) PullAndReturnUniqIds(topics []string) map[string]map[string]st
 	if len(topics) == 0 {
 		return nil
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	ret := make(map[string]map[string]struct{}, len(topics))
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
@@ -106,8 +105,8 @@ func (r *collect) PullAndReturnUniqIds(topics []string) map[string]map[string]st
 
 // GetUniqIds 获取某个主题的所有uniqId
 func (r *collect) GetUniqIds(topic string, slicePool *slicePool.StrSlice) *[]string {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	c, ok := r.topics[topic]
 	if !ok {
 		return nil
@@ -119,27 +118,29 @@ func (r *collect) GetUniqIds(topic string, slicePool *slicePool.StrSlice) *[]str
 	return uniqIds
 }
 
-func (r *collect) GetToProtocolTopicUniqIdListResp(topicUniqIdListResp *netsvrProtocol.TopicUniqIdListResp, topics []string) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+// GetUniqIdsByTopics 获取多个主题的所有uniqId
+func (r *collect) GetUniqIdsByTopics(topics []string) (topicUniqIds map[string][]string) {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
+	topicUniqIds = make(map[string][]string, len(topics))
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
 		if !ok {
 			continue
 		}
-		item := &netsvrProtocol.TopicUniqIdListRespItem{}
-		item.UniqIds = make([]string, 0, len(c))
+		uniqIds := make([]string, 0, len(c))
 		for uniqId := range c {
-			item.UniqIds = append(item.UniqIds, uniqId)
+			uniqIds = append(uniqIds, uniqId)
 		}
-		topicUniqIdListResp.Items[topic] = item
+		topicUniqIds[topic] = uniqIds
 	}
+	return topicUniqIds
 }
 
 // Get 获取所有的主题
 func (r *collect) Get() (topics []string) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	topics = make([]string, 0, len(r.topics))
 	for topic := range r.topics {
 		topics = append(topics, topic)
@@ -148,29 +149,16 @@ func (r *collect) Get() (topics []string) {
 }
 
 // DelByMap 删除主题与uniqId的对应关系
-func (r *collect) DelByMap(topics map[string]struct{}, currentUniqId string, previousUniqId string) {
+func (r *collect) DelByMap(topics map[string]struct{}, uniqId string) {
 	if len(topics) == 0 {
 		return
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	if currentUniqId == previousUniqId || previousUniqId == "" {
-		for topic := range topics {
-			c, ok := r.topics[topic]
-			if ok {
-				delete(c, currentUniqId)
-				if len(c) == 0 {
-					delete(r.topics, topic)
-				}
-			}
-		}
-		return
-	}
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	for topic := range topics {
 		c, ok := r.topics[topic]
 		if ok {
-			delete(c, currentUniqId)
-			delete(c, previousUniqId)
+			delete(c, uniqId)
 			if len(c) == 0 {
 				delete(r.topics, topic)
 			}
@@ -179,29 +167,16 @@ func (r *collect) DelByMap(topics map[string]struct{}, currentUniqId string, pre
 }
 
 // DelBySlice 删除主题与uniqId的对应关系
-func (r *collect) DelBySlice(topics []string, currentUniqId string, previousUniqId string) {
+func (r *collect) DelBySlice(topics []string, uniqId string) {
 	if len(topics) == 0 {
 		return
 	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	if previousUniqId == "" || currentUniqId == previousUniqId {
-		for _, topic := range topics {
-			c, ok := r.topics[topic]
-			if ok {
-				delete(c, currentUniqId)
-				if len(c) == 0 {
-					delete(r.topics, topic)
-				}
-			}
-		}
-		return
-	}
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	for _, topic := range topics {
 		c, ok := r.topics[topic]
 		if ok {
-			delete(c, currentUniqId)
-			delete(c, previousUniqId)
+			delete(c, uniqId)
 			if len(c) == 0 {
 				delete(r.topics, topic)
 			}
@@ -212,5 +187,5 @@ func (r *collect) DelBySlice(topics []string, currentUniqId string, previousUniq
 var Topic *collect
 
 func init() {
-	Topic = &collect{topics: map[string]map[string]struct{}{}, mux: &sync.RWMutex{}}
+	Topic = &collect{topics: map[string]map[string]struct{}{}, rwMutex: &sync.RWMutex{}}
 }

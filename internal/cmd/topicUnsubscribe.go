@@ -31,30 +31,29 @@ import (
 // TopicUnsubscribe 取消订阅
 func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	payload := objPool.TopicUnsubscribe.Get()
+	defer objPool.TopicUnsubscribe.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		objPool.TopicUnsubscribe.Put(payload)
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicUnsubscribe failed")
 		return
 	}
 	if payload.UniqId == "" || len(payload.Topics) == 0 {
-		objPool.TopicUnsubscribe.Put(payload)
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
 	if conn == nil {
-		objPool.TopicUnsubscribe.Put(payload)
 		return
 	}
 	session, ok := conn.SessionWithLock().(*info.Info)
 	if !ok {
-		objPool.TopicUnsubscribe.Put(payload)
 		return
 	}
-	session.MuxLock()
-	currentUniqId := session.UnsubscribeTopics(payload.Topics)
-	//这里根据session里面的uniqId去删除订阅关系，因为有可能当UnsubscribeTopics得到锁的时候，session里面的uniqId与当前的payload.UniqId不一致了
-	topic.Topic.DelBySlice(payload.Topics, currentUniqId, payload.UniqId)
-	session.MuxUnLock()
+	session.Lock()
+	defer session.UnLock()
+	if session.GetUniqId() == "" {
+		return
+	}
+	session.UnsubscribeTopics(payload.Topics)
+	topic.Topic.DelBySlice(payload.Topics, payload.UniqId)
 	if len(payload.Data) > 0 {
 		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
@@ -63,5 +62,4 @@ func TopicUnsubscribe(param []byte, _ *workerManager.ConnProcessor) {
 			_ = conn.Close()
 		}
 	}
-	objPool.TopicUnsubscribe.Put(payload)
 }

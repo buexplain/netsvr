@@ -18,7 +18,6 @@
 package log
 
 import (
-	"github.com/lesismal/nbio/logging"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
@@ -51,31 +50,4 @@ func New(lvl zerolog.Level, filename string) zerolog.Logger {
 		logger = zerolog.New(w).Level(lvl).With().Timestamp().Logger()
 	}
 	return logger
-}
-
-type loggingSubstitute struct {
-	zero *zerolog.Logger
-}
-
-func NewLoggingSubstitute(zero *zerolog.Logger) logging.Logger {
-	return &loggingSubstitute{
-		zero: zero,
-	}
-}
-
-func (r *loggingSubstitute) SetLevel(_ int) {
-}
-
-func (r *loggingSubstitute) Debug(_ string, _ ...interface{}) {
-}
-
-func (r *loggingSubstitute) Info(_ string, _ ...interface{}) {
-}
-
-func (r *loggingSubstitute) Warn(format string, v ...interface{}) {
-	r.zero.Warn().CallerSkipFrame(2).Msgf(format, v...)
-}
-
-func (r *loggingSubstitute) Error(format string, v ...interface{}) {
-	r.zero.Error().CallerSkipFrame(2).Msgf(format, v...)
 }

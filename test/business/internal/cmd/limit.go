@@ -18,11 +18,12 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
+	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type limit struct{}
@@ -35,8 +36,10 @@ func (r limit) Init(processor *connProcessor.ConnProcessor) {
 
 // LimitUpdateParam 更新网关中限流配置
 type LimitUpdateParam struct {
-	Concurrency int32  `json:"concurrency"`
-	Name        string `json:"name"`
+	// 网关允许每秒转发多少个连接打开事件到business进程
+	OnOpen int32 `json:"onOpen"`
+	// 网关允许每秒转发多少个消息到business进程
+	OnMessage int32 `json:"onMessage"`
 }
 
 // Request 更新限流配置、获取网关中的限流配置的真实情况
@@ -47,17 +50,13 @@ func (limit) Request(tf *netsvrProtocol.Transfer, param string, processor *connP
 		return
 	}
 	req := &netsvrProtocol.LimitReq{}
-	req.Items = []*netsvrProtocol.LimitReqItem{
-		{
-			Name:        payload.Name,
-			Concurrency: payload.Concurrency,
-		},
-	}
+	req.OnOpen = payload.OnOpen
+	req.OnMessage = payload.OnMessage
 	resp := &netsvrProtocol.LimitResp{}
-	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_Limit, resp)
+	netSvrPool.Request(req, netsvrProtocol.Cmd_Limit, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
-	ret.Data = testUtils.NewResponse(protocol.RouterLimit, map[string]interface{}{"code": 0, "message": "获取网关中的限流配置的真实情况成功", "data": resp.Items})
+	ret.Data = testUtils.NewResponse(protocol.RouterLimit, map[string]interface{}{"code": 0, "message": "获取网关中的限流配置的真实情况成功", "data": resp})
 	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

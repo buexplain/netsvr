@@ -17,7 +17,7 @@
 package objPool
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"sync"
 )
 
@@ -33,8 +33,7 @@ func (r *connInfoUpdate) Get() *netsvrProtocol.ConnInfoUpdate {
 
 func (r *connInfoUpdate) Put(connInfoUpdate *netsvrProtocol.ConnInfoUpdate) {
 	connInfoUpdate.UniqId = ""
-	connInfoUpdate.NewUniqId = ""
-	connInfoUpdate.DataAsNewUniqIdExisted = nil
+	connInfoUpdate.NewCustomerId = ""
 	connInfoUpdate.NewSession = ""
 	connInfoUpdate.NewTopics = nil
 	connInfoUpdate.Data = nil

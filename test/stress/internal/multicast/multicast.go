@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-// Package multicast 对网关组播进行压测
+// Package multicast 对网关按uniqId组播的功能进行压测
 package multicast
 
 import (
@@ -45,15 +45,15 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("multicast running")
-	if configs.Config.Multicast.MessageInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.Multicast.MessageInterval 必须是个大于0的值")
+	if configs.Config.Multicast.SendInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Multicast.SendInterval 必须是个大于0的值")
 		return
 	}
 	if configs.Config.Multicast.UniqIdNum <= 0 {
 		log.Logger.Error().Msg("配置 Config.Multicast.UniqIdNum 必须是个大于0的值")
 		return
 	}
-	message := "我是一条组播信息"
+	message := "我是一条按uniqId组播的信息"
 	if configs.Config.Multicast.MessageLen > 0 {
 		message = strings.Repeat("m", configs.Config.Multicast.MessageLen)
 	}
@@ -68,11 +68,11 @@ func Run(wg *sync.WaitGroup) {
 			}
 			collect.Add(ws)
 			uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
-			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.MessageInterval), func() {
+			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.SendInterval), func() {
 				if len(uniqIds) < configs.Config.Multicast.UniqIdNum {
 					uniqIds = collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
 				}
-				ws.Send(protocol.RouterMulticastForUniqId, map[string]interface{}{"message": message, "uniqIds": uniqIds})
+				ws.Send(protocol.RouterMulticast, map[string]interface{}{"message": message, "uniqIds": uniqIds})
 			})
 		})
 		metrics.RecordConnectOK()

@@ -17,7 +17,7 @@
 package manager
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -54,14 +54,14 @@ func (r *collect) Set(conn *ConnProcessor) {
 	}
 }
 
-func (r *collect) Del(registerId string) bool {
-	if registerId == "" {
+func (r *collect) Del(connId string) bool {
+	if connId == "" {
 		return false
 	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	for k, v := range r.conn {
-		if v.GetRegisterId() == registerId {
+		if v.GetConnId() == connId {
 			r.conn = append(r.conn[0:k], r.conn[k+1:]...)
 			return true
 		}
@@ -69,31 +69,46 @@ func (r *collect) Del(registerId string) bool {
 	return false
 }
 
-type manager [netsvrProtocol.WorkerIdMax + 1]*collect
+type manager map[netsvrProtocol.Event]*collect
 
-func (r manager) Get(workerId int) *ConnProcessor {
-	return r[workerId].Get()
+func (r manager) Get(event netsvrProtocol.Event) *ConnProcessor {
+	return r[event].Get()
 }
 
-func (r manager) Set(workerId int32, conn *ConnProcessor) {
-	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
-		r[workerId].Set(conn)
+func (r manager) Set(conn *ConnProcessor) {
+	events := conn.GetEvents()
+	for _, v := range netsvrProtocol.Event_value {
+		if netsvrProtocol.Event(v) == netsvrProtocol.Event_Placeholder {
+			continue
+		}
+		if events&v == v {
+			r[netsvrProtocol.Event(v)].Set(conn)
+		}
 	}
 }
 
-func (r manager) Del(workerId int32, registerId string) bool {
-	if workerId >= netsvrProtocol.WorkerIdMin && workerId <= netsvrProtocol.WorkerIdMax {
-		return r[workerId].Del(registerId)
+func (r manager) Del(connId string) bool {
+	ret := false
+	for _, v := range netsvrProtocol.Event_value {
+		if netsvrProtocol.Event(v) == netsvrProtocol.Event_Placeholder {
+			continue
+		}
+		if r[netsvrProtocol.Event(v)].Del(connId) {
+			ret = true
+		}
 	}
-	return false
+	return ret
 }
 
 // Manager 管理所有的business连接
 var Manager manager
 
 func init() {
-	for i := netsvrProtocol.WorkerIdMin; i <= netsvrProtocol.WorkerIdMax; i++ {
-		//这里浪费一点内存，全部初始化好，读取的时候就不用动态初始化
-		Manager[i] = &collect{conn: []*ConnProcessor{}, index: rand.Uint32(), mux: &sync.RWMutex{}}
+	Manager = make(manager)
+	for _, v := range netsvrProtocol.Event_value {
+		if netsvrProtocol.Event(v) == netsvrProtocol.Event_Placeholder {
+			continue
+		}
+		Manager[netsvrProtocol.Event(v)] = &collect{conn: []*ConnProcessor{}, index: rand.Uint32(), mux: &sync.RWMutex{}}
 	}
 }

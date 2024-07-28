@@ -38,11 +38,12 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("sign running")
-	if configs.Config.Sign.MessageInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.Sign.MessageInterval 必须是个大于0的值")
+	if configs.Config.Sign.SendInterval <= 0 {
+		log.Logger.Error().Msg("配置 Config.Sign.SendInterval 必须是个大于0的值")
 		return
 	}
-	messageInterval := configs.Config.Sign.MessageInterval * 1000
+	messageInterval := configs.Config.Sign.SendInterval * 1000
+	signInParam := map[string]uint{"topicNum": configs.Config.Sign.TopicNum, "sessionLen": configs.Config.Sign.SessionLen}
 	for key, step := range configs.Config.Sign.Step {
 		metrics := wsMetrics.New("sign", key+1)
 		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
@@ -55,7 +56,7 @@ func Run(wg *sync.WaitGroup) {
 			if rand.Intn(10) > 5 {
 				//先发登录指令
 				wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
-					ws.Send(protocol.RouterSignInForForge, nil)
+					ws.Send(protocol.RouterSignInForForge, signInParam)
 				})
 				//间隔200毫秒后再发登出指令
 				wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval+200), func() {
@@ -64,7 +65,7 @@ func Run(wg *sync.WaitGroup) {
 			} else {
 				//无缝发送登录登出指令
 				wsTimer.WsTimer.ScheduleFunc(time.Millisecond*time.Duration(messageInterval), func() {
-					ws.Send(protocol.RouterSignInForForge, nil)
+					ws.Send(protocol.RouterSignInForForge, signInParam)
 					ws.Send(protocol.RouterSignOutForForge, nil)
 				})
 			}

@@ -67,7 +67,7 @@ func (p *poller) readConn(c *Conn) {
 	}
 }
 
-func (p *poller) addConn(c *Conn, virtualUDPConn ...interface{}) error {
+func (p *poller) addConn(c *Conn) error {
 	c.p = p
 	p.g.mux.Lock()
 	p.g.connsStd[c] = struct{}{}
@@ -75,12 +75,23 @@ func (p *poller) addConn(c *Conn, virtualUDPConn ...interface{}) error {
 	// should not call onOpen for udp server conn
 	if c.typ != ConnTypeUDPServer {
 		p.g.onOpen(c)
+	} else {
+		p.g.onUDPListen(c)
 	}
 	// should not read udp client from reading udp server conn
 	if c.typ != ConnTypeUDPClientFromRead {
 		go p.readConn(c)
 	}
 
+	return nil
+}
+
+func (p *poller) addDialer(c *Conn) error {
+	c.p = p
+	p.g.mux.Lock()
+	p.g.connsStd[c] = struct{}{}
+	p.g.mux.Unlock()
+	go p.readConn(c)
 	return nil
 }
 

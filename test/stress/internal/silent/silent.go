@@ -18,6 +18,8 @@
 package silent
 
 import (
+	"github.com/tidwall/gjson"
+	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/utils"
@@ -39,7 +41,18 @@ func Run(wg *sync.WaitGroup) {
 		metrics := wsMetrics.New("silent", key+1)
 		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
 			wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-				ws.OnMessage = nil
+				if configs.Config.Silent.SignIn.Enable {
+					ws.Send(protocol.RouterSignInForForge, map[string]uint{"topicNum": configs.Config.Silent.SignIn.TopicNum, "sessionLen": configs.Config.Silent.SignIn.SessionLen})
+					ws.OnMessage = map[protocol.Cmd]func(payload gjson.Result){
+						protocol.RouterSignInForForge: func(payload gjson.Result) {
+							ws.SetCustomerId(payload.Get("data.id").String())
+						},
+						protocol.Placeholder: func(payload gjson.Result) {
+						},
+					}
+				} else {
+					ws.OnMessage = nil
+				}
 			})
 		})
 		metrics.RecordConnectOK()

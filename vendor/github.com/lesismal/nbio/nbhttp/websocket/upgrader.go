@@ -41,6 +41,10 @@ var (
 	// DefaultBlockingModSendQueueMaxSize .
 	DefaultBlockingModSendQueueMaxSize uint16 = 0
 
+	// DefaultMessageLengthLimit .
+	DefaultMessageLengthLimit = 1024 * 1024 * 4
+
+	// DefaultBlockingModAsyncCloseDelay .
 	DefaultBlockingModAsyncCloseDelay = time.Second / 10
 
 	// DefaultEngine will be set to a Upgrader.Engine to handle details such as buffers.
@@ -53,6 +57,10 @@ type commonFields struct {
 	KeepaliveTime              time.Duration
 	MessageLengthLimit         int
 	BlockingModAsyncCloseDelay time.Duration
+
+	ReleasePayload        bool
+	WebsocketCompressor   func(c *Conn, w io.WriteCloser, level int) io.WriteCloser
+	WebsocketDecompressor func(c *Conn, r io.Reader) io.ReadCloser
 
 	pingMessageHandler  func(c *Conn, appData string)
 	pongMessageHandler  func(c *Conn, appData string)
@@ -138,6 +146,7 @@ func NewUpgrader() *Upgrader {
 	u := &Upgrader{
 		commonFields: commonFields{
 			KeepaliveTime:              nbhttp.DefaultKeepaliveTime,
+			MessageLengthLimit:         DefaultMessageLengthLimit,
 			BlockingModAsyncCloseDelay: DefaultBlockingModAsyncCloseDelay,
 		},
 		compressionLevel:               defaultCompressionLevel,
@@ -217,7 +226,7 @@ func (u *Upgrader) OnOpen(h func(*Conn)) {
 func (u *Upgrader) OnMessage(h func(*Conn, MessageType, []byte)) {
 	if h != nil {
 		u.messageHandler = func(c *Conn, messageType MessageType, data []byte) {
-			if c.Engine.ReleaseWebsocketPayload && len(data) > 0 {
+			if c.ReleasePayload && len(data) > 0 {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
 			if !c.closed {
@@ -231,7 +240,7 @@ func (u *Upgrader) OnMessage(h func(*Conn, MessageType, []byte)) {
 func (u *Upgrader) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
 	if h != nil {
 		u.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, data []byte) {
-			if c.Engine.ReleaseWebsocketPayload {
+			if c.ReleasePayload {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
 			h(c, messageType, fin, data)
@@ -265,6 +274,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 	var engine = u.Engine
 	var parser *nbhttp.Parser
 	var transferConn = u.BlockingModTrasferConnToPoller
+
 	if len(args) > 0 {
 		var b bool
 		b, ok = args[0].(bool)
@@ -276,6 +286,14 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 		nbResonse, ok = w.(*nbhttp.Response)
 		if ok {
 			parser = nbResonse.Parser
+		}
+	}
+
+	clearNBCWSSession := func() {
+		if nbc != nil {
+			if _, ok = nbc.Session().(*Conn); ok {
+				nbc.SetSession(nil)
+			}
 		}
 	}
 
@@ -291,14 +309,15 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 	switch vt := underLayerConn.(type) {
 	case *nbio.Conn:
 		// Scenario 1: *nbio.Conn, handled by nbhttp.Engine.
-		parser, ok = vt.Session().(*nbhttp.Parser)
+		nbc = vt
+		parser, ok = nbc.Session().(*nbhttp.Parser)
 		if !ok {
 			return nil, u.returnError(w, r, http.StatusInternalServerError, err)
 		}
 		wsc = NewServerConn(u, conn, subprotocol, compress, false)
 		wsc.Engine = parser.Engine
 		wsc.Execute = parser.Execute
-		vt.SetSession(wsc)
+		nbc.SetSession(wsc)
 		if nbhttpConn != nil {
 			nbhttpConn.Parser = nil
 		}
@@ -351,9 +370,9 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 							return
 						}
 						if nread > 0 {
-							errRead = wsc.Read(buffer[:nread])
+							errRead = wsc.Parse(buffer[:nread])
 							if err != nil {
-								logging.Debug("websocket Conn Read failed: %v", errRead)
+								logging.Debug("websocket Conn Parse failed: %v", errRead)
 								c.CloseWithError(errRead)
 								return
 							}
@@ -367,6 +386,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 				vt.ResetConn(nbc, nonblock)
 				err = engine.AddTransferredConn(nbc)
 				if err != nil {
+					clearNBCWSSession()
 					return nil, u.returnError(w, r, http.StatusInternalServerError, err)
 				}
 			} else {
@@ -376,7 +396,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 				getParser()
 				if parser != nil {
 					wsc.Execute = parser.Execute
-					parser.ReadCloser = wsc
+					parser.ParserCloser = wsc
 					if nbhttpConn != nil {
 						nbhttpConn.Parser = nil
 					}
@@ -428,15 +448,16 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 					}
 				}()
 
-				errRead := wsc.Read(data)
+				errRead := wsc.Parse(data)
 				if errRead != nil {
-					logging.Debug("websocket Conn Read failed: %v", errRead)
+					logging.Debug("websocket Conn Parse failed: %v", errRead)
 					c.CloseWithError(errRead)
 					return
 				}
 			})
 			err = engine.AddTransferredConn(nbc)
 			if err != nil {
+				clearNBCWSSession()
 				return nil, u.returnError(w, r, http.StatusInternalServerError, err)
 			}
 		} else {
@@ -446,20 +467,20 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 			getParser()
 			if parser != nil {
 				wsc.Execute = parser.Execute
-				parser.ReadCloser = wsc
+				parser.ParserCloser = wsc
 				if nbhttpConn != nil {
 					nbhttpConn.Parser = nil
 				}
 			}
 		}
 	default:
-		// Scenario 4: Unknown conn type, mostly is std's *tls.Conn, from std's http.Server.
+		// Scenario 4: Unknown conn type, mostly is std *tls.Conn, from std http.Server.
 		wsc = NewServerConn(u, conn, subprotocol, compress, u.BlockingModAsyncWrite)
 		wsc.isBlockingMod = true
 		getParser()
 		if parser != nil {
 			wsc.Execute = parser.Execute
-			parser.ReadCloser = wsc
+			parser.ParserCloser = wsc
 			if nbhttpConn != nil {
 				nbhttpConn.Parser = nil
 			}
@@ -468,6 +489,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 
 	err = u.commResponse(wsc.Conn, responseHeader, challengeKey, subprotocol, compress)
 	if err != nil {
+		clearNBCWSSession()
 		return nil, err
 	}
 
@@ -497,6 +519,10 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 			wsc.chSessionInited = make(chan struct{})
 			go wsc.HandleRead(u.BlockingModReadBufferSize)
 		}
+	}
+
+	if !wsc.ReleasePayload {
+		wsc.ReleasePayload = wsc.Engine.ReleaseWebsocketPayload
 	}
 
 	return wsc, nil

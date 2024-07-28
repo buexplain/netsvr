@@ -18,11 +18,12 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
+	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type checkOnline struct{}
@@ -30,28 +31,28 @@ type checkOnline struct{}
 var CheckOnline = checkOnline{}
 
 func (r checkOnline) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterCheckOnlineForUniqId, r.RequestForUniqId)
+	processor.RegisterBusinessCmd(protocol.RouterCheckOnline, r.UniqId)
 }
 
-// CheckOnlineForUniqIdParam 检查某几个连接是否在线
-type CheckOnlineForUniqIdParam struct {
+// CheckOnlineParam 检查某几个连接是否在线
+type CheckOnlineParam struct {
 	UniqIds []string `json:"uniqIds"`
 }
 
-// RequestForUniqId 向worker发起请求，检查某几个连接是否在线
-func (checkOnline) RequestForUniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
-	payload := CheckOnlineForUniqIdParam{}
+// UniqId 向worker发起请求，检查某几个连接是否在线
+func (checkOnline) UniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := CheckOnlineParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
-		log.Logger.Error().Err(err).Str("param", param).Msg("Parse CheckOnlineForUniqIdParam failed")
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse CheckOnlineParam failed")
 		return
 	}
 	req := &netsvrProtocol.CheckOnlineReq{}
 	req.UniqIds = payload.UniqIds
 	resp := &netsvrProtocol.CheckOnlineResp{}
-	testUtils.RequestNetSvr(req, netsvrProtocol.Cmd_CheckOnline, resp)
+	netSvrPool.Request(req, netsvrProtocol.Cmd_CheckOnline, resp)
 	//将结果单播给客户端
 	ret := &netsvrProtocol.SingleCast{}
 	ret.UniqId = tf.UniqId
-	ret.Data = testUtils.NewResponse(protocol.RouterCheckOnlineForUniqId, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.UniqIds})
+	ret.Data = testUtils.NewResponse(protocol.RouterCheckOnline, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.UniqIds})
 	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }

@@ -17,8 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v2/netsvr"
-	"netsvr/configs"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
 	customerManager "netsvr/internal/customer/manager"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -31,7 +30,6 @@ func UniqIdList(_ []byte, processor *workerManager.ConnProcessor) {
 		c.GetUniqIds(&uniqIds)
 	}
 	ret := &netsvrProtocol.UniqIdListResp{}
-	ret.ServerId = int32(configs.Config.ServerId)
 	ret.UniqIds = uniqIds
 	processor.Send(ret, netsvrProtocol.Cmd_UniqIdList)
 }

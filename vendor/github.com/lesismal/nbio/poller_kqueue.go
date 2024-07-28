@@ -61,18 +61,41 @@ type poller struct {
 	eventList []syscall.Kevent_t
 }
 
-func (p *poller) addConn(c *Conn) {
+func (p *poller) addConn(c *Conn) error {
 	fd := c.fd
 	if fd >= len(p.g.connsUnix) {
-		c.closeWithError(fmt.Errorf("too many open files, fd[%d] >= MaxOpenFiles[%d]", fd, len(p.g.connsUnix)))
-		return
+		err := fmt.Errorf("too many open files, fd[%d] >= MaxOpenFiles[%d]",
+			fd,
+			len(p.g.connsUnix))
+		c.closeWithError(err)
+		return err
 	}
 	c.p = p
 	if c.typ != ConnTypeUDPServer {
 		p.g.onOpen(c)
+	} else {
+		p.g.onUDPListen(c)
 	}
 	p.g.connsUnix[fd] = c
 	p.addRead(fd)
+	return nil
+}
+
+func (p *poller) addDialer(c *Conn) error {
+	fd := c.fd
+	if fd >= len(p.g.connsUnix) {
+		err := fmt.Errorf("too many open files, fd[%d] >= MaxOpenFiles[%d]",
+			fd,
+			len(p.g.connsUnix),
+		)
+		c.closeWithError(err)
+		return err
+	}
+	c.p = p
+	p.g.connsUnix[fd] = c
+	c.isWAdded = true
+	p.addReadWrite(fd)
+	return nil
 }
 
 func (p *poller) getConn(fd int) *Conn {
@@ -89,7 +112,7 @@ func (p *poller) deleteConn(c *Conn) {
 		if c == p.g.connsUnix[fd] {
 			p.g.connsUnix[fd] = nil
 		}
-		p.deleteEvent(fd)
+		// p.deleteEvent(fd)
 	}
 
 	if c.typ != ConnTypeUDPServer {
@@ -104,33 +127,41 @@ func (p *poller) trigger() {
 func (p *poller) addRead(fd int) {
 	p.mux.Lock()
 	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_READ})
-	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
+	// p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
 	p.mux.Unlock()
 	p.trigger()
 }
 
 func (p *poller) resetRead(fd int) {
-	// p.mux.Lock()
-	// p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE})
-	// p.mux.Unlock()
-	// p.trigger()
-}
-
-func (p *poller) modWrite(fd int) {
-	// p.mux.Lock()
-	// p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
-	// p.mux.Unlock()
-	// p.trigger()
-}
-
-func (p *poller) deleteEvent(fd int) {
 	p.mux.Lock()
-	p.eventList = append(p.eventList,
-		syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_READ},
-		syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE})
+	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE})
 	p.mux.Unlock()
 	p.trigger()
 }
+
+func (p *poller) modWrite(fd int) {
+	p.mux.Lock()
+	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
+	p.mux.Unlock()
+	p.trigger()
+}
+
+func (p *poller) addReadWrite(fd int) {
+	p.mux.Lock()
+	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_READ})
+	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
+	p.mux.Unlock()
+	p.trigger()
+}
+
+// func (p *poller) deleteEvent(fd int) {
+// 	p.mux.Lock()
+// 	p.eventList = append(p.eventList,
+// 		syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_READ},
+// 		syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE})
+// 	p.mux.Unlock()
+// 	p.trigger()
+// }
 
 func (p *poller) readWrite(ev *syscall.Kevent_t) {
 	if ev.Flags&syscall.EV_DELETE > 0 {
@@ -139,7 +170,7 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 	fd := int(ev.Ident)
 	c := p.getConn(fd)
 	if c != nil {
-		if ev.Filter&syscall.EVFILT_READ == syscall.EVFILT_READ {
+		if ev.Filter == syscall.EVFILT_READ {
 			if p.g.onRead == nil {
 				for {
 					buffer := p.g.borrow(c)
@@ -167,14 +198,27 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 			} else {
 				p.g.onRead(c)
 			}
+
+			if ev.Flags&syscall.EV_EOF != 0 {
+				if c.onConnected == nil {
+					c.flush()
+				} else {
+					c.onConnected(c, nil)
+					c.onConnected = nil
+					c.resetRead()
+				}
+			}
 		}
 
-		if ev.Filter&syscall.EVFILT_WRITE == syscall.EVFILT_WRITE {
-			c.flush()
+		if ev.Filter == syscall.EVFILT_WRITE {
+			if c.onConnected == nil {
+				c.flush()
+			} else {
+				c.resetRead()
+				c.onConnected(c, nil)
+				c.onConnected = nil
+			}
 		}
-	} else {
-		syscall.Close(fd)
-		// p.deleteEvent(fd)
 	}
 }
 
