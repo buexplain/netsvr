@@ -284,7 +284,7 @@ func (r *ConnProcessor) cmd(data []byte) {
 	//还有一种可能就是business发来的心跳字符串与configs.Config.Worker.HeartbeatMessage配置不一致
 	//关掉重来，是最好的办法
 	r.ForceClose()
-	log.Logger.Error().Uint32("cmd", cmd).Int32("events", r.GetEvents()).Str("connId", r.connId).Str("dataAsBase64", base64.StdEncoding.EncodeToString(data)).Msg("Unknown netsvrProtocol.Cmd")
+	log.Logger.Error().Uint32("cmd", cmd).Int32("events", r.GetEvents()).Str("connId", r.connId).Str("businessToWorkerData", base64.StdEncoding.EncodeToString(data)).Msg("Unknown netsvrProtocol.Cmd")
 }
 
 // RegisterCmd 注册各种命令
