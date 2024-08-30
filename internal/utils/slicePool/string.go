@@ -67,6 +67,7 @@ func (r *StrSlice) Put(s *[]string) {
 	if ok {
 		r.mux.Unlock()
 		pool.Put(s)
+		return
 	}
 	//从来没被创建过，直接创建一个新的pool
 	pool = &sync.Pool{

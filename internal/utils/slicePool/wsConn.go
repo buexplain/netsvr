@@ -64,6 +64,7 @@ func (r *WsConn) Put(s *[]*websocket.Conn) {
 	if ok {
 		r.mux.Unlock()
 		pool.Put(s)
+		return
 	}
 	pool = &sync.Pool{
 		New: func() any {
