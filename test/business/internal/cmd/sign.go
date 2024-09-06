@@ -19,6 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/userDb"
@@ -52,11 +53,11 @@ type SignInForForgeParam struct {
 	SessionLen uint `json:"sessionLen"`
 }
 
-// 一个伪造的session值
+// 伪造登录时，伪造客户业务系统的唯一id的初始值
 var forgeCustomerId uint32
 
 func init() {
-	forgeCustomerId = 0
+	forgeCustomerId = configs.Config.ForgeCustomerIdInitVal
 }
 
 func (sign) SignInForForge(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {

@@ -48,6 +48,8 @@ type config struct {
 	CustomerHeartbeatMessage BytesConfigItem
 	//business进程向网关的worker服务器发送的心跳消息
 	WorkerHeartbeatMessage BytesConfigItem
+	//伪造登录时，伪造客户业务系统的唯一id的初始值，如果启动多个business进程，则需要区分每个business进程的起始值，最大值为uint32
+	ForgeCustomerIdInitVal uint32
 }
 
 func (r *config) GetLogLevel() zerolog.Level {
