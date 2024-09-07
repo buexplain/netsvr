@@ -8,7 +8,7 @@ require (
 	github.com/buexplain/netsvr-protocol-go/v3 v3.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.1.13
-	github.com/lesismal/nbio v1.5.9
+	github.com/lesismal/nbio v1.5.10
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/rs/zerolog v1.33.0
@@ -28,6 +28,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 )
