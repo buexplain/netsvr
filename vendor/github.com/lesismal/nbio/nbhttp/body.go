@@ -24,9 +24,12 @@ type BodyReader struct {
 	left    int      // num of byte left
 	buffers [][]byte // buffers that storage HTTP body
 	engine  *Engine  // allocator that manages buffers
+	closed  bool
 }
 
 // Read reads body bytes to p, returns the num of bytes read and error.
+//
+//go:norace
 func (br *BodyReader) Read(p []byte) (int, error) {
 	need := len(p)
 	if br.left <= 0 {
@@ -51,28 +54,40 @@ func (br *BodyReader) Read(p []byte) (int, error) {
 }
 
 // Close frees buffers and resets itself to empty value.
+//
+//go:norace
 func (br *BodyReader) Close() error {
+	if br.closed {
+		return nil
+	}
+	br.closed = true
 	if br.buffers != nil {
 		for _, b := range br.buffers {
 			br.engine.BodyAllocator.Free(b)
 		}
 	}
-	*br = emptyBodyReader
-	bodyReaderPool.Put(br)
+	// *br = emptyBodyReader
+	// bodyReaderPool.Put(br)
 	return nil
 }
 
 // Index returns current head buffer's reading index.
+//
+//go:norace
 func (br *BodyReader) Index() int {
 	return br.index
 }
 
 // Left returns how many bytes are left for reading.
+//
+//go:norace
 func (br *BodyReader) Left() int {
 	return br.left
 }
 
 // Buffers returns the underlayer buffers that store the HTTP Body.
+//
+//go:norace
 func (br *BodyReader) Buffers() [][]byte {
 	return br.buffers
 }
@@ -81,6 +96,8 @@ func (br *BodyReader) Buffers() [][]byte {
 // The buffers returned will be closed(released automatically when closed)
 // HTTP Handler is called, users should not free the buffers and should
 // not hold it any longer after the HTTP Handler is called.
+//
+//go:norace
 func (br *BodyReader) RawBodyBuffers() [][]byte {
 	buffers := make([][]byte, len(br.buffers))
 	for i, b := range br.buffers {
@@ -94,11 +111,15 @@ func (br *BodyReader) RawBodyBuffers() [][]byte {
 }
 
 // Engine returns Engine that creates this HTTP Body.
+//
+//go:norace
 func (br *BodyReader) Engine() *Engine {
 	return br.engine
 }
 
 // append appends data to buffers.
+//
+//go:norace
 func (br *BodyReader) append(data []byte) error {
 	if len(data) == 0 {
 		return nil
@@ -138,6 +159,8 @@ func (br *BodyReader) append(data []byte) error {
 }
 
 // NewBodyReader creates a BodyReader.
+//
+//go:norace
 func NewBodyReader(engine *Engine) *BodyReader {
 	br := bodyReaderPool.Get().(*BodyReader)
 	br.engine = engine

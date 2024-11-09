@@ -77,6 +77,7 @@ type Conn struct {
 	isInReadingLoop          bool
 	expectingFragments       bool
 	compress                 bool
+	releasePayload           bool
 	msgType                  MessageType
 	message                  []byte
 	bytesCached              []byte
@@ -85,31 +86,42 @@ type Conn struct {
 	Execute func(f func()) bool
 }
 
+//go:norace
 func (c *Conn) UnderlayerConn() net.Conn {
 	return c.Conn
 }
 
 // IsClient .
+//
+//go:norace
 func (c *Conn) IsClient() bool {
 	return c.isClient
 }
 
 // SetClient .
+//
+//go:norace
 func (c *Conn) SetClient(isClient bool) {
 	c.isClient = isClient
 }
 
 // IsBlockingMod .
+//
+//go:norace
 func (c *Conn) IsBlockingMod() bool {
 	return c.isBlockingMod
 }
 
 // IsAsyncWrite .
+//
+//go:norace
 func (c *Conn) IsAsyncWrite() bool {
 	return c.sendQueue != nil
 }
 
 // Close .
+//
+//go:norace
 func (c *Conn) Close() error {
 	if c.Conn == nil {
 		return nil
@@ -122,12 +134,16 @@ func (c *Conn) Close() error {
 }
 
 // CloseWithError .
+//
+//go:norace
 func (c *Conn) CloseWithError(err error) {
 	c.SetCloseError(err)
 	c.Close()
 }
 
 // SetCloseError .
+//
+//go:norace
 func (c *Conn) SetCloseError(err error) {
 	c.mux.Lock()
 	if c.closeErr == nil {
@@ -137,10 +153,13 @@ func (c *Conn) SetCloseError(err error) {
 }
 
 // CompressionEnabled .
+//
+//go:norace
 func (c *Conn) CompressionEnabled() bool {
 	return c.compress
 }
 
+//go:norace
 func (c *Conn) handleDataFrame(opcode MessageType, fin bool, body []byte) {
 	h := c.dataFrameHandler
 	if c.isBlockingMod {
@@ -156,6 +175,7 @@ func (c *Conn) handleDataFrame(opcode MessageType, fin bool, body []byte) {
 	}
 }
 
+//go:norace
 func (c *Conn) handleMessage(opcode MessageType, body []byte) {
 	if c.isBlockingMod {
 		c.handleWsMessage(opcode, body)
@@ -170,16 +190,17 @@ func (c *Conn) handleMessage(opcode MessageType, body []byte) {
 	}
 }
 
+//go:norace
 func (c *Conn) handleProtocolMessage(opcode MessageType, body []byte) {
 	if c.isBlockingMod {
 		c.handleWsMessage(opcode, body)
-		if len(body) > 0 && c.ReleasePayload {
+		if len(body) > 0 && c.releasePayload {
 			c.Engine.BodyAllocator.Free(body)
 		}
 	} else {
 		if !c.Execute(func() {
 			c.handleWsMessage(opcode, body)
-			if len(body) > 0 && c.ReleasePayload {
+			if len(body) > 0 && c.releasePayload {
 				c.Engine.BodyAllocator.Free(body)
 			}
 		}) {
@@ -190,6 +211,7 @@ func (c *Conn) handleProtocolMessage(opcode MessageType, body []byte) {
 	}
 }
 
+//go:norace
 func (c *Conn) handleWsMessage(opcode MessageType, data []byte) {
 	const errInvalidUtf8Text = "invalid UTF-8 bytes"
 
@@ -263,6 +285,7 @@ ErrExit:
 	c.Close()
 }
 
+//go:norace
 func (c *Conn) nextFrame() (int, MessageType, []byte, bool, bool, bool, error) {
 	var (
 		opcode                    MessageType
@@ -329,6 +352,8 @@ func (c *Conn) nextFrame() (int, MessageType, []byte, bool, bool, bool, error) {
 }
 
 // Read .
+//
+//go:norace
 func (c *Conn) Parse(data []byte) error {
 	if len(data) == 0 {
 		return nil
@@ -500,10 +525,12 @@ func (c *Conn) Parse(data []byte) error {
 }
 
 // OnMessage .
+//
+//go:norace
 func (c *Conn) OnMessage(h func(*Conn, MessageType, []byte)) {
 	if h != nil {
 		c.messageHandler = func(c *Conn, messageType MessageType, data []byte) {
-			if c.ReleasePayload && len(data) > 0 {
+			if c.releasePayload && len(data) > 0 {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
 			if !c.closed {
@@ -514,10 +541,12 @@ func (c *Conn) OnMessage(h func(*Conn, MessageType, []byte)) {
 }
 
 // OnDataFrame .
+//
+//go:norace
 func (c *Conn) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
 	if h != nil {
 		c.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, data []byte) {
-			if c.ReleasePayload {
+			if c.releasePayload {
 				defer c.Engine.BodyAllocator.Free(data)
 			}
 			h(c, messageType, fin, data)
@@ -526,15 +555,20 @@ func (c *Conn) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
 }
 
 // EnableCompression .
+//
+//go:norace
 func (c *Conn) EnableCompression(enable bool) {
 	c.enableCompression = enable
 }
 
+//go:norace
 func (c *Conn) OnClose(h func(*Conn, error)) {
 	c.onClose = h
 }
 
 // WriteClose .
+//
+//go:norace
 func (c *Conn) WriteClose(code int, reason string) error {
 	buf := make([]byte, 2+len(reason))
 	binary.BigEndian.PutUint16(buf[:2], uint16(code))
@@ -543,6 +577,8 @@ func (c *Conn) WriteClose(code int, reason string) error {
 }
 
 // WriteMessage .
+//
+//go:norace
 func (c *Conn) WriteMessage(messageType MessageType, data []byte) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
@@ -588,16 +624,18 @@ func (c *Conn) WriteMessage(messageType MessageType, data []byte) error {
 
 	if len(data) > 0 {
 		sendOpcode := true
+		sendCompress := compress
 		for len(data) > 0 {
 			n := len(data)
 			if n > c.Engine.MaxWebsocketFramePayloadSize {
 				n = c.Engine.MaxWebsocketFramePayloadSize
 			}
-			err := c.writeFrame(messageType, sendOpcode, n == len(data), data[:n], compress)
+			err := c.writeFrame(messageType, sendOpcode, n == len(data), data[:n], sendCompress)
 			if err != nil {
 				return err
 			}
 			sendOpcode = false
+			sendCompress = false
 			data = data[n:]
 		}
 		return nil
@@ -606,7 +644,26 @@ func (c *Conn) WriteMessage(messageType MessageType, data []byte) error {
 	return c.writeFrame(messageType, true, true, []byte{}, compress)
 }
 
+// Keepalive .
+//
+//go:norace
+func (c *Conn) Keepalive(d time.Duration) *time.Timer {
+	var fn func()
+	var timer *time.Timer
+	fn = func() {
+		err := c.WriteMessage(PingMessage, []byte{})
+		if err != nil {
+			return
+		}
+		timer.Reset(d)
+	}
+	timer = time.AfterFunc(d, fn)
+	return timer
+}
+
 // Session returns user session.
+//
+//go:norace
 func (c *Conn) Session() interface{} {
 	if c.chSessionInited == nil {
 		return c.session
@@ -615,6 +672,8 @@ func (c *Conn) Session() interface{} {
 }
 
 // SessionWithLock returns user session with lock, returns as soon as the session has been seted.
+//
+//go:norace
 func (c *Conn) SessionWithLock() interface{} {
 	c.mux.Lock()
 	ch := c.chSessionInited
@@ -627,6 +686,8 @@ func (c *Conn) SessionWithLock() interface{} {
 
 // SessionWithContext returns user session, returns as soon as the session has been seted or
 // waits until the context is done.
+//
+//go:norace
 func (c *Conn) SessionWithContext(ctx context.Context) interface{} {
 	c.mux.Lock()
 	ch := c.chSessionInited
@@ -642,6 +703,8 @@ func (c *Conn) SessionWithContext(ctx context.Context) interface{} {
 }
 
 // SetSession sets user session.
+//
+//go:norace
 func (c *Conn) SetSession(session interface{}) {
 	c.mux.Lock()
 	c.session = session
@@ -658,12 +721,16 @@ type writeBuffer struct {
 }
 
 // Close .
+//
+//go:norace
 func (w *writeBuffer) Close() error {
 	w.free(w.Bytes())
 	return nil
 }
 
 // CloseAndClean .
+//
+//go:norace
 func (c *Conn) CloseAndClean(err error) {
 	// c.WriteClose(1000, "normal close")
 	c.mux.Lock()
@@ -711,6 +778,8 @@ func (c *Conn) CloseAndClean(err error) {
 }
 
 // WriteFrame .
+//
+//go:norace
 func (c *Conn) WriteFrame(messageType MessageType, sendOpcode, fin bool, data []byte) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
@@ -722,6 +791,7 @@ func (c *Conn) WriteFrame(messageType MessageType, sendOpcode, fin bool, data []
 	return c.writeFrame(messageType, sendOpcode, fin, data, false)
 }
 
+//go:norace
 func (c *Conn) writeFrame(messageType MessageType, sendOpcode, fin bool, data []byte, compress bool) error {
 	var (
 		buf     []byte
@@ -787,21 +857,19 @@ func (c *Conn) writeFrame(messageType MessageType, sendOpcode, fin bool, data []
 		}
 		c.sendQueue = append(c.sendQueue, buf)
 		isHead := (len(c.sendQueue) == 1)
-		if isHead {
-			c.sendQueue[0] = nil
-		}
 
 		if isHead {
+			c.sendQueue[0] = nil
 			go func() {
 				i := 0
 				for {
 					_, err := c.Conn.Write(buf)
+					c.Engine.BodyAllocator.Free(buf)
 					if err != nil {
 						c.CloseWithError(err)
 						return
 					}
-					c.Engine.BodyAllocator.Free(buf)
-					c.sendQueue[i] = nil
+
 					i++
 
 					c.mux.Lock()
@@ -816,6 +884,7 @@ func (c *Conn) writeFrame(messageType MessageType, sendOpcode, fin bool, data []
 					}
 
 					buf = c.sendQueue[i]
+					c.sendQueue[i] = nil
 
 					c.mux.Unlock()
 
@@ -835,11 +904,15 @@ func (c *Conn) writeFrame(messageType MessageType, sendOpcode, fin bool, data []
 }
 
 // Write overwrites nbio.Conn.Write.
+//
+//go:norace
 func (c *Conn) Write(data []byte) (int, error) {
 	return -1, ErrInvalidWriteCalling
 }
 
 // EnableWriteCompression .
+//
+//go:norace
 func (c *Conn) EnableWriteCompression(enable bool) {
 	if enable {
 		if c.remoteCompressionEnabled {
@@ -851,18 +924,23 @@ func (c *Conn) EnableWriteCompression(enable bool) {
 }
 
 // Subprotocol returns the negotiated websocket subprotocol.
+//
+//go:norace
 func (c *Conn) Subprotocol() string {
 	return c.subprotocol
 }
 
+//go:norace
 func NewClientConn(opt *Options, c net.Conn, subprotocol string, remoteCompressionEnabled bool, asyncWrite bool) *Conn {
 	return newConn(opt, c, subprotocol, remoteCompressionEnabled, asyncWrite, true)
 }
 
+//go:norace
 func NewServerConn(u *Upgrader, c net.Conn, subprotocol string, remoteCompressionEnabled bool, asyncWrite bool) *Conn {
 	return newConn(u, c, subprotocol, remoteCompressionEnabled, asyncWrite, false)
 }
 
+//go:norace
 func newConn(u *Upgrader, c net.Conn, subprotocol string, remoteCompressionEnabled bool, asyncWrite bool, isClient bool) *Conn {
 	wsc := &Conn{
 		commonFields:             &u.commonFields,
@@ -887,6 +965,8 @@ func newConn(u *Upgrader, c net.Conn, subprotocol string, remoteCompressionEnabl
 }
 
 // HandleRead .
+//
+//go:norace
 func (c *Conn) HandleRead(bufSize int) {
 	if c.isReadingByParser {
 		return
@@ -927,6 +1007,8 @@ func (c *Conn) HandleRead(bufSize int) {
 }
 
 // return false if length is ok.
+//
+//go:norace
 func (c *Conn) isMessageTooLarge(len int) bool {
 	// <=0 means unlimitted size
 	if c.MessageLengthLimit <= 0 {
@@ -935,6 +1017,7 @@ func (c *Conn) isMessageTooLarge(len int) bool {
 	return len > c.MessageLengthLimit
 }
 
+//go:norace
 func (c *Conn) validFrame(opcode MessageType, fin, res1, res2, res3, expectingFragments bool) error {
 	if res1 && !c.enableCompression {
 		return ErrReserveBitSet
@@ -954,6 +1037,7 @@ func (c *Conn) validFrame(opcode MessageType, fin, res1, res2, res3, expectingFr
 	return nil
 }
 
+//go:norace
 func (c *Conn) readAll(r io.Reader, size int) ([]byte, error) {
 	const maxAppendSize = 1024 * 1024 * 4
 	if c.MessageLengthLimit > 0 && size > c.MessageLengthLimit {
@@ -990,6 +1074,7 @@ func (c *Conn) readAll(r io.Reader, size int) ([]byte, error) {
 	}
 }
 
+//go:norace
 func validCloseCode(code int) bool {
 	switch code {
 	case 1000:
@@ -1030,6 +1115,7 @@ func validCloseCode(code int) bool {
 	return false
 }
 
+//go:norace
 func maskXOR(b, key []byte) {
 	key64 := uint64(binary.LittleEndian.Uint32(key))
 	key64 |= (key64 << 32)

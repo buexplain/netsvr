@@ -16,8 +16,8 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/lesismal/llib v1.1.13 h1:+w1+t0PykXpj2dXQck0+p6vdC9/mnbEXHgUy/HXDGfE=
 github.com/lesismal/llib v1.1.13/go.mod h1:70tFXXe7P1FZ02AU9l8LgSOK7d7sRrpnkUr3rd3gKSg=
-github.com/lesismal/nbio v1.5.10 h1:k9O6a2bG+eBJn4ed94d918AB55QxF0KEj0OHKLCppJQ=
-github.com/lesismal/nbio v1.5.10/go.mod h1:QsxE0fKFe1PioyjuHVDn2y8ktYK7xv9MFbpkoRFj8vI=
+github.com/lesismal/nbio v1.5.12 h1:YcUjjmOvmKEANs6Oo175JogXvHy8CuE7i6ccjM2/tv4=
+github.com/lesismal/nbio v1.5.12/go.mod h1:QsxE0fKFe1PioyjuHVDn2y8ktYK7xv9MFbpkoRFj8vI=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=

@@ -92,9 +92,11 @@ func (mp *MemPool) AppendString(buf []byte, more string) []byte {
 
 // Free .
 func (mp *MemPool) Free(buf []byte) {
-	mp.incrFree(buf)
-	if cap(buf) > mp.freeSize {
-		return
+	if buf != nil && cap(buf) > 0 {
+		mp.incrFree(buf)
+		if cap(buf) > mp.freeSize {
+			return
+		}
+		mp.pool.Put(&buf)
 	}
-	mp.pool.Put(&buf)
 }
