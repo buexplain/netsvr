@@ -106,6 +106,7 @@ func (r *Server) Start() {
 			c.RegisterCmd(netsvrProtocol.Cmd_CustomerIdList, cmd.CustomerIdList)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicCustomerIdList, cmd.TopicCustomerIdList)
 			c.RegisterCmd(netsvrProtocol.Cmd_TopicCustomerIdCount, cmd.TopicCustomerIdCount)
+			c.RegisterCmd(netsvrProtocol.Cmd_TopicCustomerIdToUniqIdsList, cmd.TopicCustomerIdToUniqIdsList)
 			//将该连接添加到关闭管理器中
 			manager.Shutter.Add(c)
 			//启动三条协程，负责处理命令、读取数据、写入数据、更多的处理命令协程，business在注册的时候可以自定义，要求worker进行开启

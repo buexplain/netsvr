@@ -103,6 +103,24 @@ func (r *binder) GetCustomerIdsByUniqIds(uniqIds []string) (customerIds []string
 	return customerIds
 }
 
+// GetCustomerIdToUniqIdsList 根据uniqIds获取所有的customerId对应的uniqIds
+func (r *binder) GetCustomerIdToUniqIdsList(uniqIds []string) (customerIdToUniqIdsList map[string][]string) {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
+	//去重
+	customerIdToUniqIdsList = make(map[string][]string, len(uniqIds))
+	for _, uniqId := range uniqIds {
+		if customerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
+			if _, ok := customerIdToUniqIdsList[customerId]; ok {
+				customerIdToUniqIdsList[customerId] = append(customerIdToUniqIdsList[customerId], uniqId)
+			} else {
+				customerIdToUniqIdsList[customerId] = []string{uniqId}
+			}
+		}
+	}
+	return customerIdToUniqIdsList
+}
+
 // CountCustomerIdsByUniqIds 根据uniqIds获取所有的customerId数量
 func (r *binder) CountCustomerIdsByUniqIds(uniqIds []string) int {
 	r.rwMutex.RLock()

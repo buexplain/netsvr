@@ -197,7 +197,7 @@
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入主题，多个用逗号分割"
-                       value="">
+                       value="桃园结义">
             </label>
             <button onclick="send(this,routerCmd.topicCustomerIdList)">获取主题的customerId列表</button>
         </div>
@@ -206,7 +206,18 @@
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入主题，多个用逗号分割"
-                       value="">
+                       value="桃园结义">
+            </label>
+            <button onclick="send(this,routerCmd.topicCustomerIdToUniqIdsList)">
+                获取主题的customerId以及对应的uniqId列表
+            </button>
+        </div>
+
+        <div class="case">
+            <label>
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入主题，多个用逗号分割"
+                       value="桃园结义">
             </label>
             <button onclick="send(this,routerCmd.topicCustomerIdCount)">获取主题的customerId数量</button>
         </div>
@@ -379,7 +390,7 @@
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要订阅的主题，多个用逗号分割"
-                       value="小品频道，相声频道，戏曲频道，评书频道">
+                       value="小品频道，相声频道，戏曲频道，评书频道，杂技频道">
             </label>
             <button onclick="send(this,routerCmd.topicSubscribe)">订阅</button>
         </div>
@@ -388,7 +399,7 @@
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要取消订阅的主题，多个用逗号分割"
-                       value="相声频道，小品频道，评书频道">
+                       value="小品频道，相声频道">
             </label>
             <button onclick="send(this,routerCmd.topicUnsubscribe)">取消订阅</button>
         </div>
@@ -397,7 +408,7 @@
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要删除的主题，多个用逗号分割"
-                       value="相声频道，小品频道，评书频道">
+                       value="戏曲频道，评书频道">
             </label>
             <button onclick="send(this,routerCmd.topicDelete)">删除主题</button>
         </div>
@@ -405,15 +416,16 @@
         <div class="case">
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
-                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题" value="戏曲频道">
+                       placeholder="请输入主题，多个用逗号分割，没有则表示全部主题"
+                       value="小品频道，相声频道，戏曲频道，评书频道，杂技频道">
             </label>
             <button onclick="send(this,routerCmd.topicUniqIdCount)">获取主题连接数</button>
         </div>
 
         <div class="case">
             <label>
-                <input class="input-max" type="text" name="topic" data-processor="processorToString"
-                       placeholder="请输入主题" value="戏曲频道">
+                <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
+                       placeholder="请输入主题" value="小品频道，相声频道，戏曲频道，评书频道，杂技频道">
             </label>
             <button onclick="send(this,routerCmd.topicUniqIdList)">获取主题的uniqId</button>
         </div>
@@ -427,7 +439,7 @@
             <label>
                 <input class="input-min" type="text" name="topics" data-processor="processorToStringArr"
                        placeholder="请输入要发布的主题，多个用逗号分割"
-                       value="戏曲频道">
+                       value="评书频道，杂技频道">
             </label>
             <button onclick="send(this,routerCmd.topicPublish)">发布</button>
         </div>
@@ -442,7 +454,7 @@
                 <label>
                     <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
                            placeholder="请输入要发布的主题"
-                           value="小品频道">
+                           value="评书频道">
                 </label>
                 <br>
                 <label>
@@ -453,7 +465,7 @@
                 <label>
                     <input class="input-min" type="text" name="topics[]" data-processor="processorToString"
                            placeholder="请输入要发布的主题"
-                           value="相声频道">
+                           value="杂技频道">
                 </label>
             </div>
             <button onclick="send(this,routerCmd.topicPublishBulk)"
@@ -505,6 +517,7 @@
         topicUniqIdCount: parseInt("{!.RouterTopicUniqIdCount!}"), //获取网关中的某几个主题的uniqId数
         topicUniqIdList: parseInt("{!.RouterTopicUniqIdList!}"), //获取网关中的某个主题包含的uniqId
         topicCustomerIdList: parseInt("{!.RouterTopicCustomerIdList!}"), //获取网关中某几个主题的customerId
+        topicCustomerIdToUniqIdsList: parseInt("{!.RouterTopicCustomerIdToUniqIdsList!}"), //获取网关中目标topic的customerId以及对应的uniqId列表
         topicCustomerIdCount: parseInt("{!.RouterTopicCustomerIdCount!}"), //获取网关中某几个主题的customerId数量
         topicPublish: parseInt("{!.RouterTopicPublish!}"), //发布
         topicPublishBulk: parseInt("{!.RouterTopicPublishBulk!}"), //批量发布
@@ -756,8 +769,30 @@
                         print("没有连接绑定过customerId");
                         return;
                     }
-                    for (let i in resp.data.data["list"]) {
-                        print(i + '：' + resp.data.data["list"][i]['customerIds'].join('、'));
+                    for (let topic in resp.data.data["list"]) {
+                        if (resp.data.data["list"][topic]["customerIds"] === undefined) {
+                            print(topic + '：没有uniqId绑定过customerId');
+                            continue;
+                        }
+                        print(topic + '：' + resp.data.data["list"][topic]['customerIds'].join('、'));
+                    }
+                    return;
+                }
+                //服务端响应了网关中目标topic的customerId以及对应的uniqId列表
+                if (resp.cmd === routerCmd.topicCustomerIdToUniqIdsList) {
+                    if (resp.data.code !== 0) {
+                        print(resp.data.message);
+                        return;
+                    }
+                    if (resp.data.data["list"] === null) {
+                        print("没有连接绑定过customerId");
+                        return;
+                    }
+                    for (let topic in resp.data.data["list"]) {
+                        let customerIdToUniqIdsList = resp.data.data["list"][topic]["items"];
+                        for (let customerId in customerIdToUniqIdsList) {
+                            print(topic + '-->' + customerId + '：' + customerIdToUniqIdsList[customerId]["uniqIds"].join('、'));
+                        }
                     }
                     return;
                 }
@@ -893,7 +928,7 @@
                     print(resp.data.message);
                     if (resp.data.data) {
                         for (let i in resp.data.data) {
-                            resp.data.data[i]['uniqIds'] && print(i + '-->' + resp.data.data[i]['uniqIds'].join('\n'));
+                            resp.data.data[i]['uniqIds'] && print(i + '-->' + resp.data.data[i]['uniqIds'].join('、'));
                         }
                     }
                     return;

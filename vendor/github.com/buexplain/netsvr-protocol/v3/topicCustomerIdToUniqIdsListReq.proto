@@ -16,20 +16,14 @@
 
 syntax = "proto3";
 
-package netsvr.topicCustomerIdListResp;
+package netsvr.topicCustomerIdToUniqIdsListReq;
 
 option go_package = "netsvr/";
 option php_namespace = "Netsvr";
 option php_metadata_namespace = "Netsvr\\GPBMetadata";
 
-//worker响应business，返回网关中目标topic的customerId
-message TopicCustomerIdListResp {
-  //key是topic，value是该topic包含的customerId
-  //如果请求的topic没找到，则items中不会有该topic
-  map<string, TopicCustomerIdListRespItem> items = 1;
-}
-
-message TopicCustomerIdListRespItem {
-  //当前topic包含的customerId
-  repeated string customerIds = 1;
+//worker响应business，获取网关中目标topic的customerId以及对应的uniqId列表
+message TopicCustomerIdToUniqIdsListReq {
+  //目标topic
+  repeated string topics = 1;
 }

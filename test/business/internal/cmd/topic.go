@@ -38,6 +38,7 @@ func (r topic) Init(processor *connProcessor.ConnProcessor) {
 	processor.RegisterBusinessCmd(protocol.RouterTopicUniqIdCount, r.RequestTopicUniqIdCount)
 	processor.RegisterBusinessCmd(protocol.RouterTopicUniqIdList, r.RequestTopicUniqIdList)
 	processor.RegisterBusinessCmd(protocol.RouterTopicCustomerIdList, r.RequestTopicCustomerList)
+	processor.RegisterBusinessCmd(protocol.RouterTopicCustomerIdToUniqIdsList, r.RequestTopicCustomerIdToUniqIdsList)
 	processor.RegisterBusinessCmd(protocol.RouterTopicCustomerIdCount, r.RequestTopicCustomerCount)
 	processor.RegisterBusinessCmd(protocol.RouterTopicSubscribe, r.RequestTopicSubscribe)
 	processor.RegisterBusinessCmd(protocol.RouterTopicUnsubscribe, r.RequestTopicUnsubscribe)
@@ -94,7 +95,7 @@ func (topic) RequestTopicUniqIdCount(tf *netsvrProtocol.Transfer, param string, 
 }
 
 type TopicUniqIdListParam struct {
-	Topic string
+	Topics []string
 }
 
 // RequestTopicUniqIdList 获取网关中的某个主题包含的uniqId
@@ -106,7 +107,7 @@ func (topic) RequestTopicUniqIdList(tf *netsvrProtocol.Transfer, param string, p
 		return
 	}
 	req := &netsvrProtocol.TopicUniqIdListReq{}
-	req.Topics = []string{payload.Topic}
+	req.Topics = payload.Topics
 	resp := &netsvrProtocol.TopicUniqIdListResp{}
 	netSvrPool.Request(req, netsvrProtocol.Cmd_TopicUniqIdList, resp)
 	//将结果单播给客户端
@@ -139,6 +140,32 @@ func (topic) RequestTopicCustomerList(tf *netsvrProtocol.Transfer, param string,
 		"list": resp.Items,
 	}
 	ret.Data = testUtils.NewResponse(protocol.RouterTopicCustomerIdList, map[string]interface{}{"code": 0, "message": "获取主题的customerId成功", "data": msg})
+	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+}
+
+// RequestTopicCustomerIdToUniqIdsListParam 获取网关中某几个主题的customerId以及对应的uniqId列表
+type RequestTopicCustomerIdToUniqIdsListParam struct {
+	Topics []string `json:"topics"`
+}
+
+// RequestTopicCustomerIdToUniqIdsList 获取网关中目标topic的customerId以及对应的uniqId列表
+func (topic) RequestTopicCustomerIdToUniqIdsList(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+	payload := &RequestTopicCustomerIdToUniqIdsListParam{}
+	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
+		log.Logger.Error().Err(err).Str("param", param).Msg("Parse RequestTopicCustomerIdToUniqIdsListParam failed")
+		return
+	}
+	req := &netsvrProtocol.TopicCustomerIdToUniqIdsListReq{}
+	req.Topics = payload.Topics
+	resp := &netsvrProtocol.TopicCustomerIdToUniqIdsListResp{}
+	netSvrPool.Request(req, netsvrProtocol.Cmd_TopicCustomerIdToUniqIdsList, resp)
+	//将结果单播给客户端
+	ret := &netsvrProtocol.SingleCast{}
+	ret.UniqId = tf.UniqId
+	msg := map[string]interface{}{
+		"list": resp.Items,
+	}
+	ret.Data = testUtils.NewResponse(protocol.RouterTopicCustomerIdToUniqIdsList, map[string]interface{}{"code": 0, "message": "获取主题的customerId以及对应的uniqId列表成功", "data": msg})
 	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
 }
 

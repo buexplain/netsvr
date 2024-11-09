@@ -65,10 +65,11 @@ enum Cmd {
   TopicUniqIdList = 900003010; //获取网关中某个主题包含的uniqId
   TopicUniqIdCount = 900003011; //获取网关中的主题包含的连接数
   TopicCustomerIdList = 900003012; //获取网关中某几个主题的customerId
-  TopicCustomerIdCount = 900003013; //获取网关某个主题的customerId数量
-  ConnInfo = 900003014; //获取连接的信息
-  ConnInfoByCustomerId = 900003015; //获取连接的信息
-  Metrics = 900003016; //获取网关统计的服务状态
-  Limit = 900003017; //更新限流配置、获取网关中的限流配置的真实情况
+  TopicCustomerIdToUniqIdsList = 900003013; //获取网关中某几个主题的customerId以及对应的uniqId列表
+  TopicCustomerIdCount = 900003014; //获取网关某个主题的customerId数量
+  ConnInfo = 900003015; //获取连接的信息
+  ConnInfoByCustomerId = 900003016; //获取连接的信息
+  Metrics = 900003017; //获取网关统计的服务状态
+  Limit = 900003018; //更新限流配置、获取网关中的限流配置的真实情况
   //--------------------------------business请求worker的指令，worker会响应business 结束--------------------------------
 }

@@ -8,10 +8,10 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-protocol-go/v3 v3.0.0
-## explicit; go 1.20
+# github.com/buexplain/netsvr-protocol-go/v3 v3.1.0
+## explicit; go 1.21
 github.com/buexplain/netsvr-protocol-go/v3/netsvr
-# github.com/buexplain/netsvr-protocol/v3 v3.0.0
+# github.com/buexplain/netsvr-protocol/v3 v3.1.0
 ## explicit; go 1.20
 github.com/buexplain/netsvr-protocol/v3
 # github.com/gorilla/websocket v1.5.3
@@ -86,8 +86,8 @@ golang.org/x/sys/unix
 # golang.org/x/time v0.6.0
 ## explicit; go 1.18
 golang.org/x/time/rate
-# google.golang.org/protobuf v1.34.2
-## explicit; go 1.20
+# google.golang.org/protobuf v1.35.1
+## explicit; go 1.21
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt

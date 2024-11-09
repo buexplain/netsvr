@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/antlabs/timer v0.1.4
-	github.com/buexplain/netsvr-protocol-go/v3 v3.0.0
+	github.com/buexplain/netsvr-protocol-go/v3 v3.1.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.1.13
 	github.com/lesismal/nbio v1.5.10
@@ -15,13 +15,13 @@ require (
 	github.com/tidwall/gjson v1.17.3
 	github.com/traefik/yaegi v0.16.1
 	golang.org/x/time v0.6.0
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.35.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
 	github.com/antlabs/stl v0.0.2 // indirect
-	github.com/buexplain/netsvr-protocol/v3 v3.0.0 // indirect
+	github.com/buexplain/netsvr-protocol/v3 v3.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
