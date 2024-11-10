@@ -55,7 +55,7 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 				//将当前数据写入到连接中
 				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
 					//写入失败，直接退出，不必再处理剩余数据
@@ -87,7 +87,7 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 				//将数据写入到连接中
 				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
 					//写入失败，关闭连接，继续处理下一个数据

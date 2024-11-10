@@ -20,7 +20,7 @@ package main
 import (
 	_ "embed"
 	"errors"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"html/template"
 	"net"
 	"net/http"

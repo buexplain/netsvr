@@ -21,12 +21,13 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	"netsvr/internal/metrics"
 	"netsvr/internal/worker/connIdGen"
 	"netsvr/pkg/quit"
 	"sync/atomic"
@@ -86,7 +87,7 @@ func (r *ConnProcessor) ForceClose() {
 		Shutter.Del(r)
 		//因为生产者协程(r.sendCh <- data)可能被阻塞，而没有收到关闭信号，所以要丢弃数据，直到所有生产者不再阻塞
 		//因为r.sendCh是空的，所以消费者协程可能阻塞，所以要丢弃数据，直到判断出管子是空的，再关闭管子，让消费者协程感知管子已经关闭，可以退出协程
-		//这里丢弃的数据有可能是客户发的，也有可能是只给business的
+		//这里丢弃的数据有可能是客户发的，也有可能是business请求的
 		for {
 			select {
 			case _, ok := <-r.sendCh:
@@ -153,6 +154,8 @@ func (r *ConnProcessor) send(data []byte) {
 			continue
 		}
 		//写入错误
+		//统计worker到business的失败次数
+		metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
 		if totalLen == len(data[writeLen:]) {
 			log.Logger.Error().Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Str("workerToBusinessData", base64.StdEncoding.EncodeToString(data)).Msg("Worker send to business failed")

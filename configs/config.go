@@ -106,10 +106,17 @@ type config struct {
 
 	Metrics struct {
 		// 统计服务的各种状态，空，则不统计任何状态
-		// 1：统计客户连接的打开情况，2：统计客户连接的关闭情况，3：统计客户连接的心跳情况，4：统计客户数据转发到worker的次数情况，5：统计客户数据转发到worker的字节数情况，6：统计往客户写入数据次数，7：统计往客户写入字节数
+		// 1：统计客户连接的打开次数
+		// 2：统计客户连接的关闭次数
+		// 3：统计客户连接的心跳次数
+		// 4：统计客户数据转发到worker的次数
+		// 5：统计客户数据转发到worker的字节数
+		// 6：统计往客户写入数据次数
+		// 7：统计往客户写入字节数
+		// 8：统计连接打开的限流次数
+		// 9：统计客户消息限流次数
+		// 10：统计worker到business的失败次数
 		Item []int
-		//统计服务的各种状态里记录最大值的间隔时间
-		MaxRecordInterval time.Duration
 	}
 }
 
@@ -262,10 +269,6 @@ func init() {
 	if len(Config.Worker.HeartbeatMessage) == 0 {
 		slog.Error("Config Worker.HeartbeatMessage is required")
 		os.Exit(1)
-	}
-	if Config.Metrics.MaxRecordInterval <= 0 {
-		//默认10秒
-		Config.Metrics.MaxRecordInterval = time.Second * 10
 	}
 	fileIsExist := func(path string) bool {
 		fi, err := os.Stat(path)

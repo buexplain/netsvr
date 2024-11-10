@@ -2,7 +2,7 @@ package netSvrPool
 
 import (
 	"encoding/binary"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"io"

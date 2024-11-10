@@ -64,7 +64,7 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 				}
 				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
 					//写入失败，不再写入剩余的数据，而是跳出当前for循环，处理下一个uniqId
@@ -105,7 +105,7 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 				//将当前迭代的主题对应的数据写入到该连接
 				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
 					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(datumLen)
 				} else {
 					//写入失败，关闭连接，继续处理下一个unqId

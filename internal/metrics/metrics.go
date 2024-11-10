@@ -20,27 +20,32 @@ package metrics
 import (
 	gMetrics "github.com/rcrowley/go-metrics"
 	"netsvr/configs"
-	"time"
 )
 
 type Item int
 
 // 支持统计的服务状态
 const (
-	// ItemCustomerConnOpen 统计客户连接的打开情况
-	ItemCustomerConnOpen Item = iota + 1
-	// ItemCustomerConnClose 统计客户连接的关闭情况
-	ItemCustomerConnClose
-	// ItemCustomerHeartbeat 统计客户连接的心跳情况
-	ItemCustomerHeartbeat
-	// ItemCustomerTransferNumber 统计客户数据转发到worker的次数情况
-	ItemCustomerTransferNumber
-	// ItemCustomerTransferByte 统计客户数据转发到worker的字节数情况
+	// ItemCustomerConnOpenCount 统计客户连接的打开次数
+	ItemCustomerConnOpenCount Item = iota + 1
+	// ItemCustomerConnCloseCount 统计客户连接的关闭次数
+	ItemCustomerConnCloseCount
+	// ItemCustomerHeartbeatCount 统计客户连接的心跳次数
+	ItemCustomerHeartbeatCount
+	// ItemCustomerTransferCount 统计客户数据转发到worker的次数
+	ItemCustomerTransferCount
+	// ItemCustomerTransferByte 统计客户数据转发到worker的字节数
 	ItemCustomerTransferByte
-	// ItemCustomerWriteNumber 统计往客户写入数据次数
-	ItemCustomerWriteNumber
+	// ItemCustomerWriteCount 统计往客户写入数据次数
+	ItemCustomerWriteCount
 	// ItemCustomerWriteByte 统计往客户写入字节数
 	ItemCustomerWriteByte
+	// ItemOpenRateLimitCount 统计连接打开的限流次数
+	ItemOpenRateLimitCount
+	// ItemMessageRateLimitCount 统计客户消息限流次数
+	ItemMessageRateLimitCount
+	// ItemWorkerToBusinessFailedCount 统计worker到business的失败次数
+	ItemWorkerToBusinessFailedCount
 	//结束符
 	itemLen
 )
@@ -48,8 +53,6 @@ const (
 var Registry = make([]*Status, itemLen)
 
 func init() {
-	//初始化所有要统计的服务状态
-	ok := false
 	inMetricsItem := func(i int) bool {
 		if configs.Config.Metrics.Item == nil {
 			return false
@@ -70,40 +73,12 @@ func init() {
 		s := Status{Item: Item(item)}
 		//判断是否为配置要求进行统计
 		if inMetricsItem(item) {
-			ok = true
 			//配置文件要求统计，则初始化真实地统计对象
 			s.Meter = gMetrics.NewMeter()
-			s.MeanRateMax = gMetrics.NewGauge()
-			s.Rate1Max = gMetrics.NewGauge()
-			s.Rate5Max = gMetrics.NewGauge()
-			s.Rate15Max = gMetrics.NewGauge()
 		} else {
 			//配置文件不要求统计，则初始化一个空壳子上去，这个空壳子是个空函数调用，不影响程序性能
 			s.Meter = gMetrics.NilMeter{}
-			s.MeanRateMax = gMetrics.NilGauge{}
-			s.Rate1Max = gMetrics.NilGauge{}
-			s.Rate5Max = gMetrics.NilGauge{}
-			s.Rate15Max = gMetrics.NilGauge{}
 		}
 		Registry[item] = &s
 	}
-	//如果没有初始化任何统计服务，则不开启记录最大值的协程
-	if !ok {
-		return
-	}
-	//每隔n秒记录一次最大值，这个最大值并不精确
-	go func() {
-		ticker := time.NewTicker(configs.Config.Metrics.MaxRecordInterval)
-		defer func() {
-			ticker.Stop()
-		}()
-		for range ticker.C {
-			for item, v := range Registry {
-				if item == 0 {
-					continue
-				}
-				v.recordMax()
-			}
-		}
-	}()
 }

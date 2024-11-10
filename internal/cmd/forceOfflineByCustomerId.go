@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/binder"
@@ -67,7 +67,7 @@ func ForceOfflineByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					}()
 					_ = conn.Close()
 				})
-				metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 			} else {
 				_ = conn.Close()

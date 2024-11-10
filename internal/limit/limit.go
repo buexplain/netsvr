@@ -19,7 +19,7 @@
 package limit
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"golang.org/x/time/rate"
 	"netsvr/configs"
 )

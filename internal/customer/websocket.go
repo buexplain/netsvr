@@ -21,7 +21,7 @@ package customer
 import (
 	"bytes"
 	"context"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v3/netsvr"
+	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
@@ -142,6 +142,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	remoteAddr, _, _ := net.SplitHostPort(r.RemoteAddr)
 	//限流检查
 	if limit.Manager.Allow(netsvrProtocol.Event_OnOpen) == false {
+		//统计连接打开的限流次数
+		metrics.Registry[metrics.ItemOpenRateLimitCount].Meter.Mark(1)
 		//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
 		log.Logger.Error().
 			Str("rawQuery", r.URL.RawQuery).
@@ -193,8 +195,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//统计打开连接次数
-	metrics.Registry[metrics.ItemCustomerConnOpen].Meter.Mark(1)
+	//统计客户连接的打开次数
+	metrics.Registry[metrics.ItemCustomerConnOpenCount].Meter.Mark(1)
 	//添加到管理器中
 	session := info.NewInfo(uniqId)
 	wsConn.SetSession(session)
@@ -210,7 +212,7 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		co.RemoteAddr = remoteAddr
 		if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
 			//统计转发到business的次数与字节数
-			metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 		}
 		objPool.ConnOpen.Put(co)
@@ -235,8 +237,8 @@ func onClose(conn *websocket.Conn, _ error) {
 	uniqId, customerId, customerSession, topics := session.Clear()
 	//释放锁
 	session.UnLock()
-	//统计关闭连接次数
-	metrics.Registry[metrics.ItemCustomerConnClose].Meter.Mark(1)
+	//统计客户连接的关闭次数
+	metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
 	//从连接管理器中删除
 	manager.Manager.Del(uniqId)
 	//解除uniqId与customerId的关系
@@ -259,8 +261,8 @@ func onClose(conn *websocket.Conn, _ error) {
 		cl.Session = customerSession
 		cl.Topics = topics
 		if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
-			//统计转发到business的次数与字节数
-			metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+			//统计客户数据转发到worker的次数与字节数情况
+			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 		}
 		objPool.ConnClose.Put(cl)
@@ -270,7 +272,8 @@ func onClose(conn *websocket.Conn, _ error) {
 func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	//检查是否为心跳消息
 	if bytes.Equal(data, configs.Config.Customer.HeartbeatMessage) {
-		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
+		//统计客户连接的心跳次数
+		metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
 		return
 	}
 	//从连接中拿出session
@@ -301,11 +304,14 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 	}
 	//限流检查
 	if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
+		//统计客户消息限流次数
+		metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
 		//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
 		log.Logger.Error().
 			Str("uniqId", uniqId).
 			Str("customerId", customerId).
 			Str("customerSession", customerSession).
+			Str("customerData", string(data)).
 			Str("remoteAddr", conn.RemoteAddr().String()).
 			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 			Msg(MessageRateLimit)
@@ -323,7 +329,7 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		//转发数据到business
 		if sendSize := worker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
 			//统计转发到business的次数与字节数
-			metrics.Registry[metrics.ItemCustomerTransferNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 		}
 		objPool.Transfer.Put(tf)
@@ -334,9 +340,11 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 func pingMessageHandler(conn *websocket.Conn, _ string) {
 	//响应客户端心跳
 	if err := conn.WriteMessage(websocket.PongMessage, configs.Config.Customer.HeartbeatMessage); err == nil {
-		//统计发送到客户端的心跳次数与字节数
-		metrics.Registry[metrics.ItemCustomerHeartbeat].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+		//统计客户连接的心跳次数
+		metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
+		//统计往客户写入数据次数
+		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+		//统计往客户写入字节数
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
 	} else {
 		_ = conn.Close()

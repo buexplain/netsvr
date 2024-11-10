@@ -56,7 +56,7 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 	topic.Topic.SetBySlice(payload.Topics, payload.UniqId)
 	if len(payload.Data) > 0 {
 		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-			metrics.Registry[metrics.ItemCustomerWriteNumber].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 		} else {
 			_ = conn.Close()
