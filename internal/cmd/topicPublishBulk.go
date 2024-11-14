@@ -67,6 +67,8 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
 					//写入失败，不再写入剩余的数据，而是跳出当前for循环，处理下一个uniqId
 					_ = conn.Close()
 					break
@@ -108,6 +110,8 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(datumLen)
 				} else {
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(datumLen)
 					//写入失败，关闭连接，继续处理下一个unqId
 					_ = conn.Close()
 				}

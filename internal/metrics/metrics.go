@@ -36,9 +36,9 @@ const (
 	ItemCustomerTransferCount
 	// ItemCustomerTransferByte 统计客户数据转发到worker的字节数
 	ItemCustomerTransferByte
-	// ItemCustomerWriteCount 统计往客户写入数据次数
+	// ItemCustomerWriteCount 统计往客户写入数据成功的次数
 	ItemCustomerWriteCount
-	// ItemCustomerWriteByte 统计往客户写入字节数
+	// ItemCustomerWriteByte 统计往客户写入数据成功的字节数
 	ItemCustomerWriteByte
 	// ItemOpenRateLimitCount 统计连接打开的限流次数
 	ItemOpenRateLimitCount
@@ -46,6 +46,10 @@ const (
 	ItemMessageRateLimitCount
 	// ItemWorkerToBusinessFailedCount 统计worker到business的失败次数
 	ItemWorkerToBusinessFailedCount
+	// ItemCustomerWriteFailedCount 统计往客户写入数据失败的次数
+	ItemCustomerWriteFailedCount
+	// ItemCustomerWriteFailedByte 统计往客户写入数据失败的字节数
+	ItemCustomerWriteFailedByte
 	//结束符
 	itemLen
 )

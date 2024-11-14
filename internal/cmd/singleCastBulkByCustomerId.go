@@ -59,6 +59,8 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
 					//写入失败，直接退出，不必再处理剩余数据
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
 					_ = conn.Close()
 					return
 				}
@@ -91,6 +93,8 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
 				} else {
 					//写入失败，关闭连接，继续处理下一个数据
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
 					_ = conn.Close()
 				}
 			}

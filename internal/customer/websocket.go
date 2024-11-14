@@ -347,6 +347,8 @@ func pingMessageHandler(conn *websocket.Conn, _ string) {
 		//统计往客户写入字节数
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
 	} else {
+		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
 		_ = conn.Close()
 	}
 }

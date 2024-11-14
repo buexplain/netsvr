@@ -59,6 +59,8 @@ func TopicSubscribe(param []byte, _ *workerManager.ConnProcessor) {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 		} else {
+			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
 			_ = conn.Close()
 		}
 	}

@@ -57,6 +57,8 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
 			} else {
+				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
 				_ = conn.Close()
 			}
 		}

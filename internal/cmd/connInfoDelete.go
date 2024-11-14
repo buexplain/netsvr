@@ -66,8 +66,8 @@ func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 		//如果客户id为空，则没必要去解除绑定关系，因为解除绑定关系需要获取互斥锁
 		if session.GetCustomerId() != "" {
 			binder.Binder.DelUniqId(payload.UniqId)
+			session.SetCustomerId("")
 		}
-		session.SetCustomerId("")
 	}
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
@@ -75,6 +75,8 @@ func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
 		} else {
+			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
 			_ = conn.Close()
 		}
 	}
