@@ -21,7 +21,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -132,13 +135,13 @@ func (r *ConnProcessor) LoopSend() {
 func (r *ConnProcessor) send(data []byte) {
 	var err error
 	var writeLen int
-	totalLen := len(data)
+	dataRef := data
 	//写入到连接中
 	for {
 		//设置写超时
 		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Msg("Worker SetWriteDeadline to business conn failed")
+			r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Msg("Worker SetWriteDeadline to business conn failed")
 			return
 		}
 		//写入数据
@@ -157,15 +160,58 @@ func (r *ConnProcessor) send(data []byte) {
 		//统计worker到business的失败次数
 		metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
-		if totalLen == len(data[writeLen:]) {
-			log.Logger.Error().Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Str("workerToBusinessData", base64.StdEncoding.EncodeToString(data)).Msg("Worker send to business failed")
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Timeout() && len(dataRef) == len(data[writeLen:]) {
+			r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Msg("Worker send to business failed and discard message")
 			return
 		}
 		//写入过部分数据，tcp管道已污染，对端已经无法拆包，必须关闭连接
 		r.ForceClose()
-		log.Logger.Error().Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Msg("Worker send to business failed")
+		r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).Int32("events", r.GetEvents()).Str("connId", r.connId).Msg("Worker send to business failed and force close conn")
 		return
 	}
+}
+
+func (r *ConnProcessor) formatSendToBusinessDataData(data []byte, event *zerolog.Event) *zerolog.Event {
+	cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[4:8]))
+	if cmd == netsvrProtocol.Cmd_Transfer {
+		tf := &netsvrProtocol.Transfer{}
+		if err := proto.Unmarshal(data[8:], tf); err != nil {
+			return event
+		}
+		event = event.Str("cmd", cmd.String()).Str("uniqId", tf.UniqId).
+			Str("session", tf.Session).
+			Str("customerId", tf.CustomerId).
+			Strs("topics", tf.Topics)
+		if configs.Config.Customer.SendMessageType == websocket.TextMessage {
+			return event.Str("data", string(tf.Data))
+		}
+		return event.Hex("dataHex", tf.Data)
+	}
+	if cmd == netsvrProtocol.Cmd_ConnOpen {
+		co := &netsvrProtocol.ConnOpen{}
+		if err := proto.Unmarshal(data[8:], co); err != nil {
+			return event
+		}
+		co.GetUniqId()
+		return event.Str("cmd", cmd.String()).Str("uniqId", co.UniqId).
+			Str("rawQuery", co.RawQuery).
+			Strs("subProtocol", co.SubProtocol).
+			Str("xForwardedFor", co.XForwardedFor).
+			Str("xRealIp", co.XRealIp).
+			Str("remoteAddr", co.RemoteAddr)
+	}
+	if cmd == netsvrProtocol.Cmd_ConnClose {
+		cc := &netsvrProtocol.ConnClose{}
+		if err := proto.Unmarshal(data[8:], cc); err != nil {
+			return event
+		}
+		return event.Str("cmd", cmd.String()).Str("uniqId", cc.UniqId).
+			Str("customerId", cc.CustomerId).
+			Str("session", cc.Session).
+			Strs("topics", cc.Topics)
+	}
+	return event
 }
 
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {

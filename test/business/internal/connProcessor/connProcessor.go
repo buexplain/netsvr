@@ -59,7 +59,7 @@ type ConnProcessor struct {
 	//当前连接可接收处理的事件
 	events int32
 	//worker发来的各种命令的回调函数
-	workerCmdCallback map[int32]WorkerCmdCallback
+	workerCmdCallback map[netsvrProtocol.Cmd]WorkerCmdCallback
 	//客户发来的各种命令的回调函数
 	businessCmdCallback map[protocol.Cmd]BusinessCmdCallback
 }
@@ -70,7 +70,7 @@ func NewConnProcessor(conn net.Conn, events int32) *ConnProcessor {
 		closeCh:             make(chan struct{}),
 		sendCh:              make(chan []byte, 1000),
 		receiveCh:           make(chan []byte, 1000),
-		workerCmdCallback:   map[int32]WorkerCmdCallback{},
+		workerCmdCallback:   map[netsvrProtocol.Cmd]WorkerCmdCallback{},
 		businessCmdCallback: map[protocol.Cmd]BusinessCmdCallback{},
 		events:              events,
 	}
@@ -181,7 +181,8 @@ func (r *ConnProcessor) send(data []byte) {
 		}
 		//写入错误
 		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
-		if totalLen == len(data[writeLen:]) {
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Timeout() && totalLen == len(data[writeLen:]) {
 			log.Logger.Error().Err(err).Str("connId", r.connId).Int32("events", r.GetEvents()).Str("businessToWorkerData", base64.StdEncoding.EncodeToString(data)).Msg("Business send to worker failed")
 			return
 		}
@@ -314,7 +315,7 @@ func (r *ConnProcessor) cmd(data []byte) {
 		return
 	}
 	//回调worker发来的命令
-	if callback, ok := r.workerCmdCallback[int32(cmd)]; ok {
+	if callback, ok := r.workerCmdCallback[netsvrProtocol.Cmd(cmd)]; ok {
 		callback(data[4:], r)
 		return
 	}
@@ -331,14 +332,8 @@ func (r *ConnProcessor) echo(tf *netsvrProtocol.Transfer) {
 	r.Send(&sc, netsvrProtocol.Cmd_SingleCast)
 }
 
-func (r *ConnProcessor) RegisterWorkerCmd(cmd interface{}, callback WorkerCmdCallback) {
-	if c, ok := cmd.(netsvrProtocol.Cmd); ok {
-		r.workerCmdCallback[int32(c)] = callback
-		return
-	}
-	if c, ok := cmd.(protocol.Cmd); ok {
-		r.workerCmdCallback[int32(c)] = callback
-	}
+func (r *ConnProcessor) RegisterWorkerCmd(cmd netsvrProtocol.Cmd, callback WorkerCmdCallback) {
+	r.workerCmdCallback[cmd] = callback
 }
 
 func (r *ConnProcessor) RegisterBusinessCmd(cmd protocol.Cmd, callback BusinessCmdCallback) {
