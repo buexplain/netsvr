@@ -56,7 +56,7 @@ func init() {
 		select {
 		case <-quit.Ctx.Done():
 			wg := &sync.WaitGroup{}
-			concurrency := make(chan struct{}, 20)
+			concurrency := make(chan struct{}, 32)
 			var p *ConnProcessor
 		loop:
 			Shutter.mux.Lock()

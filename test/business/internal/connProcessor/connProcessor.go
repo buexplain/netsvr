@@ -30,6 +30,7 @@ import (
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils/netSvrPool"
+	"runtime"
 	"time"
 )
 
@@ -126,8 +127,10 @@ func (r *ConnProcessor) ForceClose() {
 		return
 	default:
 		close(r.closeCh)
-		close(r.sendCh)
-		//丢弃所有数据
+		time.AfterFunc(time.Millisecond*100, func() {
+			close(r.sendCh)
+		})
+		//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
 		for range r.sendCh {
 			continue
 		}
@@ -138,7 +141,16 @@ func (r *ConnProcessor) ForceClose() {
 func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Logger.Error().
+			logEvent := log.Logger.Error()
+			if runtimeError, ok := err.(runtime.Error); ok {
+				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
+				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
+				//所以只能降低日志级别，生产环境无需在意这个日志
+				if runtimeError.Error() == "send on closed channel" {
+					logEvent = log.Logger.Debug()
+				}
+			}
+			logEvent.
 				Stack().Err(nil).
 				Type("recoverType", err).
 				Interface("recover", err).
