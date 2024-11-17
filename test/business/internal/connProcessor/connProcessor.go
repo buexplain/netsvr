@@ -18,7 +18,6 @@ package connProcessor
 
 import (
 	"bufio"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -77,12 +76,21 @@ func NewConnProcessor(conn net.Conn, events int32) *ConnProcessor {
 }
 
 func (r *ConnProcessor) LoopHeartbeat() {
-	t := time.NewTicker(25 * time.Second)
+	t := time.NewTicker(50 * time.Second)
 	defer func() {
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Msg("Business heartbeat coroutine is closed")
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business heartbeat coroutine is closed")
 		} else {
-			log.Logger.Debug().Msg("Business heartbeat coroutine is closed")
+			log.Logger.Debug().
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business heartbeat coroutine is closed")
 		}
 		t.Stop()
 	}()
@@ -100,58 +108,52 @@ func (r *ConnProcessor) GetCloseCh() <-chan struct{} {
 	return r.closeCh
 }
 
-// ForceClose 优雅的强制关闭，发给worker的数据会被丢弃，worker发来的数据会被处理
+// ForceClose 强制关闭
 func (r *ConnProcessor) ForceClose() {
 	defer func() {
-		_ = recover()
+		if err := recover(); err != nil {
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business conn force close failed")
+		}
 	}()
 	select {
 	case <-r.closeCh:
 		return
 	default:
-		//通知所有生产者，不再生产数据
 		close(r.closeCh)
-		//因为生产者协程(r.sendCh <- data)可能被阻塞，而没有收到关闭信号，所以要丢弃数据，直到所有生产者不再阻塞
-		//因为r.sendCh是空的，所以消费者协程可能阻塞，所以要丢弃数据，直到判断出管子是空的，再关闭管子，让消费者协程感知管子已经关闭，可以退出协程
-		//这里丢弃的数据有可能是让worker发给客户的，也有可能是只给worker的
-		for {
-			select {
-			case _, ok := <-r.sendCh:
-				if ok {
-					continue
-				} else {
-					time.Sleep(time.Millisecond * 100)
-					_ = r.conn.Close()
-					return
-				}
-			default:
-				//关闭管子，让消费者协程退出
-				close(r.sendCh)
-				time.Sleep(time.Millisecond * 100)
-				_ = r.conn.Close()
-				return
-			}
+		close(r.sendCh)
+		//丢弃所有数据
+		for range r.sendCh {
+			continue
 		}
+		_ = r.conn.Close()
 	}
 }
 
 func (r *ConnProcessor) LoopSend() {
 	defer func() {
-		//打印日志信息
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("events", r.events).Msg("Business send coroutine is closed")
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business send coroutine is closed")
 		} else {
-			log.Logger.Debug().Int32("events", r.events).Msg("Business send coroutine is closed")
+			log.Logger.Debug().
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business send coroutine is closed")
 		}
 	}()
 	for data := range r.sendCh {
-		select {
-		case <-r.closeCh:
-			//收到关闭信号
-			return
-		default:
-			r.send(data)
-		}
+		r.send(data)
 	}
 }
 
@@ -162,9 +164,12 @@ func (r *ConnProcessor) send(data []byte) {
 	//写入到连接中
 	for {
 		//设置写超时
-		if err = r.conn.SetWriteDeadline(time.Now().Add(60 * time.Second)); err != nil {
+		if err = r.conn.SetWriteDeadline(time.Now().Add(3 * time.Second)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Str("connId", r.connId).Int32("events", r.GetEvents()).Msg("Business SetWriteDeadline to worker conn failed")
+			log.Logger.Error().
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business SetWriteDeadline to worker conn failed")
 			return
 		}
 		//写入数据
@@ -183,7 +188,11 @@ func (r *ConnProcessor) send(data []byte) {
 		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
 		var opErr *net.OpError
 		if errors.As(err, &opErr) && opErr.Timeout() && totalLen == len(data[writeLen:]) {
-			log.Logger.Error().Err(err).Str("connId", r.connId).Int32("events", r.GetEvents()).Str("businessToWorkerData", base64.StdEncoding.EncodeToString(data)).Msg("Business send to worker failed")
+			log.Logger.Error().Err(err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Hex("dataHex", data).
+				Msg("Business send to worker failed")
 			return
 		}
 		//写入过部分数据，tcp管道已污染，对端已经无法拆包，必须关闭连接
@@ -194,29 +203,44 @@ func (r *ConnProcessor) send(data []byte) {
 }
 
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
-	select {
-	case <-r.closeCh:
-		//收到关闭信号，不再生产数据
-		return
-	default:
-		data := make([]byte, 8)
-		//先写业务层的cmd
-		binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
-		if message == nil {
-			//再写包头
-			binary.BigEndian.PutUint32(data[0:4], 4)
-			//发送出去
+	defer func() {
+		if err := recover(); err != nil {
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business send sendCh failed")
+		}
+	}()
+	data := make([]byte, 8)
+	//先写业务层的cmd
+	binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
+	if message == nil {
+		//再写包头
+		binary.BigEndian.PutUint32(data[0:4], 4)
+		//发送出去
+		select {
+		case <-r.closeCh:
+			return
+		default:
 			r.sendCh <- data
 			return
 		}
-		//再编码数据
-		var err error
-		pm := proto.MarshalOptions{}
-		data, err = pm.MarshalAppend(data, message)
-		if err == nil {
-			//再写包头
-			binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
-			//发送出去
+	}
+	//再编码数据
+	var err error
+	pm := proto.MarshalOptions{}
+	data, err = pm.MarshalAppend(data, message)
+	if err == nil {
+		//再写包头
+		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
+		//发送出去
+		select {
+		case <-r.closeCh:
+			return
+		default:
 			r.sendCh <- data
 		}
 	}
@@ -229,10 +253,19 @@ func (r *ConnProcessor) LoopReceive() {
 		//打印日志信息
 		if err := recover(); err != nil {
 			quit.Execute("Business receive coroutine error")
-			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("events", r.events).Msg("Business receive coroutine is closed")
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business receive coroutine is closed")
 		} else {
 			quit.Execute("Worker server shutdown")
-			log.Logger.Debug().Int32("events", r.events).Msg("Business receive coroutine is closed")
+			log.Logger.Debug().
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business receive coroutine is closed")
 		}
 	}()
 	//包头专用
@@ -254,7 +287,10 @@ func (r *ConnProcessor) LoopReceive() {
 		data := make([]byte, dataLen)
 		if _, err = io.ReadAtLeast(connReader, data, len(data)); err != nil {
 			r.ForceClose()
-			log.Logger.Error().Err(err).Str("connId", r.connId).Int32("events", r.GetEvents()).Msg("Business receive body failed")
+			log.Logger.Error().Err(err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business receive body failed")
 			break
 		}
 		r.receiveCh <- data
@@ -266,13 +302,22 @@ func (r *ConnProcessor) LoopCmd() {
 	defer func() {
 		quit.Wg.Done()
 		if err := recover(); err != nil {
-			log.Logger.Error().Stack().Err(nil).Interface("recover", err).Int32("events", r.events).Msg("Business cmd coroutine is closed")
+			log.Logger.Error().
+				Stack().Err(nil).
+				Type("recoverType", err).
+				Interface("recover", err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business cmd coroutine is closed")
 			time.Sleep(5 * time.Second)
 			//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
 			quit.Wg.Add(1)
 			go r.LoopCmd()
 		} else {
-			log.Logger.Debug().Int32("events", r.events).Msg("Business cmd coroutine is closed")
+			log.Logger.Debug().
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Business cmd coroutine is closed")
 		}
 	}()
 	for data := range r.receiveCh {
@@ -290,7 +335,10 @@ func (r *ConnProcessor) cmd(data []byte) {
 		//解析出worker转发过来的对象
 		tf := &netsvrProtocol.Transfer{}
 		if err := proto.Unmarshal(data[4:], tf); err != nil {
-			log.Logger.Error().Err(err).Str("connId", r.connId).Int32("events", r.GetEvents()).Msg("Proto unmarshal internalProtocol.Transfer failed")
+			log.Logger.Error().Err(err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Proto unmarshal internalProtocol.Transfer failed")
 			return
 		}
 		//如果开始与结尾的字符不是花括号，说明不是有效的json字符串，则把数据原样echo回去
@@ -301,17 +349,28 @@ func (r *ConnProcessor) cmd(data []byte) {
 		//解析出业务路由对象
 		clientRoute := new(protocol.ClientRouter)
 		if err := json.Unmarshal(tf.Data, clientRoute); err != nil {
-			log.Logger.Debug().Err(err).Msg("Parse protocol.ClientRouter failed")
+			log.Logger.Debug().Err(err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Parse protocol.ClientRouter failed")
 			return
 		}
-		log.Logger.Debug().Stringer("cmd", clientRoute.Cmd).Msg("Business receive client command")
+		log.Logger.Debug().
+			Int32("events", r.GetEvents()).
+			Str("connId", r.connId).
+			Stringer("cmd", clientRoute.Cmd).
+			Msg("Business receive client command")
 		//客户发来的命令
 		if callback, ok := r.businessCmdCallback[clientRoute.Cmd]; ok {
 			callback(tf, clientRoute.Data, r)
 			return
 		}
 		//客户请求了错误的命令
-		log.Logger.Debug().Interface("cmd", clientRoute.Cmd).Msg("Unknown protocol.clientRoute.Cmd")
+		log.Logger.Debug().
+			Int32("events", r.GetEvents()).
+			Str("connId", r.connId).
+			Interface("cmd", clientRoute.Cmd).
+			Msg("Unknown protocol.clientRoute.Cmd")
 		return
 	}
 	//回调worker发来的命令
@@ -320,7 +379,11 @@ func (r *ConnProcessor) cmd(data []byte) {
 		return
 	}
 	//worker传递了未知的命令
-	log.Logger.Error().Uint32("cmd", cmd).Msg("Unknown internalProtocol.Router.Cmd")
+	log.Logger.Error().
+		Int32("events", r.GetEvents()).
+		Str("connId", r.connId).
+		Uint32("cmd", cmd).
+		Msg("Unknown internalProtocol.Router.Cmd")
 }
 
 // 将用户发来的数据原样返回给用户
