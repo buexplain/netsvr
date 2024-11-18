@@ -41,10 +41,9 @@ type CmdCallback func(data []byte, processor *ConnProcessor)
 
 type ConnProcessor struct {
 	//business与worker的连接
-	conn   net.Conn
-	connId string
-	//退出信号
-	closeCh chan struct{}
+	conn      net.Conn
+	connId    string
+	closeLock *int32
 	//要发送给连接的数据
 	sendCh chan []byte
 	//从连接中读取的数据
@@ -59,7 +58,7 @@ func NewConnProcessor(conn net.Conn) *ConnProcessor {
 	return &ConnProcessor{
 		conn:        conn,
 		connId:      connIdGen.New(conn.RemoteAddr().String()),
-		closeCh:     make(chan struct{}),
+		closeLock:   new(int32),
 		sendCh:      make(chan []byte, configs.Config.Worker.SendChanCap),
 		receiveCh:   make(chan []byte, 64),
 		events:      0,
@@ -88,27 +87,24 @@ func (r *ConnProcessor) ForceClose() {
 				Msg("Worker conn force close failed")
 		}
 	}()
-	select {
-	case <-r.closeCh:
+	if !atomic.CompareAndSwapInt32(r.closeLock, 0, 1) {
 		return
-	default:
-		close(r.closeCh)
-		Manager.Del(r.connId)
-		select {
-		case <-quit.Ctx.Done():
-		default:
-			//因为连接本身的问题，强制关闭
-			Shutter.Del(r)
-		}
-		time.AfterFunc(time.Millisecond*100, func() {
-			close(r.sendCh)
-		})
-		//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
-		for range r.sendCh {
-			continue
-		}
-		_ = r.conn.Close()
 	}
+	Manager.Del(r.connId)
+	select {
+	case <-quit.Ctx.Done():
+	default:
+		//因为连接本身的问题，强制关闭
+		Shutter.Del(r)
+	}
+	time.AfterFunc(time.Millisecond*100, func() {
+		close(r.sendCh)
+	})
+	//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
+	for range r.sendCh {
+		continue
+	}
+	_ = r.conn.Close()
 }
 
 func (r *ConnProcessor) LoopSend() {
@@ -227,14 +223,14 @@ func (r *ConnProcessor) formatSendToBusinessDataData(data []byte, event *zerolog
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	defer func() {
 		if err := recover(); err != nil {
-			logEvent := log.Logger.Error()
-			if runtimeError, ok := err.(runtime.Error); ok {
+			var logEvent *zerolog.Event
+			if runtimeError, ok := err.(runtime.Error); ok && runtimeError.Error() == "send on closed channel" {
 				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
 				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
 				//所以只能降低日志级别，生产环境无需在意这个日志
-				if runtimeError.Error() == "send on closed channel" {
-					logEvent = log.Logger.Debug()
-				}
+				logEvent = log.Logger.Debug()
+			} else {
+				logEvent = log.Logger.Error()
 			}
 			logEvent.
 				Stack().Err(nil).
@@ -252,13 +248,8 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], 4)
 		//发送出去
-		select {
-		case <-r.closeCh:
-			return 0
-		default:
-			r.sendCh <- data
-			return 8
-		}
+		r.sendCh <- data
+		return 8
 	}
 	//再编码数据
 	var err error
@@ -268,13 +259,8 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
 		//发送出去
-		select {
-		case <-r.closeCh:
-			return 0
-		default:
-			r.sendCh <- data
-			return len(data)
-		}
+		r.sendCh <- data
+		return len(data)
 	}
 	return 0
 }

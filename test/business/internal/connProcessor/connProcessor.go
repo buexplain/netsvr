@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -31,6 +32,7 @@ import (
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils/netSvrPool"
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -51,7 +53,8 @@ type ConnProcessor struct {
 	//注册后，worker服务器下发id
 	connId string
 	//退出信号
-	closeCh chan struct{}
+	closeCh   chan struct{}
+	closeLock *int32
 	//要发送给连接的数据
 	sendCh chan []byte
 	//从连接中读取的数据
@@ -68,6 +71,7 @@ func NewConnProcessor(conn net.Conn, events int32) *ConnProcessor {
 	return &ConnProcessor{
 		conn:                conn,
 		closeCh:             make(chan struct{}),
+		closeLock:           new(int32),
 		sendCh:              make(chan []byte, 1000),
 		receiveCh:           make(chan []byte, 1000),
 		workerCmdCallback:   map[netsvrProtocol.Cmd]WorkerCmdCallback{},
@@ -80,7 +84,16 @@ func (r *ConnProcessor) LoopHeartbeat() {
 	t := time.NewTicker(50 * time.Second)
 	defer func() {
 		if err := recover(); err != nil {
-			log.Logger.Error().
+			var logEvent *zerolog.Event
+			if runtimeError, ok := err.(runtime.Error); ok && runtimeError.Error() == "send on closed channel" {
+				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
+				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
+				//所以只能降低日志级别，生产环境无需在意这个日志
+				logEvent = log.Logger.Debug()
+			} else {
+				logEvent = log.Logger.Error()
+			}
+			logEvent.
 				Stack().Err(nil).
 				Type("recoverType", err).
 				Interface("recover", err).
@@ -96,12 +109,8 @@ func (r *ConnProcessor) LoopHeartbeat() {
 		t.Stop()
 	}()
 	for {
-		select {
-		case <-r.closeCh:
-			return
-		case <-t.C:
-			r.sendCh <- heartbeatMessage
-		}
+		<-t.C
+		r.sendCh <- heartbeatMessage
 	}
 }
 
@@ -122,35 +131,24 @@ func (r *ConnProcessor) ForceClose() {
 				Msg("Business conn force close failed")
 		}
 	}()
-	select {
-	case <-r.closeCh:
+	if !atomic.CompareAndSwapInt32(r.closeLock, 0, 1) {
 		return
-	default:
-		close(r.closeCh)
-		time.AfterFunc(time.Millisecond*100, func() {
-			close(r.sendCh)
-		})
-		//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
-		for range r.sendCh {
-			continue
-		}
-		_ = r.conn.Close()
 	}
+	close(r.closeCh)
+	time.AfterFunc(time.Millisecond*100, func() {
+		close(r.sendCh)
+	})
+	//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
+	for range r.sendCh {
+		continue
+	}
+	_ = r.conn.Close()
 }
 
 func (r *ConnProcessor) LoopSend() {
 	defer func() {
 		if err := recover(); err != nil {
-			logEvent := log.Logger.Error()
-			if runtimeError, ok := err.(runtime.Error); ok {
-				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
-				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
-				//所以只能降低日志级别，生产环境无需在意这个日志
-				if runtimeError.Error() == "send on closed channel" {
-					logEvent = log.Logger.Debug()
-				}
-			}
-			logEvent.
+			log.Logger.Error().
 				Stack().Err(nil).
 				Type("recoverType", err).
 				Interface("recover", err).
@@ -217,7 +215,16 @@ func (r *ConnProcessor) send(data []byte) {
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Logger.Error().
+			var logEvent *zerolog.Event
+			if runtimeError, ok := err.(runtime.Error); ok && runtimeError.Error() == "send on closed channel" {
+				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
+				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
+				//所以只能降低日志级别，生产环境无需在意这个日志
+				logEvent = log.Logger.Debug()
+			} else {
+				logEvent = log.Logger.Error()
+			}
+			logEvent.
 				Stack().Err(nil).
 				Type("recoverType", err).
 				Interface("recover", err).
@@ -233,13 +240,8 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], 4)
 		//发送出去
-		select {
-		case <-r.closeCh:
-			return
-		default:
-			r.sendCh <- data
-			return
-		}
+		r.sendCh <- data
+		return
 	}
 	//再编码数据
 	var err error
@@ -249,12 +251,7 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
 		//发送出去
-		select {
-		case <-r.closeCh:
-			return
-		default:
-			r.sendCh <- data
-		}
+		r.sendCh <- data
 	}
 }
 
