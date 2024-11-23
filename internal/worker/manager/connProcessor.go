@@ -248,8 +248,14 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], 4)
 		//发送出去
-		r.sendCh <- data
-		return 8
+		select {
+		case r.sendCh <- data:
+			return 8
+		default:
+			//统计worker到business的失败次数
+			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+			return 0
+		}
 	}
 	//再编码数据
 	var err error
@@ -259,8 +265,14 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
 		//发送出去
-		r.sendCh <- data
-		return len(data)
+		select {
+		case r.sendCh <- data:
+			return len(data)
+		default:
+			//统计worker到business的失败次数
+			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+			return 0
+		}
 	}
 	return 0
 }

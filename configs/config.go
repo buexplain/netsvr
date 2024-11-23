@@ -101,7 +101,7 @@ type config struct {
 		ReceivePackLimit uint32
 		//读取business发送数据的缓冲区大小（单位：字节）
 		ReadBufferSize int
-		//worker发送给business的缓通道大小
+		//worker发送给business的缓通道大小，如果缓冲区通道满，则连接会统计worker到business的失败次数
 		SendChanCap int
 		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 		HeartbeatMessage BytesConfigItem
