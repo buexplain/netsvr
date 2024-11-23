@@ -22,7 +22,7 @@ import (
 	"encoding/binary"
 	"errors"
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
-	"github.com/gorilla/websocket"
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"io"
