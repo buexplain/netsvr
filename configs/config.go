@@ -17,6 +17,7 @@
 package configs
 
 import (
+	"compress/flate"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -85,6 +86,8 @@ type config struct {
 		TLSKey  string
 		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 		HeartbeatMessage BytesConfigItem
+		//压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
+		CompressionLevel int
 	}
 	//业务进程的tcp服务器配置
 	Worker struct {
@@ -221,6 +224,10 @@ func init() {
 	}
 	if len(Config.Customer.HeartbeatMessage) == 0 {
 		slog.Error("Config Customer.HeartbeatMessage is required")
+		os.Exit(1)
+	}
+	if Config.Customer.CompressionLevel < flate.HuffmanOnly || Config.Customer.CompressionLevel > flate.BestCompression {
+		slog.Error("Config Customer.CompressionLevel is invalid")
 		os.Exit(1)
 	}
 	if Config.Worker.ReadDeadline <= 0 {

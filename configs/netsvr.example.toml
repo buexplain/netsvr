@@ -39,6 +39,8 @@ TLSCert = ""
 TLSKey = ""
 # 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 HeartbeatMessage = "~6YOt5rW35piO~"
+# 压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
+CompressionLevel = 1
 
 #业务进程的tcp服务器配置
 [Worker]

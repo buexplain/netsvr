@@ -58,6 +58,12 @@ var upgrade = (func() *websocket.Upgrader {
 	upgrade.OnMessage(onMessage)
 	//处理websocket子协议
 	upgrade.Subprotocols = nil
+	if configs.Config.Customer.CompressionLevel == 0 {
+		upgrade.EnableCompression(false)
+	} else {
+		upgrade.EnableCompression(true)
+		_ = upgrade.SetCompressionLevel(configs.Config.Customer.CompressionLevel)
+	}
 	return upgrade
 })()
 
