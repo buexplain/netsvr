@@ -249,11 +249,11 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], 4)
 		//发送出去
-		if len(r.sendCh) < cap(r.sendCh) {
+		if configs.Config.Worker.SendChanDeadline == 0 || len(r.sendCh) < cap(r.sendCh) {
 			r.sendCh <- data
 			return 8
 		}
-		timeout := time.NewTimer(time.Millisecond * 100)
+		timeout := time.NewTimer(configs.Config.Worker.SendChanDeadline)
 		select {
 		case r.sendCh <- data:
 			timeout.Stop()
@@ -262,7 +262,7 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
+			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send to business failed and discard message")
@@ -277,11 +277,11 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
 		//发送出去
-		if len(r.sendCh) < cap(r.sendCh) {
+		if configs.Config.Worker.SendChanDeadline == 0 || len(r.sendCh) < cap(r.sendCh) {
 			r.sendCh <- data
 			return len(data)
 		}
-		timeout := time.NewTimer(time.Millisecond * 100)
+		timeout := time.NewTimer(configs.Config.Worker.SendChanDeadline)
 		select {
 		case r.sendCh <- data:
 			timeout.Stop()
@@ -290,7 +290,7 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
+			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send to business failed and discard message")

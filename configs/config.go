@@ -95,14 +95,16 @@ type config struct {
 		ListenAddress string
 		//worker读取business连接的超时时间，该时间段内，business连接没有发消息过来，则会超时，连接会被关闭
 		ReadDeadline time.Duration
-		//worker发送给business连接的超时时间，该时间段内，没发送成功，business连接会被关闭
+		//worker发送给business连接的超时时间，该时间段内，没发送成功且有部分写入，则business连接会被关闭
 		SendDeadline time.Duration
 		//business发送数据的大小限制（单位：字节），business发送了超过该限制的包，则连接会被关闭
 		ReceivePackLimit uint32
 		//读取business发送数据的缓冲区大小（单位：字节）
 		ReadBufferSize int
-		//worker发送给business的缓通道大小，如果缓冲区通道满，则连接会统计worker到business的失败次数
+		//worker发送给business的缓通道大小
 		SendChanCap int
+		//worker发送给business的缓通道写入超时，默认是100毫秒，超过该时间还没写入，则丢弃消息并统计worker到business的失败次数
+		SendChanDeadline time.Duration
 		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 		HeartbeatMessage BytesConfigItem
 	}
