@@ -217,7 +217,8 @@ func (r *ConnProcessor) formatSendToBusinessDataData(data []byte, event *zerolog
 			Str("session", cc.Session).
 			Strs("topics", cc.Topics)
 	}
-	return event
+	//非客户端的命令，只打印cmd
+	return event.Str("cmd", cmd.String())
 }
 
 func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
@@ -254,6 +255,10 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		default:
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Worker send to business failed and discard message")
 			return 0
 		}
 	}
@@ -271,6 +276,10 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		default:
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Worker send to business failed and discard message")
 			return 0
 		}
 	}
