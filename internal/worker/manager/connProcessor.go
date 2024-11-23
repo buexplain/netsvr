@@ -249,10 +249,17 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], 4)
 		//发送出去
+		if len(r.sendCh) < cap(r.sendCh) {
+			r.sendCh <- data
+			return 8
+		}
+		timeout := time.NewTimer(time.Millisecond * 100)
 		select {
 		case r.sendCh <- data:
+			timeout.Stop()
 			return 8
-		default:
+		case <-timeout.C:
+			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
@@ -270,10 +277,17 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 		//再写包头
 		binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
 		//发送出去
+		if len(r.sendCh) < cap(r.sendCh) {
+			r.sendCh <- data
+			return len(data)
+		}
+		timeout := time.NewTimer(time.Millisecond * 100)
 		select {
 		case r.sendCh <- data:
+			timeout.Stop()
 			return len(data)
-		default:
+		case <-timeout.C:
+			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send on blocking channel")).
