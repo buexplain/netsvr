@@ -15,7 +15,7 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	github.com/traefik/yaegi v0.16.1
 	golang.org/x/time v0.8.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.35.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
