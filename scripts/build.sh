@@ -13,7 +13,7 @@ if [[ "$build_version" != "v"* ]]; then
   exit 1
 fi
 # 设定目标平台
-declare -a system=("windows" "linux" "darwin")
+declare -a system=("linux" "windows" "darwin")
 declare -a cpu=("amd64")
 # 设定脚本目录
 current_dir=$(pwd)

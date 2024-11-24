@@ -82,6 +82,9 @@ func Run(wg *sync.WaitGroup) {
 						//模拟群聊成功
 						protocol.RouterTopicPublish: func(_ gjson.Result) {
 						},
+						//去掉其它命令发来的信息
+						protocol.Placeholder: func(_ gjson.Result) {
+						},
 					}
 				})
 			})
