@@ -22,6 +22,8 @@ HandlePattern = "/netsvr"
 AllowOrigin = []
 # websocket服务器读取客户端连接的超时时间，该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
 ReadDeadline = "120s"
+# websocket服务器写入客户端连接的超时时间，该时间段内，没发送成功连接会被关闭
+SendDeadline = "1s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
 # io模式，0：IOModNonBlocking，1：IOModBlocking，2：IOModMixed，详细见：https://github.com/lesismal/nbio

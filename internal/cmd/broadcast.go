@@ -19,10 +19,9 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -35,8 +34,7 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Broadcast failed")
 		return
 	}
-	dataLen := int64(len(payload.Data))
-	if dataLen == 0 {
+	if len(payload.Data) == 0 {
 		return
 	}
 	//取出所有的连接
@@ -54,14 +52,7 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	//小于100个连接，直接发送
 	if len(connectionsAlias) > 101 {
 		for _, conn := range connectionsAlias {
-			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-			} else {
-				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
-				_ = conn.Close()
-			}
+			customer.WriteMessage(conn, payload.Data)
 		}
 		objPool.ConnSlice.Put(connections)
 		return
@@ -70,21 +61,14 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	coroutineNum := len(connectionsAlias)/100 + 1
 	connCh := make(chan *websocket.Conn, coroutineNum)
 	for i := 0; i < coroutineNum; i++ {
-		go func(dataLen int64, data []byte) {
+		go func(data []byte) {
 			defer func() {
 				_ = recover()
 			}()
 			for conn := range connCh {
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, data); err == nil {
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-				} else {
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
-					_ = conn.Close()
-				}
+				customer.WriteMessage(conn, data)
 			}
-		}(dataLen, payload.Data)
+		}(payload.Data)
 	}
 	for _, conn := range connectionsAlias {
 		connCh <- conn

@@ -18,10 +18,9 @@ package cmd
 
 import (
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -42,13 +41,6 @@ func Multicast(param []byte, _ *workerManager.ConnProcessor) {
 		if conn == nil {
 			continue
 		}
-		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-		} else {
-			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
-			_ = conn.Close()
-		}
+		customer.WriteMessage(conn, payload.Data)
 	}
 }

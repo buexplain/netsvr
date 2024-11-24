@@ -19,11 +19,10 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -62,15 +61,8 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 				if datumLen == 0 {
 					continue
 				}
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
-					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
-				} else {
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
+				if !customer.WriteMessage(conn, payload.Data[index]) {
 					//写入失败，不再写入剩余的数据，而是跳出当前for循环，处理下一个uniqId
-					_ = conn.Close()
 					break
 				}
 			}
@@ -105,16 +97,7 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 					continue
 				}
 				//将当前迭代的主题对应的数据写入到该连接
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
-					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(datumLen)
-				} else {
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(datumLen)
-					//写入失败，关闭连接，继续处理下一个unqId
-					_ = conn.Close()
-				}
+				customer.WriteMessage(conn, payload.Data[index])
 			}
 			//将uniqIds归还给内存池
 			objPool.UniqIdSlice.Put(uniqIds)

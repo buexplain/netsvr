@@ -69,6 +69,8 @@ type config struct {
 		AllowOrigin []string
 		//websocket服务器读取客户端连接的超时时间，该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
 		ReadDeadline time.Duration
+		// websocket服务器写入客户端连接的超时时间，该时间段内，没发送成功连接会被关闭
+		SendDeadline time.Duration
 		//最大连接数，超过的会被拒绝
 		MaxOnlineNum int
 		//io模式，0：IOModNonBlocking，1：IOModBlocking，2：IOModMixed，详细见：https://github.com/lesismal/nbio
@@ -214,6 +216,10 @@ func init() {
 	if Config.Customer.ReadDeadline <= 0 {
 		//默认120秒
 		Config.Customer.ReadDeadline = time.Second * 120
+	}
+	if Config.Customer.SendDeadline <= 0 {
+		//默认1秒
+		Config.Customer.SendDeadline = time.Second * 1
 	}
 	if Config.Customer.HandlePattern == "" {
 		Config.Customer.HandlePattern = "/"

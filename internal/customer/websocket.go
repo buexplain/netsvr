@@ -51,6 +51,7 @@ var server *nbhttp.Server
 var upgrade = (func() *websocket.Upgrader {
 	upgrade := websocket.NewUpgrader()
 	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
+	upgrade.HandshakeTimeout = configs.Config.Customer.SendDeadline * 2
 	upgrade.CheckOrigin = checkOrigin
 	upgrade.SetPingHandler(pingMessageHandler)
 	upgrade.OnOpen(nil)
@@ -345,17 +346,9 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 // pong客户端心跳帧
 func pingMessageHandler(conn *websocket.Conn, _ string) {
 	//响应客户端心跳
-	if err := conn.WriteMessage(websocket.PongMessage, configs.Config.Customer.HeartbeatMessage); err == nil {
+	if WriteMessage(conn, configs.Config.Customer.HeartbeatMessage) {
 		//统计客户连接的心跳次数
 		metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
-		//统计往客户写入数据次数
-		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-		//统计往客户写入字节数
-		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
-	} else {
-		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
-		_ = conn.Close()
 	}
 }
 

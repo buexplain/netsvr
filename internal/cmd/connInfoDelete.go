@@ -18,13 +18,12 @@ package cmd
 
 import (
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -71,13 +70,6 @@ func ConnInfoDelete(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {
-		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-		} else {
-			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
-			_ = conn.Close()
-		}
+		customer.WriteMessage(conn, payload.Data)
 	}
 }

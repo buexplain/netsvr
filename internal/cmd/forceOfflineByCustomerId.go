@@ -19,11 +19,10 @@ package cmd
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
 	workerManager "netsvr/internal/worker/manager"
 	"time"
@@ -59,7 +58,7 @@ func ForceOfflineByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 			if conn == nil {
 				continue
 			}
-			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
+			if customer.WriteMessage(conn, payload.Data) {
 				//倒计时的目的是确保数据发送成功
 				timer.Timer.AfterFunc(time.Millisecond*100, func() {
 					defer func() {
@@ -67,12 +66,6 @@ func ForceOfflineByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					}()
 					_ = conn.Close()
 				})
-				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-			} else {
-				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
-				_ = conn.Close()
 			}
 		}
 	}

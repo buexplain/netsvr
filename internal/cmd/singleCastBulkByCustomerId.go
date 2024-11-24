@@ -19,11 +19,10 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -53,15 +52,8 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					continue
 				}
 				//将当前数据写入到连接中
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
-					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
-				} else {
+				if !customer.WriteMessage(conn, payload.Data[index]) {
 					//写入失败，直接退出，不必再处理剩余数据
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
-					_ = conn.Close()
 					return
 				}
 			}
@@ -87,16 +79,7 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 					continue
 				}
 				//将数据写入到连接中
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data[index]); err == nil {
-					//写入成功，记录统计信息
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(datumLen))
-				} else {
-					//写入失败，关闭连接，继续处理下一个数据
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(datumLen))
-					_ = conn.Close()
-				}
+				customer.WriteMessage(conn, payload.Data[index])
 			}
 		}
 	}

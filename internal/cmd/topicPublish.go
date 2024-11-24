@@ -19,11 +19,10 @@ package cmd
 import (
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -36,8 +35,7 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.TopicPublish failed")
 		return
 	}
-	dataLen := int64(len(payload.Data))
-	if dataLen == 0 {
+	if len(payload.Data) == 0 {
 		return
 	}
 	for _, t := range payload.Topics {
@@ -56,14 +54,7 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 				if conn == nil {
 					continue
 				}
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-				} else {
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
-					_ = conn.Close()
-				}
+				customer.WriteMessage(conn, payload.Data)
 			}
 			objPool.UniqIdSlice.Put(uniqIds)
 			return
@@ -72,21 +63,14 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 		coroutineNum := len(uniqIdsAlias)/100 + 1
 		connCh := make(chan *websocket.Conn, coroutineNum)
 		for i := 0; i < coroutineNum; i++ {
-			go func(dataLen int64, data []byte) {
+			go func(data []byte) {
 				defer func() {
 					_ = recover()
 				}()
 				for conn := range connCh {
-					if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, data); err == nil {
-						metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-						metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-					} else {
-						metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-						metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
-						_ = conn.Close()
-					}
+					customer.WriteMessage(conn, data)
 				}
-			}(dataLen, payload.Data)
+			}(payload.Data)
 		}
 		for _, uniqId := range uniqIdsAlias {
 			conn := manager.Manager.Get(uniqId)

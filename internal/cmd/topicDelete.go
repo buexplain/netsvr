@@ -18,12 +18,11 @@ package cmd
 
 import (
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
-	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	workerManager "netsvr/internal/worker/manager"
 )
@@ -83,14 +82,7 @@ func TopicDelete(param []byte, _ *workerManager.ConnProcessor) {
 			}
 			//没有发送过数据，则发送数据
 			if !isSend {
-				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-				} else {
-					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
-					_ = conn.Close()
-				}
+				customer.WriteMessage(conn, payload.Data)
 			}
 		}
 		//处理完毕的topic，记录起来
