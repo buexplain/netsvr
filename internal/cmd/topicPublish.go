@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer/manager"
@@ -48,20 +49,53 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 			continue
 		}
 		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+		//小于100个连接，直接发送
+		if len(uniqIdsAlias) < 101 {
+			for _, uniqId := range uniqIdsAlias {
+				conn := manager.Manager.Get(uniqId)
+				if conn == nil {
+					continue
+				}
+				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
+				} else {
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
+					_ = conn.Close()
+				}
+			}
+			objPool.UniqIdSlice.Put(uniqIds)
+			return
+		}
+		//大于100个连接，开启多协程发送
+		coroutineNum := len(uniqIdsAlias)/100 + 1
+		connCh := make(chan *websocket.Conn, coroutineNum)
+		for i := 0; i < coroutineNum; i++ {
+			go func(dataLen int64, data []byte) {
+				defer func() {
+					_ = recover()
+				}()
+				for conn := range connCh {
+					if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, data); err == nil {
+						metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+						metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
+					} else {
+						metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+						metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
+						_ = conn.Close()
+					}
+				}
+			}(dataLen, payload.Data)
+		}
 		for _, uniqId := range uniqIdsAlias {
 			conn := manager.Manager.Get(uniqId)
 			if conn == nil {
 				continue
 			}
-			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
-			} else {
-				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
-				_ = conn.Close()
-			}
+			connCh <- conn
 		}
+		close(connCh)
 		objPool.UniqIdSlice.Put(uniqIds)
 	}
 }

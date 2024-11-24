@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"github.com/lesismal/nbio/nbhttp/websocket"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	customerManager "netsvr/internal/customer/manager"
@@ -34,7 +35,8 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.Broadcast failed")
 		return
 	}
-	if len(payload.Data) == 0 {
+	dataLen := int64(len(payload.Data))
+	if dataLen == 0 {
 		return
 	}
 	//取出所有的连接
@@ -45,15 +47,48 @@ func Broadcast(param []byte, _ *workerManager.ConnProcessor) {
 	}
 	//循环所有的连接，挨个发送出去
 	connectionsAlias := *connections //搞个别名，避免循环中解指针，提高性能
-	for _, conn := range connectionsAlias {
-		if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
-			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(payload.Data)))
-		} else {
-			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(payload.Data)))
-			_ = conn.Close()
-		}
+	if len(connectionsAlias) == 0 {
+		objPool.ConnSlice.Put(connections)
+		return
 	}
+	//小于100个连接，直接发送
+	if len(connectionsAlias) > 101 {
+		for _, conn := range connectionsAlias {
+			if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, payload.Data); err == nil {
+				metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
+			} else {
+				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
+				_ = conn.Close()
+			}
+		}
+		objPool.ConnSlice.Put(connections)
+		return
+	}
+	//大于100个连接，开启多协程发送
+	coroutineNum := len(connectionsAlias)/100 + 1
+	connCh := make(chan *websocket.Conn, coroutineNum)
+	for i := 0; i < coroutineNum; i++ {
+		go func(dataLen int64, data []byte) {
+			defer func() {
+				_ = recover()
+			}()
+			for conn := range connCh {
+				if err := conn.WriteMessage(configs.Config.Customer.SendMessageType, data); err == nil {
+					metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(dataLen)
+				} else {
+					metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(dataLen)
+					_ = conn.Close()
+				}
+			}
+		}(dataLen, payload.Data)
+	}
+	for _, conn := range connectionsAlias {
+		connCh <- conn
+	}
+	close(connCh)
 	objPool.ConnSlice.Put(connections)
 }
