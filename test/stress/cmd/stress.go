@@ -21,6 +21,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/broadcast"
+	"netsvr/test/stress/internal/groupChat"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/multicast"
 	"netsvr/test/stress/internal/multicastByCustomerId"
@@ -44,6 +45,8 @@ func main() {
 			wg.Add(1)
 			go silent.Run(wg)
 			wg.Add(1)
+			go groupChat.Run(wg)
+			wg.Add(1)
 			go sign.Run(wg)
 			wg.Add(1)
 			go singleCast.Run(wg)
@@ -63,6 +66,7 @@ func main() {
 			go broadcast.Run(wg)
 		} else {
 			silent.Run(nil)
+			groupChat.Run(nil)
 			sign.Run(nil)
 			singleCast.Run(nil)
 			singleCastByCustomerId.Run(nil)

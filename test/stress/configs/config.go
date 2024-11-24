@@ -50,13 +50,27 @@ type config struct {
 	Silent struct {
 		Enable bool
 		SignIn struct {
-			//是否让每个沉默的连接都进行登录操作
+			//是否让每个沉默连接都进行登录操作
 			Enable bool
 			//模拟登录后订阅的主题个数
 			TopicNum uint
 			//模拟登录后存储的session长度
 			SessionLen uint
 		}
+		Step []Step
+	}
+	//群聊，登录、订阅、发消息
+	GroupChat struct {
+		Enable bool
+		//模拟登录后存储的session长度
+		SessionLen uint
+		//群数量
+		GroupNum int
+		//发送的消息大小
+		MessageLen int
+		//每秒发消息条数
+		SendSpeed int
+		//阶段式发起连接
 		Step []Step
 	}
 	//疯狂的登录登出

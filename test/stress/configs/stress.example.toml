@@ -27,6 +27,24 @@ TopicNum = 10
 # 模拟登录后存储的session长度
 SessionLen = 1024
 
+# 群聊，登录、订阅、发消息
+[GroupChat]
+Enable = true
+# 模拟登录后存储的session长度
+SessionLen = 2048
+# 群数量
+GroupNum = 10
+# 发送的消息大小
+MessageLen = 1024
+# 每秒发消息条数
+SendSpeed = 10
+# 每个群的人数
+Step = [
+    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+]
+
 # 疯狂登录登出的连接
 [Sign]
 Enable = true
