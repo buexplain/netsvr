@@ -42,10 +42,9 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 			return
 		}
 		//迭代所有数据
-		var index, datumLen int
+		var index int
 		for index = range payload.Data {
-			datumLen = len(payload.Data[index])
-			if datumLen == 0 {
+			if len(payload.Data[index]) == 0 {
 				continue
 			}
 			//将当前数据写入到连接中
@@ -60,11 +59,10 @@ func SingleCastBulk(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.UniqIds) > 0 && len(payload.UniqIds) == len(payload.Data) {
 		//迭代所有数据
 		var conn *websocket.Conn
-		var index, datumLen int
+		var index int
 		for index = range payload.Data {
 			//判断数据是否有效
-			datumLen = len(payload.Data[index])
-			if datumLen == 0 {
+			if len(payload.Data[index]) == 0 {
 				continue
 			}
 			//获得数据对应的index下标的uniqId对应的连接

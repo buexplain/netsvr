@@ -44,43 +44,51 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 		}
 		defer objPool.UniqIdSlice.Put(uniqIds)
 		//再迭代所有uniqId
-		var uniqId string
-		var conn *websocket.Conn
-		var index, datumLen int
 		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+		//因为每个连接都要写入多条数据，所以直接协程并发发送
+		coroutineNum := len(uniqIdsAlias)/50 + 1
+		connCh := make(chan *websocket.Conn, coroutineNum)
+		for i := 0; i < coroutineNum; i++ {
+			go func(data [][]byte, connCh chan *websocket.Conn) {
+				defer func() {
+					_ = recover()
+				}()
+				var conn *websocket.Conn
+				var index int
+				for conn = range connCh {
+					//将所有数据写入当前迭代到的连接
+					for index = range data {
+						if len(data[index]) == 0 {
+							continue
+						}
+						if !customer.WriteMessage(conn, data[index]) {
+							//写入失败，不再写入剩余的数据，而是跳出当前写数据的for循环，处理下一个conn
+							break
+						}
+					}
+				}
+			}(payload.Data, connCh)
+		}
+		var uniqId string
 		for _, uniqId = range uniqIdsAlias {
-			//根据uniqId获得对应的连接
-			conn = manager.Manager.Get(uniqId)
+			conn := manager.Manager.Get(uniqId)
 			if conn == nil {
 				continue
 			}
-			//将所有数据写入当前迭代到的连接
-			for index = range payload.Data {
-				//这里有重复计算，一时半会儿也找不到更好的写法
-				datumLen = len(payload.Data[index])
-				if datumLen == 0 {
-					continue
-				}
-				if !customer.WriteMessage(conn, payload.Data[index]) {
-					//写入失败，不再写入剩余的数据，而是跳出当前for循环，处理下一个uniqId
-					break
-				}
-			}
+			connCh <- conn
 		}
+		close(connCh)
 		return
 	}
 	//当业务进程传递的topics的topic数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的topic
 	if len(payload.Topics) > 0 && len(payload.Topics) == len(payload.Data) {
-		var datumLen int64
-		var conn *websocket.Conn
 		var index int
 		var currentTopic string
 		var uniqId string
 		//迭代所有的主题
 		for index, currentTopic = range payload.Topics {
 			//判断当前迭代的主题对应的数据是否有效
-			datumLen = int64(len(payload.Data[index]))
-			if datumLen == 0 {
+			if len(payload.Data[index]) == 0 {
 				continue
 			}
 			//获得当前迭代的主题下的所有uniqId
@@ -90,15 +98,43 @@ func TopicPublishBulk(param []byte, _ *workerManager.ConnProcessor) {
 			}
 			//迭代所有uniqId
 			uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+			//小于100个连接且topic数量最多两个，直接发送，这个条件的意思是：最多循环发送200个连接，超出限制都走协程并发发送
+			if len(uniqIdsAlias) < 101 && len(payload.Topics) < 3 {
+				for _, uniqId = range uniqIdsAlias {
+					//根据uniqId获得对应的连接
+					conn := manager.Manager.Get(uniqId)
+					if conn == nil {
+						continue
+					}
+					//将当前迭代的主题对应的数据写入到该连接
+					customer.WriteMessage(conn, payload.Data[index])
+				}
+				//将uniqIds归还给内存池
+				objPool.UniqIdSlice.Put(uniqIds)
+				//跳过，处理下一个topic
+				continue
+			}
+			//大于100个连接，或者是topic数量大于2，开启多协程发送
+			coroutineNum := len(uniqIdsAlias)/100 + 1
+			connCh := make(chan *websocket.Conn, coroutineNum)
+			for i := 0; i < coroutineNum; i++ {
+				go func(data []byte, connCh chan *websocket.Conn) {
+					defer func() {
+						_ = recover()
+					}()
+					for conn := range connCh {
+						customer.WriteMessage(conn, data)
+					}
+				}(payload.Data[index], connCh)
+			}
 			for _, uniqId = range uniqIdsAlias {
-				//根据uniqId获得对应的连接
-				conn = manager.Manager.Get(uniqId)
+				conn := manager.Manager.Get(uniqId)
 				if conn == nil {
 					continue
 				}
-				//将当前迭代的主题对应的数据写入到该连接
-				customer.WriteMessage(conn, payload.Data[index])
+				connCh <- conn
 			}
+			close(connCh)
 			//将uniqIds归还给内存池
 			objPool.UniqIdSlice.Put(uniqIds)
 		}

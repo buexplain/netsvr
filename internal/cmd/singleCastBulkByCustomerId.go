@@ -45,16 +45,15 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 				continue
 			}
 			//迭代所有数据
-			var index, datumLen int
+			var index int
 			for index = range payload.Data {
-				datumLen = len(payload.Data[index])
-				if datumLen == 0 {
+				if len(payload.Data[index]) == 0 {
 					continue
 				}
 				//将当前数据写入到连接中
 				if !customer.WriteMessage(conn, payload.Data[index]) {
-					//写入失败，直接退出，不必再处理剩余数据
-					return
+					//写入失败，直接跳出写数据循环，处理下一个连接，不必再处理剩余数据
+					break
 				}
 			}
 		}
@@ -64,11 +63,10 @@ func SingleCastBulkByCustomerId(param []byte, _ *workerManager.ConnProcessor) {
 	if len(payload.CustomerIds) > 0 && len(payload.CustomerIds) == len(payload.Data) {
 		//迭代所有数据
 		var conn *websocket.Conn
-		var index, datumLen int
+		var index int
 		for index = range payload.Data {
 			//判断数据是否有效
-			datumLen = len(payload.Data[index])
-			if datumLen == 0 {
+			if len(payload.Data[index]) == 0 {
 				continue
 			}
 			//获得数据对应的index下标的customerId对应的uniqId

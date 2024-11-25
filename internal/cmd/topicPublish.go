@@ -47,8 +47,8 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 			continue
 		}
 		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
-		//小于100个连接，直接发送
-		if len(uniqIdsAlias) < 101 {
+		//小于100个连接且topic数量最多两个，直接发送，这个条件的意思是：最多循环发送200个连接，超出限制都走协程并发发送
+		if len(uniqIdsAlias) < 101 && len(payload.Topics) < 3 {
 			for _, uniqId := range uniqIdsAlias {
 				conn := manager.Manager.Get(uniqId)
 				if conn == nil {
@@ -57,20 +57,21 @@ func TopicPublish(param []byte, _ *workerManager.ConnProcessor) {
 				customer.WriteMessage(conn, payload.Data)
 			}
 			objPool.UniqIdSlice.Put(uniqIds)
-			return
+			//跳过，处理下一个topic
+			continue
 		}
-		//大于100个连接，开启多协程发送
+		//大于100个连接，或者是topic数量大于2，开启多协程发送
 		coroutineNum := len(uniqIdsAlias)/100 + 1
 		connCh := make(chan *websocket.Conn, coroutineNum)
 		for i := 0; i < coroutineNum; i++ {
-			go func(data []byte) {
+			go func(data []byte, connCh chan *websocket.Conn) {
 				defer func() {
 					_ = recover()
 				}()
 				for conn := range connCh {
 					customer.WriteMessage(conn, data)
 				}
-			}(payload.Data)
+			}(payload.Data, connCh)
 		}
 		for _, uniqId := range uniqIdsAlias {
 			conn := manager.Manager.Get(uniqId)
