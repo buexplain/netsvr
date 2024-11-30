@@ -167,7 +167,14 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	//开始升级
 	wsConn, err := upgrade.Upgrade(w, r, responseHeader)
 	if err != nil {
-		log.Logger.Error().Err(err).Str("customerListenAddress", configs.Config.Customer.ListenAddress).Msg("Customer websocket upgrade failed")
+		log.Logger.Error().Err(err).
+			Str("rawQuery", r.URL.RawQuery).
+			Strs("subProtocols", subProtocols).
+			Str("xForwardedFor", xForwardedFor).
+			Str("xRealIp", xRealIp).
+			Str("remoteAddr", r.RemoteAddr).
+			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+			Msg("Customer websocket upgrade failed")
 		return
 	}
 	//调用回调函数
