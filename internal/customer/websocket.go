@@ -135,6 +135,11 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 	}
+	//检测是否是websocket连接，如果不是，则视为负载层发送的健康检查请求
+	if r.Header.Get("Upgrade") == "" {
+		http.Error(w, "Hello netsvr", http.StatusOK)
+		return
+	}
 	//获取ws子协议
 	subProtocols := utils.ParseSubProtocols(r)
 	var responseHeader http.Header
