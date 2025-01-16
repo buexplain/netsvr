@@ -138,7 +138,7 @@ func (r *ConnProcessor) send(data []byte) {
 		//设置写超时
 		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 			r.ForceClose()
-			r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).
+			r.formatSendToBusinessData(dataRef, log.Logger.Error()).Err(err).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker SetWriteDeadline to business conn failed")
@@ -162,7 +162,7 @@ func (r *ConnProcessor) send(data []byte) {
 		//没有写入任何数据，tcp管道未被污染，丢弃本次数据，并打印日志
 		var opErr *net.OpError
 		if errors.As(err, &opErr) && opErr.Timeout() && len(dataRef) == len(data[writeLen:]) {
-			r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).
+			r.formatSendToBusinessData(dataRef, log.Logger.Error()).Err(err).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send to business failed and discard message")
@@ -170,7 +170,7 @@ func (r *ConnProcessor) send(data []byte) {
 		}
 		//写入过部分数据，tcp管道已污染，对端已经无法拆包，必须关闭连接
 		r.ForceClose()
-		r.formatSendToBusinessDataData(dataRef, log.Logger.Error()).Err(err).
+		r.formatSendToBusinessData(dataRef, log.Logger.Error()).Err(err).
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker send to business failed and force close conn")
@@ -178,7 +178,7 @@ func (r *ConnProcessor) send(data []byte) {
 	}
 }
 
-func (r *ConnProcessor) formatSendToBusinessDataData(data []byte, event *zerolog.Event) *zerolog.Event {
+func (r *ConnProcessor) formatSendToBusinessData(data []byte, event *zerolog.Event) *zerolog.Event {
 	cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[4:8]))
 	if cmd == netsvrProtocol.Cmd_Transfer {
 		tf := &netsvrProtocol.Transfer{}
@@ -262,7 +262,7 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
+			r.formatSendToBusinessData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send to business failed and discard message")
@@ -290,7 +290,7 @@ func (r *ConnProcessor) Send(message proto.Message, cmd netsvrProtocol.Cmd) int 
 			timeout.Stop()
 			//统计worker到business的失败次数
 			metrics.Registry[metrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-			r.formatSendToBusinessDataData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
+			r.formatSendToBusinessData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send to business failed and discard message")

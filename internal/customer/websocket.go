@@ -25,6 +25,7 @@ import (
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
+	"github.com/rs/zerolog"
 	"net"
 	"net/http"
 	"netsvr/configs"
@@ -71,6 +72,7 @@ var upgrade = (func() *websocket.Upgrader {
 // OpenRateLimit 不能轻易改变这些常量的值，因为websocket客户端代码极有可能判断这些字符串做出下一步处理，改变这些字符会导致这些客户端的代码失效
 const OpenRateLimit = "Open rate limited"
 const MessageRateLimit = "Message rate limited"
+const ConnectionMessageRateLimit = "Connection message rate limited"
 const ServiceShutdown = "Service shutdown"
 const MessageTooLarge = "Message too large"
 
@@ -301,12 +303,13 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		return
 	}
 	//获取session中的数据
-	session.RLock()
+	session.Lock()
+	allow := session.Allow()
 	uniqId := session.GetUniqId()
 	customerSession := session.GetSession()
 	customerId := session.GetCustomerId()
 	topics := session.GetTopics()
-	session.RUnlock()
+	session.UnLock()
 	//限制数据包大小，溢出限制大小，直接丢弃该数据
 	if len(data) > configs.Config.Customer.ReceivePackLimit {
 		//关闭发生异常数据包的连接
@@ -321,16 +324,29 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 			Msg(MessageTooLarge)
 		return
 	}
-	//限流检查
+	//连接限流检查
+	if allow == false {
+		//统计连接消息限流次数
+		metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
+		//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多
+		formatCustomerData(data, log.Logger.Error()).
+			Str("uniqId", uniqId).
+			Str("customerId", customerId).
+			Str("customerSession", customerSession).
+			Str("remoteAddr", conn.RemoteAddr().String()).
+			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+			Msg(ConnectionMessageRateLimit)
+		return
+	}
+	//全局限流检查
 	if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
 		//统计客户消息限流次数
 		metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
 		//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
-		log.Logger.Error().
+		formatCustomerData(data, log.Logger.Error()).
 			Str("uniqId", uniqId).
 			Str("customerId", customerId).
 			Str("customerSession", customerSession).
-			Str("customerData", string(data)).
 			Str("remoteAddr", conn.RemoteAddr().String()).
 			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 			Msg(MessageRateLimit)
@@ -353,6 +369,13 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 		}
 		objPool.Transfer.Put(tf)
 	}
+}
+
+func formatCustomerData(customerData []byte, event *zerolog.Event) *zerolog.Event {
+	if configs.Config.Customer.SendMessageType == websocket.TextMessage {
+		return event.Str("customerData", string(customerData))
+	}
+	return event.Hex("customerDataHex", customerData)
 }
 
 // pong客户端心跳帧

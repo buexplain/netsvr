@@ -50,6 +50,8 @@ const (
 	ItemCustomerWriteFailedCount
 	// ItemCustomerWriteFailedByte 统计往客户写入数据失败的字节数
 	ItemCustomerWriteFailedByte
+	// ItemConnectionMessageRateLimitCount 统计连接消息限流次数
+	ItemConnectionMessageRateLimitCount
 	//结束符
 	itemLen
 )

@@ -43,6 +43,12 @@ TLSKey = ""
 HeartbeatMessage = "~6YOt5rW35piO~"
 # 压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
 CompressionLevel = 1
+# 固定窗口限流器的窗口大小
+LimitWindowSize = "1s"
+# 固定窗口限流器的窗口允许的最大请求数
+LimitWindowMaxRequests = 100
+# 固定窗口限流器的第0个窗口允许的最大请求数
+LimitZeroWindowMaxRequests = 1000
 
 #业务进程的tcp服务器配置
 [Worker]
@@ -78,4 +84,5 @@ HeartbeatMessage = "~6YOt5rW35piO~"
 # 10：统计worker到business的失败次数
 # 11：统计往客户写入数据失败次数
 # 12：统计往客户写入数据失败字节数
-Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+# 13：统计连接消息限流次数
+Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]

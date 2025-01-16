@@ -19,9 +19,12 @@ package info
 
 import (
 	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"netsvr/configs"
 	"sync"
+	"time"
 )
 
+// Info 保持客户连接的信息的结构体
 type Info struct {
 	//客户在网关中的唯一id
 	uniqId string
@@ -29,26 +32,25 @@ type Info struct {
 	customerId string
 	//客户存储在网关中的数据
 	session string
+	//当前窗口的开始时间
+	limitWindowStart time.Time
 	//客户订阅的主题
 	topics map[string]struct{}
 	//锁
 	rwMutex *sync.RWMutex
+	//当前窗口内的请求数
+	limitWindowRequests uint32
 }
+
+var zeroTime = time.Time{}
 
 func NewInfo(uniqId string) *Info {
 	return &Info{
-		uniqId:  uniqId,
-		topics:  nil,
-		rwMutex: &sync.RWMutex{},
+		uniqId:           uniqId,
+		limitWindowStart: zeroTime,
+		topics:           nil,
+		rwMutex:          &sync.RWMutex{},
 	}
-}
-
-func (r *Info) RLock() {
-	r.rwMutex.RLock()
-}
-
-func (r *Info) RUnlock() {
-	r.rwMutex.RUnlock()
 }
 
 func (r *Info) Lock() {
@@ -57,6 +59,31 @@ func (r *Info) Lock() {
 
 func (r *Info) UnLock() {
 	r.rwMutex.Unlock()
+}
+
+func (r *Info) Allow() bool {
+	//先消耗初始请求数
+	if r.limitWindowStart == zeroTime {
+		if r.limitWindowRequests < configs.Config.Customer.LimitZeroWindowMaxRequests {
+			r.limitWindowRequests++
+			return true
+		}
+		r.limitWindowStart = time.Now()
+		r.limitWindowRequests = configs.Config.Customer.LimitWindowMaxRequests
+		return false
+	}
+	//检查是否进入下一个窗口
+	now := time.Now()
+	if now.Sub(r.limitWindowStart) >= configs.Config.Customer.LimitWindowSize {
+		r.limitWindowStart = now
+		r.limitWindowRequests = 0
+	}
+	//检查当前窗口内的请求数是否超过限制
+	if r.limitWindowRequests < configs.Config.Customer.LimitWindowMaxRequests {
+		r.limitWindowRequests++
+		return true
+	}
+	return false
 }
 
 func (r *Info) GetCustomerId() string {

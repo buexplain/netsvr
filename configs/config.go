@@ -90,6 +90,12 @@ type config struct {
 		HeartbeatMessage BytesConfigItem
 		//压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
 		CompressionLevel int
+		//固定窗口限流器的窗口大小
+		LimitWindowSize time.Duration
+		//固定窗口限流器的窗口允许的最大请求数
+		LimitWindowMaxRequests uint32
+		//固定窗口限流器的第0个窗口允许的最大请求数
+		LimitZeroWindowMaxRequests uint32
 	}
 	//业务进程的tcp服务器配置
 	Worker struct {
@@ -118,11 +124,14 @@ type config struct {
 		// 3：统计客户连接的心跳次数
 		// 4：统计客户数据转发到worker的次数
 		// 5：统计客户数据转发到worker的字节数
-		// 6：统计往客户写入数据次数
-		// 7：统计往客户写入字节数
+		// 6：统计往客户写入数据成功次数
+		// 7：统计往客户写入数据成功字节数
 		// 8：统计连接打开的限流次数
 		// 9：统计客户消息限流次数
 		// 10：统计worker到business的失败次数
+		// 11：统计往客户写入数据失败次数
+		// 12：统计往客户写入数据失败字节数
+		// 13：统计连接消息限流次数
 		Item []int
 	}
 }
@@ -237,6 +246,15 @@ func init() {
 	if Config.Customer.CompressionLevel < flate.HuffmanOnly || Config.Customer.CompressionLevel > flate.BestCompression {
 		slog.Error("Config Customer.CompressionLevel is invalid")
 		os.Exit(1)
+	}
+	if Config.Customer.LimitWindowSize <= 0 {
+		Config.Customer.LimitWindowSize = time.Second * 1
+	}
+	if Config.Customer.LimitWindowMaxRequests <= 0 {
+		Config.Customer.LimitWindowMaxRequests = 100
+	}
+	if Config.Customer.LimitZeroWindowMaxRequests <= 0 {
+		Config.Customer.LimitZeroWindowMaxRequests = 1000
 	}
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒
