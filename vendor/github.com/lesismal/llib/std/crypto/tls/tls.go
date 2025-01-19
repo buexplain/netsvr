@@ -51,7 +51,6 @@ func NewConn(conn net.Conn, config *Config, isClient bool, isNonBlock bool, v ..
 	if c.allocator == nil {
 		c.allocator = &NativeAllocator{}
 	}
-	// c.allocator = &NativeAllocator{}
 	return c
 }
 
