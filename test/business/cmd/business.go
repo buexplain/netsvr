@@ -20,7 +20,7 @@ package main
 import (
 	_ "embed"
 	"errors"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	_ "github.com/buexplain/netsvr-business-go"
 	"html/template"
 	"net"
 	"net/http"
@@ -28,60 +28,24 @@ import (
 	"netsvr/test/business/assets"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/mainSocketManager"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
-	"netsvr/test/pkg/utils/netSvrPool"
 	"os"
 	"strings"
 )
 
 func main() {
-	//初始化连接池
-	netSvrPool.Init(configs.Config.ProcessCmdGoroutineNum, configs.Config.WorkerListenAddress, configs.Config.WorkerHeartbeatMessage)
-	//连接到网关的worker服务器
-	conn, err := net.Dial("tcp", configs.Config.WorkerListenAddress)
-	if err != nil {
-		log.Logger.Error().Msgf("连接服务端失败，%v", err)
-		os.Exit(1)
-	}
 	//启动html客户端的服务器
 	go clientServer()
-	processor := connProcessor.NewConnProcessor(conn, int32(netsvrProtocol.Event_OnOpen|netsvrProtocol.Event_OnClose|netsvrProtocol.Event_OnMessage))
-	//注册到网关进程的worker服务器
-	if err = processor.RegisterToNetsvrWorker(uint32(configs.Config.ProcessCmdGoroutineNum)); err != nil {
-		log.Logger.Error().Int32("events", processor.GetEvents()).Err(err).Msg("注册到worker服务器失败")
+	mainSocketManager.Init(&cmd.EventHandler{})
+	netBus.Init()
+	if mainSocketManager.MainSocketManager.Start() == false {
+		log.Logger.Error().Msg("注册到worker服务器失败")
 		os.Exit(1)
 	}
-	log.Logger.Debug().Int32("events", processor.GetEvents()).Msg("注册到worker服务器成功")
-	//注册各种回调函数
-	cmd.CheckOnline.Init(processor)
-	cmd.Broadcast.Init(processor)
-	cmd.Multicast.Init(processor)
-	cmd.SingleCast.Init(processor)
-	cmd.SingleCastBulk.Init(processor)
-	cmd.ConnSwitch.Init(processor)
-	cmd.Sign.Init(processor)
-	cmd.ForceOffline.Init(processor)
-	cmd.ForceOfflineGuest.Init(processor)
-	cmd.Topic.Init(processor)
-	cmd.UniqId.Init(processor)
-	cmd.CustomerId.Init(processor)
-	cmd.Metrics.Init(processor)
-	cmd.Limit.Init(processor)
-	cmd.ConnInfo.Init(processor)
-	//心跳
-	go processor.LoopHeartbeat()
-	//循环处理worker发来的指令
-	for i := 0; i < configs.Config.ProcessCmdGoroutineNum*10; i++ {
-		//添加到进程结束时的等待中，这样客户发来的数据都会被处理完毕
-		quit.Wg.Add(1)
-		go processor.LoopCmd()
-	}
-	//循环写
-	go processor.LoopSend()
-	//循环读
-	go processor.LoopReceive()
+	log.Logger.Debug().Msg("注册到worker服务器成功")
 	//处理关闭信号
 	quit.Wg.Add(1)
 	go func() {
@@ -89,15 +53,8 @@ func main() {
 			_ = recover()
 			quit.Wg.Done()
 		}()
-		select {
-		case <-processor.GetCloseCh():
-			return
-		case <-quit.Ctx.Done():
-			//取消注册
-			processor.UnregisterWorker()
-			//优雅的强制关闭
-			processor.ForceClose()
-		}
+		<-quit.Ctx.Done()
+		mainSocketManager.MainSocketManager.Close()
 	}()
 	//开始关闭进程
 	select {

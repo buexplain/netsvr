@@ -1,6 +1,6 @@
 module netsvr
 
-go 1.21
+go 1.22.7
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -21,6 +21,7 @@ require (
 
 require (
 	github.com/antlabs/stl v0.0.2 // indirect
+	github.com/buexplain/netsvr-business-go v0.0.0-20250119125557-a408d8590cf8 // indirect
 	github.com/buexplain/netsvr-protocol/v4 v4.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -31,3 +32,5 @@ require (
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 )
+
+replace github.com/buexplain/netsvr-business-go => D:\code\buexplain\netsvr-business-go

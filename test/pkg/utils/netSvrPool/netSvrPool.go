@@ -14,7 +14,7 @@ import (
 var pool *connPool.ConnPool
 var logger zerolog.Logger
 
-// Init 初始化与网关交互所需的连接池
+// Init 初始化与网关交互所需的连接池 TODO 删除
 func Init(size int, workerListenAddress string, heartbeatMessage []byte) {
 	pool = connPool.NewConnPool(size, func() net.Conn {
 		//连接到网关的worker服务器
