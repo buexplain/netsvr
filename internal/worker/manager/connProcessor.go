@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"

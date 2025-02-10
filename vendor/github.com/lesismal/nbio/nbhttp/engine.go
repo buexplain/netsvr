@@ -251,6 +251,7 @@ type Engine struct {
 	BaseCtx      context.Context
 	Cancel       func()
 
+	SyncCall      func(f func())
 	ExecuteClient func(f func())
 
 	// isOneshot bool
@@ -611,6 +612,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 					return
 				}
 				if nread > 0 {
+					parserCloser = c.Session().(ParserCloser)
 					err := parserCloser.Parse(buffer[:nread])
 					if err != nil {
 						logging.Debug("ParserCloser.Read failed: %v", err)
@@ -1044,6 +1046,7 @@ func NewEngine(conf Config) *Engine {
 	}
 	conf.Handler = handler
 
+	var serverCall = func(f func()) { f() }
 	var serverExecutor = conf.ServerExecutor
 	var messageHandlerExecutePool *taskpool.TaskPool
 	if serverExecutor == nil {
@@ -1053,6 +1056,7 @@ func NewEngine(conf Config) *Engine {
 		nativeSize := conf.MessageHandlerPoolSize - 1
 		messageHandlerExecutePool = taskpool.New(nativeSize, 1024*64)
 		serverExecutor = messageHandlerExecutePool.Go
+		serverCall = messageHandlerExecutePool.Call
 	}
 
 	var clientExecutor = conf.ClientExecutor
@@ -1135,6 +1139,9 @@ func NewEngine(conf Config) *Engine {
 		emptyRequest: (&http.Request{}).WithContext(baseCtx),
 		BaseCtx:      baseCtx,
 		Cancel:       cancel,
+	}
+	if engine.SyncCall == nil {
+		engine.SyncCall = serverCall
 	}
 
 	// shouldSupportTLS := !conf.SupportServerOnly || len(conf.AddrsTLS) > 0

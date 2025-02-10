@@ -17,7 +17,7 @@
 package manager
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"math/rand"
 	"sync"
 	"sync/atomic"

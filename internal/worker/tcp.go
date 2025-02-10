@@ -20,7 +20,7 @@ package worker
 
 import (
 	"errors"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/cmd"

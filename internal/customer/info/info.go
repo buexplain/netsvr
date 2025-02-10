@@ -18,7 +18,7 @@
 package info
 
 import (
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"netsvr/configs"
 	"sync"
 	"time"

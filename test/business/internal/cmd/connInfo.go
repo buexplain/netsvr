@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/pkg/protocol"

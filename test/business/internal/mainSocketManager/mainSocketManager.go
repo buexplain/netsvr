@@ -2,7 +2,7 @@ package mainSocketManager
 
 import (
 	netsvrBusiness "github.com/buexplain/netsvr-business-go"
-	netsvrProtocol "github.com/buexplain/netsvr-protocol-go/v4/netsvr"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"netsvr/test/business/configs"
 	"time"
 )

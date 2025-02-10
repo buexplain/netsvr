@@ -967,7 +967,14 @@ func (c *Conn) readFromUntil(r io.Reader, n int, from int) error {
 	// 	c.rawInputOff = 0
 	// }
 
-	needs := from + n - cap(*c.rawInput)
+	needs := from + n
+	if c.rawInput == nil {
+		c.rawInput = c.allocator.Malloc(needs)
+		needs = 0
+	} else {
+		needs -= cap(*c.rawInput)
+	}
+
 	// There might be extra input waiting on the wire. Make a best effort
 	// attempt to fetch it so that it can be used in (*Conn).Read to
 	// "predict" closeNotify alerts.
@@ -975,6 +982,7 @@ func (c *Conn) readFromUntil(r io.Reader, n int, from int) error {
 		*c.rawInput = (*c.rawInput)[:cap(*c.rawInput)]
 		c.rawInput = c.allocator.Append(c.rawInput, make([]byte, needs)...)
 	}
+
 	*c.rawInput = (*c.rawInput)[:from+n]
 	_, err := io.ReadFull(r, (*c.rawInput)[from:])
 	return err
