@@ -19,36 +19,26 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
-	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type connInfo struct{}
 
 var ConnInfo = connInfo{}
 
-func (r connInfo) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterConnInfo, r.RequestConnInfo)
-	processor.RegisterBusinessCmd(protocol.RouterConnInfoByCustomerId, r.RequestConnInfoByCustomerId)
+func init() {
+	businessCmdCallback[protocol.RouterConnInfo] = ConnInfo.RequestConnInfo
+	businessCmdCallback[protocol.RouterConnInfoByCustomerId] = ConnInfo.RequestConnInfoByCustomerId
 }
 
 // RequestConnInfo 获取我的连接信息
-func (connInfo) RequestConnInfo(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
-	req := &netsvrProtocol.ConnInfoReq{}
-	req.ReqTopic = true
-	req.ReqSession = true
-	req.ReqCustomerId = true
-	req.UniqIds = []string{tf.UniqId}
-	resp := &netsvrProtocol.ConnInfoResp{}
-	netSvrPool.Request(req, netsvrProtocol.Cmd_ConnInfo, resp)
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	msg := map[string]interface{}{"connInfo": resp.Items[tf.UniqId]}
-	ret.Data = testUtils.NewResponse(protocol.RouterConnInfo, map[string]interface{}{"code": 0, "message": "获取我的连接信息成功", "data": msg})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+func (connInfo) RequestConnInfo(tf *netsvrProtocol.Transfer, _ string) {
+	resp := netBus.NetBus.ConnInfo([]string{tf.UniqId}, true, true, true)
+	msg := map[string]interface{}{"connInfo": resp.Data}
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfo, map[string]interface{}{"code": 0, "message": "获取我的连接信息成功", "data": msg}))
 }
 
 // ConnInfoByCustomerIdParam 强制踢下线某个用户
@@ -57,22 +47,13 @@ type ConnInfoByCustomerIdParam struct {
 }
 
 // RequestConnInfoByCustomerId 获取customerId的连接信息
-func (connInfo) RequestConnInfoByCustomerId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (connInfo) RequestConnInfoByCustomerId(tf *netsvrProtocol.Transfer, param string) {
 	payload := new(ConnInfoByCustomerIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ConnInfoByCustomerIdParam failed")
 		return
 	}
-	req := &netsvrProtocol.ConnInfoByCustomerIdReq{}
-	req.ReqTopic = true
-	req.ReqSession = true
-	req.ReqUniqId = true
-	req.CustomerIds = payload.CustomerIds
-	resp := &netsvrProtocol.ConnInfoByCustomerIdResp{}
-	netSvrPool.Request(req, netsvrProtocol.Cmd_ConnInfoByCustomerId, resp)
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	msg := map[string]interface{}{"connInfo": resp.Items}
-	ret.Data = testUtils.NewResponse(protocol.RouterConnInfoByCustomerId, map[string]interface{}{"code": 0, "message": "获取customerId的连接信息成功", "data": msg})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+	resp := netBus.NetBus.ConnInfoByCustomerId(payload.CustomerIds, true, true, true)
+	msg := map[string]interface{}{"connInfo": resp.Data}
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfoByCustomerId, map[string]interface{}{"code": 0, "message": "获取customerId的连接信息成功", "data": msg}))
 }

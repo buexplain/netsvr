@@ -19,8 +19,8 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -29,9 +29,9 @@ type forceOffline struct{}
 
 var ForceOffline = forceOffline{}
 
-func (r forceOffline) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterForceOfflineByCustomerId, r.CustomerId)
-	processor.RegisterBusinessCmd(protocol.RouterForceOffline, r.UniqId)
+func init() {
+	businessCmdCallback[protocol.RouterForceOfflineByCustomerId] = ForceOffline.CustomerId
+	businessCmdCallback[protocol.RouterForceOffline] = ForceOffline.UniqId
 }
 
 // ForceOfflineForCustomerIdParam 强制踢下线某个用户
@@ -40,16 +40,13 @@ type ForceOfflineForCustomerIdParam struct {
 }
 
 // CustomerId 强制关闭某个用户的连接
-func (forceOffline) CustomerId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (forceOffline) CustomerId(_ *netsvrProtocol.Transfer, param string) {
 	payload := new(ForceOfflineForCustomerIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineForCustomerIdParam failed")
 		return
 	}
-	req := &netsvrProtocol.ForceOfflineByCustomerId{}
-	req.CustomerIds = payload.CustomerIds
-	req.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
-	processor.Send(req, netsvrProtocol.Cmd_ForceOfflineByCustomerId)
+	netBus.NetBus.ForceOfflineByCustomerId(payload.CustomerIds, testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"}))
 }
 
 // ForceOfflineParam 强制踢下线某个连接
@@ -58,14 +55,11 @@ type ForceOfflineParam struct {
 }
 
 // UniqId 强制关闭某个连接
-func (forceOffline) UniqId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (forceOffline) UniqId(_ *netsvrProtocol.Transfer, param string) {
 	payload := new(ForceOfflineParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineParam failed")
 		return
 	}
-	req := &netsvrProtocol.ForceOffline{}
-	req.UniqIds = []string{payload.UniqId}
-	req.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"})
-	processor.Send(req, netsvrProtocol.Cmd_ForceOffline)
+	netBus.NetBus.ForceOffline([]string{payload.UniqId}, testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "您已被迫下线！"}))
 }

@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -31,9 +31,9 @@ type singleCast struct{}
 
 var SingleCast = singleCast{}
 
-func (r singleCast) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterSingleCastByCustomerId, r.CustomerId)
-	processor.RegisterBusinessCmd(protocol.RouterSingleCast, r.UniqId)
+func init() {
+	businessCmdCallback[protocol.RouterSingleCastByCustomerId] = SingleCast.CustomerId
+	businessCmdCallback[protocol.RouterSingleCast] = SingleCast.UniqId
 }
 
 // SingleCastByCustomerIdParam 客户端发送的单播信息
@@ -43,7 +43,7 @@ type SingleCastByCustomerIdParam struct {
 }
 
 // CustomerId 单播个某个用户
-func (singleCast) CustomerId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (singleCast) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 	//解析客户端发来的数据
 	payload := SingleCastByCustomerIdParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
@@ -57,11 +57,8 @@ func (singleCast) CustomerId(tf *netsvrProtocol.Transfer, param string, processo
 	} else {
 		fromUser = currentUser.Name
 	}
-	req := &netsvrProtocol.SingleCastByCustomerId{}
-	req.CustomerId = payload.CustomerId
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	req.Data = testUtils.NewResponse(protocol.RouterSingleCastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
-	processor.Send(req, netsvrProtocol.Cmd_SingleCastByCustomerId)
+	netBus.NetBus.SingleCastByCustomerId(payload.CustomerId, testUtils.NewResponse(protocol.RouterSingleCastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }
 
 // SingleCastParam 客户端发送的单播信息
@@ -71,7 +68,7 @@ type SingleCastParam struct {
 }
 
 // UniqId 单播给某个uniqId
-func (singleCast) UniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (singleCast) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	payload := SingleCastParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse SingleCastParam failed")
@@ -85,10 +82,7 @@ func (singleCast) UniqId(tf *netsvrProtocol.Transfer, param string, processor *c
 		fromUser = currentUser.Name
 	}
 	//构建单播数据
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = payload.UniqId
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	ret.Data = testUtils.NewResponse(protocol.RouterSingleCast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
 	//发到网关
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+	netBus.NetBus.SingleCast(payload.UniqId, testUtils.NewResponse(protocol.RouterSingleCast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }

@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -31,8 +31,8 @@ type broadcast struct{}
 
 var Broadcast = broadcast{}
 
-func (r broadcast) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterBroadcast, r.Request)
+func init() {
+	businessCmdCallback[protocol.RouterBroadcast] = Broadcast.Request
 }
 
 // BroadcastParam 客户端发送的广播信息
@@ -41,7 +41,7 @@ type BroadcastParam struct {
 }
 
 // Request 向worker发起广播请求
-func (broadcast) Request(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (broadcast) Request(tf *netsvrProtocol.Transfer, param string) {
 	target := new(BroadcastParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), target); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse BroadcastParam failed")
@@ -54,8 +54,6 @@ func (broadcast) Request(tf *netsvrProtocol.Transfer, param string, processor *c
 	} else {
 		fromUser = currentUser.Name
 	}
-	ret := &netsvrProtocol.Broadcast{}
 	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
-	ret.Data = testUtils.NewResponse(protocol.RouterBroadcast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
-	processor.Send(ret, netsvrProtocol.Cmd_Broadcast)
+	netBus.NetBus.Broadcast(testUtils.NewResponse(protocol.RouterBroadcast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }

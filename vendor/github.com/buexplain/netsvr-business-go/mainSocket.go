@@ -95,7 +95,7 @@ func (r *MainSocket) LoopSend() {
 			}
 		}()
 		for message := range r.sendCh {
-			if r.socket.Send(message) == false {
+			if r.socket.Send(message) == false && r.isConnected() {
 				r.reconnect()
 			}
 		}
@@ -181,9 +181,15 @@ func (r *MainSocket) Connect() bool {
 }
 
 func (r *MainSocket) reconnect() {
-	if r.socket.Connect() && r.isConnected() {
+	//第一时间重连
+	if r.socket.Connect() {
 		r.Register()
+		return
 	}
+	//其它协程已经在执行重连操作，休眠3秒，等待重连操作结束
+	t := time.NewTimer(time.Second * 3)
+	defer t.Stop()
+	<-t.C
 }
 
 func (r *MainSocket) Send(message []byte) {

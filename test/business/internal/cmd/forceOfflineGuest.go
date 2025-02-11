@@ -19,8 +19,8 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
 )
@@ -29,8 +29,8 @@ type forceOfflineGuest struct{}
 
 var ForceOfflineGuest = forceOfflineGuest{}
 
-func (r forceOfflineGuest) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterForceOfflineGuest, r.UniqId)
+func init() {
+	businessCmdCallback[protocol.RouterForceOfflineGuest] = ForceOfflineGuest.UniqId
 }
 
 // ForceOfflineGuestParam 将某个没有session值的连接强制关闭
@@ -40,15 +40,11 @@ type ForceOfflineGuestParam struct {
 }
 
 // UniqId 将某个没有session值的连接强制关闭
-func (forceOfflineGuest) UniqId(_ *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (forceOfflineGuest) UniqId(_ *netsvrProtocol.Transfer, param string) {
 	payload := new(ForceOfflineGuestParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse ForceOfflineGuestParam failed")
 		return
 	}
-	ret := &netsvrProtocol.ForceOfflineGuest{}
-	ret.UniqIds = []string{payload.UniqId}
-	ret.Delay = payload.Delay
-	ret.Data = testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "游客您好，您已被迫下线！"})
-	processor.Send(ret, netsvrProtocol.Cmd_ForceOfflineGuest)
+	netBus.NetBus.ForceOfflineGuest([]string{payload.UniqId}, testUtils.NewResponse(protocol.RouterRespConnClose, map[string]interface{}{"code": 0, "message": "游客您好，您已被迫下线！"}), payload.Delay)
 }

@@ -19,19 +19,18 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
-	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type checkOnline struct{}
 
 var CheckOnline = checkOnline{}
 
-func (r checkOnline) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterCheckOnline, r.UniqId)
+func init() {
+	businessCmdCallback[protocol.RouterCheckOnline] = CheckOnline.UniqId
 }
 
 // CheckOnlineParam 检查某几个连接是否在线
@@ -40,19 +39,13 @@ type CheckOnlineParam struct {
 }
 
 // UniqId 向worker发起请求，检查某几个连接是否在线
-func (checkOnline) UniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (checkOnline) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	payload := CheckOnlineParam{}
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), &payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse CheckOnlineParam failed")
 		return
 	}
-	req := &netsvrProtocol.CheckOnlineReq{}
-	req.UniqIds = payload.UniqIds
-	resp := &netsvrProtocol.CheckOnlineResp{}
-	netSvrPool.Request(req, netsvrProtocol.Cmd_CheckOnline, resp)
+	resp := netBus.NetBus.CheckOnline(payload.UniqIds)
 	//将结果单播给客户端
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	ret.Data = testUtils.NewResponse(protocol.RouterCheckOnline, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.UniqIds})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterCheckOnline, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.Data}))
 }

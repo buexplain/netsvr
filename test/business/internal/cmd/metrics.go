@@ -18,27 +18,21 @@ package cmd
 
 import (
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
-	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type metrics struct{}
 
 var Metrics = metrics{}
 
-func (r metrics) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterMetrics, r.Request)
+func init() {
+	businessCmdCallback[protocol.RouterMetrics] = Metrics.Request
 }
 
 // Request 获取网关统计的服务状态
-func (metrics) Request(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
-	resp := &netsvrProtocol.MetricsResp{}
-	netSvrPool.Request(nil, netsvrProtocol.Cmd_Metrics, resp)
-	//将结果单播给客户端
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	ret.Data = testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的统计信息成功", "data": resp.Items})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+func (metrics) Request(tf *netsvrProtocol.Transfer, _ string) {
+	resp := netBus.NetBus.Metrics()
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的统计信息成功", "data": resp.Data}))
 }

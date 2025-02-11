@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
 	"netsvr/test/business/internal/log"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -31,9 +31,9 @@ type multicast struct{}
 
 var Multicast = multicast{}
 
-func (r multicast) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterMulticast, r.UniqId)
-	processor.RegisterBusinessCmd(protocol.RouterMulticastByCustomerId, r.CustomerId)
+func init() {
+	businessCmdCallback[protocol.RouterMulticast] = Multicast.UniqId
+	businessCmdCallback[protocol.RouterMulticastByCustomerId] = Multicast.CustomerId
 }
 
 // MulticastForUserIdParam 客户端发送的组播信息
@@ -49,7 +49,7 @@ type MulticastParam struct {
 }
 
 // UniqId 组播给某几个uniqId
-func (multicast) UniqId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (multicast) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	payload := new(MulticastParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse MulticastParam failed")
@@ -63,12 +63,8 @@ func (multicast) UniqId(tf *netsvrProtocol.Transfer, param string, processor *co
 		fromUser = currentUser.Name
 	}
 	//构建组播数据
-	ret := &netsvrProtocol.Multicast{}
-	ret.UniqIds = payload.UnIqIds
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	ret.Data = testUtils.NewResponse(protocol.RouterMulticast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
-	//发到网关
-	processor.Send(ret, netsvrProtocol.Cmd_Multicast)
+	netBus.NetBus.Multicast(payload.UnIqIds, testUtils.NewResponse(protocol.RouterMulticast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }
 
 // CustomerIdParam 客户端发送的组播信息
@@ -78,7 +74,7 @@ type CustomerIdParam struct {
 }
 
 // CustomerId 组播给某几个customerId
-func (multicast) CustomerId(tf *netsvrProtocol.Transfer, param string, processor *connProcessor.ConnProcessor) {
+func (multicast) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 	payload := new(CustomerIdParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse CustomerIdParam failed")
@@ -92,10 +88,6 @@ func (multicast) CustomerId(tf *netsvrProtocol.Transfer, param string, processor
 		fromUser = currentUser.Name
 	}
 	//构建组播数据
-	ret := &netsvrProtocol.MulticastByCustomerId{}
-	ret.CustomerIds = payload.CustomerIds
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	ret.Data = testUtils.NewResponse(protocol.RouterMulticastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
-	//发到网关
-	processor.Send(ret, netsvrProtocol.Cmd_MulticastByCustomerId)
+	netBus.NetBus.MulticastByCustomerId(payload.CustomerIds, testUtils.NewResponse(protocol.RouterMulticastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }

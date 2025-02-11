@@ -18,45 +18,33 @@ package cmd
 
 import (
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"netsvr/test/business/internal/connProcessor"
+	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
-	"netsvr/test/pkg/utils/netSvrPool"
 )
 
 type uniqId struct{}
 
 var UniqId = uniqId{}
 
-func (r uniqId) Init(processor *connProcessor.ConnProcessor) {
-	processor.RegisterBusinessCmd(protocol.RouterUniqIdList, r.RequestList)
-	processor.RegisterBusinessCmd(protocol.RouterUniqIdCount, r.RequestCount)
+func init() {
+	businessCmdCallback[protocol.RouterUniqIdList] = UniqId.RequestList
+	businessCmdCallback[protocol.RouterUniqIdCount] = UniqId.RequestCount
 }
 
 // RequestList 获取网关所有的uniqId
-func (uniqId) RequestList(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
-	resp := &netsvrProtocol.UniqIdListResp{}
-	netSvrPool.Request(nil, netsvrProtocol.Cmd_UniqIdList, resp)
+func (uniqId) RequestList(tf *netsvrProtocol.Transfer, _ string) {
+	resp := netBus.NetBus.UniqIdList()
 	//将结果单播给客户端
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
-	msg := map[string]interface{}{
-		"uniqIds": resp.UniqIds,
-	}
-	ret.Data = testUtils.NewResponse(protocol.RouterUniqIdList, map[string]interface{}{"code": 0, "message": "获取网关所有的uniqId成功", "data": msg})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterUniqIdList, map[string]interface{}{"code": 0, "message": "获取网关所有的uniqId成功", "data": resp.Data}))
 }
 
 // RequestCount 获取网关中uniqId的数量
-func (uniqId) RequestCount(tf *netsvrProtocol.Transfer, _ string, processor *connProcessor.ConnProcessor) {
-	resp := &netsvrProtocol.UniqIdCountResp{}
-	netSvrPool.Request(nil, netsvrProtocol.Cmd_UniqIdCount, resp)
+func (uniqId) RequestCount(tf *netsvrProtocol.Transfer, _ string) {
+	resp := netBus.NetBus.UniqIdCount()
 	//将结果单播给客户端
-	ret := &netsvrProtocol.SingleCast{}
-	ret.UniqId = tf.UniqId
 	msg := map[string]interface{}{
-		"count": resp.Count,
+		"count": resp.Count(),
 	}
-	ret.Data = testUtils.NewResponse(protocol.RouterUniqIdCount, map[string]interface{}{"code": 0, "message": "获取网关中uniqId的数量成功", "data": msg})
-	processor.Send(ret, netsvrProtocol.Cmd_SingleCast)
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterUniqIdCount, map[string]interface{}{"code": 0, "message": "获取网关中uniqId的数量成功", "data": msg}))
 }

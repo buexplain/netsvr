@@ -39,7 +39,7 @@ import (
 func main() {
 	//启动html客户端的服务器
 	go clientServer()
-	mainSocketManager.Init(&cmd.EventHandler{})
+	mainSocketManager.Init(cmd.EventHandler)
 	netBus.Init()
 	if mainSocketManager.MainSocketManager.Start() == false {
 		log.Logger.Error().Msg("注册到worker服务器失败")

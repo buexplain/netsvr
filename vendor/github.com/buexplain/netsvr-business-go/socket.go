@@ -17,6 +17,7 @@
 package netsvrBusiness
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -31,6 +32,7 @@ type Socket struct {
 	sendTimeout    time.Duration
 	connectTimeout time.Duration
 	socket         net.Conn
+	socketBufIO    *bufio.Reader
 	connected      *int32
 }
 
@@ -71,6 +73,7 @@ func (s *Socket) Close() {
 
 func (s *Socket) Connect() bool {
 	if atomic.CompareAndSwapInt32(s.connected, socketConnectedNo, socketConnectIng) {
+		defer atomic.CompareAndSwapInt32(s.connected, socketConnectIng, socketConnectedNo)
 		d := net.Dialer{
 			Timeout: s.connectTimeout,
 		}
@@ -81,6 +84,7 @@ func (s *Socket) Connect() bool {
 		}
 		if atomic.CompareAndSwapInt32(s.connected, socketConnectIng, socketConnectedYes) {
 			s.socket = conn
+			s.socketBufIO = bufio.NewReaderSize(conn, 8192)
 			return true
 		} else {
 			_ = conn.Close()
@@ -157,7 +161,7 @@ func (s *Socket) Receive() []byte {
 		return nil
 	}
 	data := make([]byte, 4)
-	if _, err := io.ReadFull(s.socket, data); err != nil {
+	if _, err := io.ReadFull(s.socketBufIO, data); err != nil {
 		if s.IsConnected() {
 			s.close()
 			logger.Info("read message length from "+s.workerAddr+" failed", "error", err)
@@ -166,7 +170,7 @@ func (s *Socket) Receive() []byte {
 	}
 	dataLen := binary.BigEndian.Uint32(data)
 	data = make([]byte, dataLen)
-	if _, err := io.ReadAtLeast(s.socket, data, int(dataLen)); err != nil {
+	if _, err := io.ReadAtLeast(s.socketBufIO, data, int(dataLen)); err != nil {
 		if s.IsConnected() {
 			s.close()
 			logger.Info("read message from "+s.workerAddr+" failed", "error", err)

@@ -731,7 +731,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print(resp.data.message + '：\n' + resp.data.data.uniqIds.join('\n'));
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -741,7 +741,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print('网关现有uniqId数是：' + resp.data.data.count);
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -755,7 +755,7 @@
                         print("没有连接绑定过customerId");
                         return;
                     }
-                    print(resp.data.message + '：\n' + resp.data.data["customerIds"].join('\n'));
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -769,13 +769,7 @@
                         print("没有连接绑定过customerId");
                         return;
                     }
-                    for (let topic in resp.data.data["list"]) {
-                        if (resp.data.data["list"][topic]["customerIds"] === undefined) {
-                            print(topic + '：没有uniqId绑定过customerId');
-                            continue;
-                        }
-                        print(topic + '：' + resp.data.data["list"][topic]['customerIds'].join('、'));
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
                 //服务端响应了网关中目标topic的customerId以及对应的uniqId列表
@@ -788,12 +782,7 @@
                         print("没有连接绑定过customerId");
                         return;
                     }
-                    for (let topic in resp.data.data["list"]) {
-                        let customerIdToUniqIdsList = resp.data.data["list"][topic]["items"];
-                        for (let customerId in customerIdToUniqIdsList) {
-                            print(topic + '-->' + customerId + '：' + customerIdToUniqIdsList[customerId]["uniqIds"].join('、'));
-                        }
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -803,7 +792,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print('网关现有customerId数是：' + resp.data.data.count);
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -817,9 +806,7 @@
                         print("没有连接绑定过customerId");
                         return;
                     }
-                    for (let i in resp.data.data["list"]) {
-                        print(i + '：' + resp.data.data["list"][i]);
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -829,7 +816,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print("获取当前连接信息成功：" + JSON.stringify(resp.data.data.connInfo, null, "  "));
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -843,9 +830,7 @@
                         print("没有找到该customerId的连接信息");
                         return;
                     }
-                    for (let customerId in resp.data.data['connInfo']) {
-                        print("customerId：" + customerId + " 的连接信息：" + JSON.stringify(resp.data.data['connInfo'][customerId]['items'], null, "  "));
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -859,7 +844,7 @@
                         print("没有用户订阅过主题");
                         return;
                     }
-                    print("已经订阅的主题有：" + resp.data.data.topics.join('、'));
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -869,7 +854,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print("网关现有主题数是：" + resp.data.data.count);
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 
@@ -911,12 +896,7 @@
                         print("未找到任何主题");
                         return;
                     }
-                    for (let topic in resp.data.data) {
-                        if (!resp.data.data.hasOwnProperty(topic)) {
-                            continue;
-                        }
-                        print('主题：' + topic + ' 有 ' + resp.data.data[topic] + ' 个连接');
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
                 //服务端响应了个主题的uniqId
@@ -925,12 +905,7 @@
                         print(resp.data.message);
                         return;
                     }
-                    print(resp.data.message);
-                    if (resp.data.data) {
-                        for (let i in resp.data.data) {
-                            resp.data.data[i]['uniqIds'] && print(i + '-->' + resp.data.data[i]['uniqIds'].join('、'));
-                        }
-                    }
+                    print(resp.data.message + '：\n' + JSON.stringify(resp.data.data, null, "  "));
                     return;
                 }
 

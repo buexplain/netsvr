@@ -34,7 +34,7 @@ func NewMainSocketManager() *MainSocketManager {
 
 func (m *MainSocketManager) GetSockets() []*MainSocket {
 	if m.connected.Load() {
-		sockets := make([]*MainSocket, len(m.pool))
+		sockets := make([]*MainSocket, 0, len(m.pool))
 		for _, socket := range m.pool {
 			sockets = append(sockets, socket)
 		}
@@ -58,7 +58,7 @@ func (m *MainSocketManager) AddSocket(socket *MainSocket) {
 }
 
 func (m *MainSocketManager) connect() bool {
-	completed := make([]*MainSocket, len(m.pool))
+	completed := make([]*MainSocket, 0, len(m.pool))
 	ok := true
 	for _, socket := range m.pool {
 		if socket.Connect() {
@@ -78,7 +78,7 @@ func (m *MainSocketManager) connect() bool {
 }
 
 func (m *MainSocketManager) register() bool {
-	completed := make([]*MainSocket, len(m.pool))
+	completed := make([]*MainSocket, 0, len(m.pool))
 	ok := true
 	for _, socket := range m.pool {
 		if socket.Register() {
