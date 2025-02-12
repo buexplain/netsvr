@@ -21,6 +21,7 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -131,7 +132,7 @@ func (r *MainSocket) processEvent(message []byte) {
 		defer func() {
 			r.wait.Done()
 			if err := recover(); err != nil {
-				logger.Error("processEvent panic", "err", err)
+				logger.Error("processEvent panic", "err", err, "stack", debug.Stack())
 			}
 		}()
 		cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(message[0:4]))

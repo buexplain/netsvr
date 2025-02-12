@@ -5,7 +5,7 @@ go 1.22.7
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/antlabs/timer v0.1.4
-	github.com/buexplain/netsvr-business-go v0.0.0-20250123122433-58facdec81c8
+	github.com/buexplain/netsvr-business-go v1.0.0
 	github.com/buexplain/netsvr-protocol-go/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.2.1
@@ -31,5 +31,3 @@ require (
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 )
-
-replace github.com/buexplain/netsvr-business-go => D:\code\buexplain\netsvr-business-go

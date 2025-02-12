@@ -8,7 +8,7 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-business-go v0.0.0-20250123122433-58facdec81c8 => D:\code\buexplain\netsvr-business-go
+# github.com/buexplain/netsvr-business-go v1.0.0
 ## explicit; go 1.22.7
 github.com/buexplain/netsvr-business-go
 github.com/buexplain/netsvr-business-go/resp
@@ -120,4 +120,3 @@ google.golang.org/protobuf/runtime/protoimpl
 # gopkg.in/natefinch/lumberjack.v2 v2.2.1
 ## explicit; go 1.13
 gopkg.in/natefinch/lumberjack.v2
-# github.com/buexplain/netsvr-business-go => D:\code\buexplain\netsvr-business-go
