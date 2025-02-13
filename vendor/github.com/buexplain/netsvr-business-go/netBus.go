@@ -39,6 +39,14 @@ func NewNetBus(mainSocketManager *MainSocketManager, taskSocketPoolManger *TaskS
 	}
 }
 
+// Close 关闭网关
+func (n *NetBus) Close() {
+	if n.mainSocketManager != nil {
+		n.mainSocketManager.Close()
+	}
+	n.taskSocketPoolManger.Close()
+}
+
 // ConnInfoUpdate 更新客户在网关存储的信息
 func (n *NetBus) ConnInfoUpdate(connInfoUpdate *netsvrProtocol.ConnInfoUpdate) {
 	message := n.pack(netsvrProtocol.Cmd_ConnInfoUpdate, connInfoUpdate)

@@ -84,7 +84,7 @@ func (s *Socket) Connect() bool {
 		}
 		if atomic.CompareAndSwapInt32(s.connected, socketConnectIng, socketConnectedYes) {
 			s.socket = conn
-			s.socketBufIO = bufio.NewReaderSize(conn, 8192)
+			s.socketBufIO = bufio.NewReaderSize(conn, 65536)
 			return true
 		} else {
 			_ = conn.Close()

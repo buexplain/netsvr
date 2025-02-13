@@ -53,7 +53,7 @@ func (t *TaskSocketPoolManger) GetSockets() []*TaskSocket {
 			ret = nil
 			break
 		}
-		ret = append(ret, pool.Get())
+		ret = append(ret, socket)
 	}
 	return ret
 }

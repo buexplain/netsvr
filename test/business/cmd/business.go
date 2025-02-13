@@ -55,6 +55,7 @@ func main() {
 		}()
 		<-quit.Ctx.Done()
 		mainSocketManager.MainSocketManager.Close()
+		netBus.NetBus.Close()
 	}()
 	//开始关闭进程
 	select {

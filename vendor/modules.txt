@@ -8,7 +8,7 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-business-go v1.0.0
+# github.com/buexplain/netsvr-business-go v1.0.1
 ## explicit; go 1.22.7
 github.com/buexplain/netsvr-business-go
 github.com/buexplain/netsvr-business-go/resp

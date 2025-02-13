@@ -5,7 +5,7 @@ go 1.22.7
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/antlabs/timer v0.1.4
-	github.com/buexplain/netsvr-business-go v1.0.0
+	github.com/buexplain/netsvr-business-go v1.0.1
 	github.com/buexplain/netsvr-protocol-go/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.2.1

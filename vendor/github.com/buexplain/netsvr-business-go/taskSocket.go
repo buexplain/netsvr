@@ -37,7 +37,5 @@ func NewTaskSocket(workerAddr string, receiveTimeout time.Duration, sendTimeout 
 }
 
 func (t *TaskSocket) Release() {
-	if t.IsConnected() {
-		t.pool.release(t)
-	}
+	t.pool.release(t)
 }
