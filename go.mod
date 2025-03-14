@@ -1,6 +1,8 @@
 module netsvr
 
-go 1.22.7
+go 1.23.0
+
+toolchain go1.23.7
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -9,13 +11,13 @@ require (
 	github.com/buexplain/netsvr-protocol-go/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.2.1
-	github.com/lesismal/nbio v1.6.2
+	github.com/lesismal/nbio v1.6.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/rs/zerolog v1.33.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/traefik/yaegi v0.16.1
-	golang.org/x/time v0.10.0
+	golang.org/x/time v0.11.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -28,6 +30,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 )

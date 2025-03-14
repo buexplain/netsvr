@@ -352,6 +352,16 @@ func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
 			Msg(MessageRateLimit)
 		return
 	}
+	//记录所有请求日志
+	if configs.Config.LogLevel == "debug" {
+		formatCustomerData(data, log.Logger.Debug()).
+			Str("uniqId", uniqId).
+			Str("customerId", customerId).
+			Str("customerSession", customerSession).
+			Str("remoteAddr", conn.RemoteAddr().String()).
+			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+			Send()
+	}
 	//获取能处理消息的business
 	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnMessage); worker != nil {
 		//编码数据成business需要的格式

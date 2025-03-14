@@ -62,14 +62,14 @@ func (r *Info) UnLock() {
 }
 
 func (r *Info) Allow() bool {
-	//先消耗初始请求数
+	//先消耗初始的固定请求数
 	if r.limitWindowStart == zeroTime {
 		if r.limitWindowRequests < configs.Config.Customer.LimitZeroWindowMaxRequests {
 			r.limitWindowRequests++
 			return true
 		}
 		r.limitWindowStart = time.Now()
-		r.limitWindowRequests = configs.Config.Customer.LimitWindowMaxRequests
+		r.limitWindowRequests = 0 //固定桶内数量消耗完毕，继续下放固定窗口内的请求数，允许固定数量限制与固定窗口数量限制之间平滑过渡
 		return false
 	}
 	//检查是否进入下一个窗口
