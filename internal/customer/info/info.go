@@ -37,19 +37,18 @@ type Info struct {
 	//客户订阅的主题
 	topics map[string]struct{}
 	//锁
-	rwMutex *sync.RWMutex
+	rwMutex sync.RWMutex
 	//当前窗口内的请求数
-	limitWindowRequests uint32
+	limitWindowRequests int32
 }
-
-var zeroTime = time.Time{}
 
 func NewInfo(uniqId string) *Info {
 	return &Info{
-		uniqId:           uniqId,
-		limitWindowStart: zeroTime,
-		topics:           nil,
-		rwMutex:          &sync.RWMutex{},
+		uniqId:              uniqId,
+		limitWindowStart:    time.Time{},
+		limitWindowRequests: 0 - configs.Config.Customer.LimitZeroWindowMaxRequests,
+		topics:              nil,
+		rwMutex:             sync.RWMutex{},
 	}
 }
 
@@ -63,18 +62,13 @@ func (r *Info) UnLock() {
 
 func (r *Info) Allow() bool {
 	//先消耗初始的固定请求数
-	if r.limitWindowStart == zeroTime {
-		if r.limitWindowRequests < configs.Config.Customer.LimitZeroWindowMaxRequests {
-			r.limitWindowRequests++
-			return true
-		}
-		r.limitWindowStart = time.Now()
-		r.limitWindowRequests = 0 //固定桶内数量消耗完毕，继续下放固定窗口内的请求数，允许固定数量限制与固定窗口数量限制之间平滑过渡
-		return false
+	if r.limitWindowRequests < 0 {
+		r.limitWindowRequests++
+		return true
 	}
 	//检查是否进入下一个窗口
 	now := time.Now()
-	if now.Sub(r.limitWindowStart) >= configs.Config.Customer.LimitWindowSize {
+	if now.Sub(r.limitWindowStart) > configs.Config.Customer.LimitWindowSize {
 		r.limitWindowStart = now
 		r.limitWindowRequests = 0
 	}

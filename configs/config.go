@@ -93,9 +93,9 @@ type config struct {
 		//固定窗口限流器的窗口大小
 		LimitWindowSize time.Duration
 		//固定窗口限流器的窗口允许的最大请求数
-		LimitWindowMaxRequests uint32
+		LimitWindowMaxRequests int32
 		//固定窗口限流器的第0个窗口允许的最大请求数
-		LimitZeroWindowMaxRequests uint32
+		LimitZeroWindowMaxRequests int32
 	}
 	//业务进程的tcp服务器配置
 	Worker struct {
