@@ -14,52 +14,98 @@
 * limitations under the License.
  */
 
-// Package callback 回调脚本的反射
+// Package callback 回调脚本
 package callback
 
 import (
-	"github.com/traefik/yaegi/interp"
-	"github.com/traefik/yaegi/stdlib"
-	"log/slog"
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
 	"netsvr/configs"
-	"os"
+	"netsvr/internal/log"
+	"time"
 )
 
-var OnOpen func(uniqId string, messageType int8, rawQuery string, subProtocols []string, XForwardedFor string, xRealIp string, remoteAddr string) (sendToCustomerData []byte, closeConnection bool)
-var OnClose func(uniqId string, customerId string, session string, topics []string)
+var httpClient http.Client
 
 func init() {
-	// 没有配置回调脚本文件，则直接返回
-	if configs.Config.Customer.CallbackScriptFile == "" {
+	httpClient = http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
+}
+
+type OnOpenReq struct {
+	//websocket能够承载的数据类型，1：TextMessage，2：BinaryMessage
+	MessageType   int8     `json:"messageType"`
+	UniqId        string   `json:"uniqId"`
+	RawQuery      string   `json:"rawQuery"`
+	SubProtocols  []string `json:"subProtocols"`
+	XForwardedFor string   `json:"xForwardedFor"`
+	XRealIp       string   `json:"xRealIp"`
+	RemoteAddr    string   `json:"remoteAddr"`
+}
+
+type OnOpenResp struct {
+	// 是否允许连接
+	Allow bool `json:"allow"`
+	// 新的session，传递了丢弃现有的，赋予新的
+	NewSession string `json:"newSession"`
+	// 新的客户id，传递了丢弃现有的，赋予新的
+	NewCustomerId string `json:"newCustomerId"`
+	// 新的主题，传递了丢弃现有的，赋予新的
+	NewTopics []string `json:"newTopics"`
+	// 需要发给客户的数据，传递了则转发给客户，注意，如果是BinaryMessage，则需要base64编码
+	Data string `json:"data"`
+}
+
+func OnOpen(req *OnOpenReq) *OnOpenResp {
+	paramsBytes, err := json.Marshal(req)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Format the callback.OnOpenReq error")
+		return nil
+	}
+	resp, err := httpClient.Post(configs.Config.Customer.OnOpenCallbackApi, "application/json", bytes.NewReader(paramsBytes))
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Send callback.OnOpenReq error")
+		return nil
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Read callback.OnOpenResp error")
+		return nil
+	}
+	data := &OnOpenResp{}
+	err = json.Unmarshal(body, data)
+	if err != nil {
+		log.Logger.Error().Err(err).Str("body", string(body)).Msg("Parse callback.OnOpenResp error")
+		return nil
+	}
+	return data
+}
+
+type OnCloseReq struct {
+	UniqId     string   `json:"uniqId"`
+	CustomerId string   `json:"customerId"`
+	Session    string   `json:"session"`
+	Topics     []string `json:"topics"`
+}
+
+func OnClose(req *OnCloseReq) {
+	paramsBytes, err := json.Marshal(req)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Format the callback.OnCloseReq error")
 		return
 	}
-	// 读取回调脚本文件
-	script, err := os.ReadFile(configs.Config.Customer.CallbackScriptFile)
+	client := http.Client{Timeout: time.Second * 10}
+	resp, err := client.Post(configs.Config.Customer.OnCloseCallbackApi, "application/json", bytes.NewReader(paramsBytes))
 	if err != nil {
-		slog.Error("Config Customer.CallbackScriptFile read failed", "error", err)
-		os.Exit(1)
+		log.Logger.Error().Err(err).Msg("Send callback.OnCloseReq error")
+		return
 	}
-	// 创建解释器
-	interpreter := interp.New(interp.Options{})
-	if err := interpreter.Use(stdlib.Symbols); err != nil {
-		slog.Error("interpreter use stdlib.Symbols failed", "error", err)
-		os.Exit(1)
-	}
-	if _, err := interpreter.Eval(string(script)); err != nil {
-		slog.Error("interpreter eval Customer.CallbackScriptFile failed", "error", err)
-		os.Exit(1)
-	}
-	// 反射回调脚本
-	if onOpenReflect, err := interpreter.Eval("configs.OnOpen"); err != nil {
-		slog.Error("interpreter reflect Customer.CallbackScriptFile OnOpen function failed", "error", err)
-		os.Exit(1)
-	} else {
-		OnOpen = onOpenReflect.Interface().(func(uniqId string, messageType int8, rawQuery string, subProtocols []string, XForwardedFor string, xRealIp string, remoteAddr string) (sendToCustomerData []byte, closeConnection bool))
-	}
-	if onCloseReflect, err := interpreter.Eval("configs.OnClose"); err != nil {
-		slog.Error("iinterpreter reflect Customer.CallbackScriptFile OnClose function failed", "error", err)
-		os.Exit(1)
-	} else {
-		OnClose = onCloseReflect.Interface().(func(uniqId string, customerId string, session string, topics []string))
-	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	_, _ = io.ReadAll(resp.Body)
 }

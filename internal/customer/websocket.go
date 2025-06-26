@@ -21,6 +21,7 @@ package customer
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
@@ -185,27 +186,25 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//调用回调函数
-	if callback.OnOpen != nil {
-		sendToCustomerData, closeConnection := callback.OnOpen(
-			uniqId,
-			int8(configs.Config.Customer.SendMessageType),
-			r.URL.RawQuery,
-			subProtocols,
-			xForwardedFor,
-			xRealIp,
-			remoteAddr,
-		)
-		//需要发送数据给客户端
-		if len(sendToCustomerData) > 0 {
-			if err := wsConn.WriteMessage(configs.Config.Customer.SendMessageType, sendToCustomerData); err != nil {
-				//关闭连接
-				_ = wsConn.Close()
-				return
-			}
+	var onOpenResp *callback.OnOpenResp
+	if configs.Config.Customer.OnOpenCallbackApi != "" {
+		onOpenReq := &callback.OnOpenReq{
+			MessageType:   int8(configs.Config.Customer.SendMessageType),
+			RawQuery:      r.URL.RawQuery,
+			RemoteAddr:    remoteAddr,
+			SubProtocols:  subProtocols,
+			UniqId:        uniqId,
+			XForwardedFor: xForwardedFor,
+			XRealIp:       xRealIp,
 		}
-		//需要关闭连接
-		if closeConnection {
-			if len(sendToCustomerData) > 0 {
+		onOpenResp = callback.OnOpen(onOpenReq)
+		if onOpenResp == nil {
+			_ = wsConn.Close()
+			return
+		}
+		//不允许连接
+		if onOpenResp.Allow == false {
+			if len(onOpenResp.Data) > 0 {
 				timer.Timer.AfterFunc(time.Millisecond*100, func() {
 					_ = wsConn.Close()
 				})
@@ -213,6 +212,23 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 				_ = wsConn.Close()
 			}
 			return
+		}
+		//先将数据发给客户端，如果发送失败，则关闭连接，否则继续
+		if len(onOpenResp.Data) > 0 {
+			if configs.Config.Customer.SendMessageType == websocket.TextMessage {
+				//utf8文本，直接写入
+				err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, utils.StrToReadOnlyBytes(onOpenResp.Data))
+			} else {
+				//二进制文本，需要base64解码
+				data := make([]byte, base64.StdEncoding.DecodedLen(len(onOpenResp.Data)))
+				if _, err = base64.StdEncoding.Decode(data, utils.StrToReadOnlyBytes(onOpenResp.Data)); err != nil {
+					err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, data)
+				}
+			}
+			if err != nil {
+				_ = wsConn.Close()
+				return
+			}
 		}
 	}
 
@@ -222,6 +238,20 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	session := info.NewInfo(uniqId)
 	wsConn.SetSession(session)
 	manager.Manager.Set(uniqId, wsConn)
+	//构建回调返回的关系
+	if onOpenResp != nil {
+		if onOpenResp.NewSession != "" {
+			session.SetSession(onOpenResp.NewSession)
+		}
+		if onOpenResp.NewCustomerId != "" {
+			session.SetCustomerId(onOpenResp.NewCustomerId)
+			binder.Binder.Set(uniqId, onOpenResp.NewCustomerId)
+		}
+		if len(onOpenResp.NewTopics) > 0 {
+			session.SubscribeTopics(onOpenResp.NewTopics)
+			topic.Topic.SetBySlice(onOpenResp.NewTopics, uniqId)
+		}
+	}
 	//需要将客户端连接打开的信息转发给business进程
 	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnOpen); worker != nil {
 		co := objPool.ConnOpen.Get()
@@ -269,9 +299,15 @@ func onClose(conn *websocket.Conn, _ error) {
 	}
 	//删除订阅关系
 	topic.Topic.DelBySlice(topics, uniqId)
-	if callback.OnClose != nil {
+	if configs.Config.Customer.OnCloseCallbackApi != "" {
+		onCloseReq := &callback.OnCloseReq{
+			CustomerId: customerId,
+			Session:    customerSession,
+			Topics:     topics,
+			UniqId:     uniqId,
+		}
 		//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
-		callback.OnClose(uniqId, customerId, customerSession, topics)
+		callback.OnClose(onCloseReq)
 	}
 	//将连接关闭的消息转发给business进程
 	worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose)

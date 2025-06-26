@@ -81,8 +81,11 @@ type config struct {
 		ReceivePackLimit int
 		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 		SendMessageType websocket.MessageType
-		// 回调脚本文件，如果需要，最好配置绝对路径，不需要，请配置为空字符串
-		CallbackScriptFile string
+		//# 连接打开与关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/json，具体请求参数与返回要求，请参考internal/customer/callback/callback.go
+		OnOpenCallbackApi  string
+		OnCloseCallbackApi string
+		//连接打开与关闭的回调接口超时时间
+		CallbackApiDeadline time.Duration
 		//tls配置
 		TLSCert string
 		TLSKey  string
@@ -232,12 +235,6 @@ func init() {
 	}
 	if Config.Customer.HandlePattern == "" {
 		Config.Customer.HandlePattern = "/"
-	}
-	if Config.Customer.CallbackScriptFile != "" {
-		if ok, err := utils.IsFile(Config.Customer.CallbackScriptFile); !ok {
-			slog.Error("Config Customer.CallbackScriptFile is not a file", "error", err)
-			os.Exit(1)
-		}
 	}
 	if len(Config.Customer.HeartbeatMessage) == 0 {
 		slog.Error("Config Customer.HeartbeatMessage is required")
