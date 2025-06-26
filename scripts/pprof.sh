@@ -30,7 +30,7 @@ clearAll() {
 rm -fr ./linux/amd64-cpu.pprof
 # 先杀进程
 clearAll
-# 进入编译目录，不进去，则netsvr-linux-amd64.bin进程的工作目录不对，无法读取callback.go文件
+# 进入编译目录
 cd "$build_dir"
 # 启动网关进程
 nohup "$build_dir/netsvr-linux-amd64.bin" -config "$build_dir/configs/netsvr.toml" 1>/dev/null 2>/dev/null &
