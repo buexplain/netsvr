@@ -8,7 +8,7 @@ require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/antlabs/timer v0.1.4
 	github.com/buexplain/netsvr-business-go v1.0.1
-	github.com/buexplain/netsvr-protocol-go/v5 v5.0.0
+	github.com/buexplain/netsvr-protocol-go/v5 v5.1.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lesismal/llib v1.2.2
 	github.com/lesismal/nbio v1.6.4
@@ -30,5 +30,5 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 )

@@ -21,7 +21,6 @@ package customer
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
 	"github.com/lesismal/llib/std/crypto/tls"
 	"github.com/lesismal/nbio/nbhttp"
@@ -185,26 +184,26 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			Msg("Customer websocket upgrade failed")
 		return
 	}
+	var co *netsvrProtocol.ConnOpen
 	//调用回调函数
-	var onOpenResp *callback.OnOpenResp
+	var connOpenResp *netsvrProtocol.ConnOpenResp
 	if configs.Config.Customer.OnOpenCallbackApi != "" {
-		onOpenReq := &callback.OnOpenReq{
-			MessageType:   int8(configs.Config.Customer.SendMessageType),
-			RawQuery:      r.URL.RawQuery,
-			RemoteAddr:    remoteAddr,
-			SubProtocols:  subProtocols,
-			UniqId:        uniqId,
-			XForwardedFor: xForwardedFor,
-			XRealIp:       xRealIp,
-		}
-		onOpenResp = callback.OnOpen(onOpenReq)
-		if onOpenResp == nil {
+		co = objPool.ConnOpen.Get()
+		defer objPool.ConnOpen.Put(co)
+		co.UniqId = uniqId
+		co.RawQuery = r.URL.RawQuery
+		co.SubProtocol = subProtocols
+		co.XForwardedFor = xForwardedFor
+		co.XRealIp = xRealIp
+		co.RemoteAddr = remoteAddr
+		connOpenResp = callback.OnOpen(co)
+		if connOpenResp == nil {
 			_ = wsConn.Close()
 			return
 		}
 		//不允许连接
-		if onOpenResp.Allow == false {
-			if len(onOpenResp.Data) > 0 {
+		if connOpenResp.Allow == false {
+			if len(connOpenResp.Data) > 0 {
 				timer.Timer.AfterFunc(time.Millisecond*100, func() {
 					_ = wsConn.Close()
 				})
@@ -214,17 +213,8 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		//先将数据发给客户端，如果发送失败，则关闭连接，否则继续
-		if len(onOpenResp.Data) > 0 {
-			if configs.Config.Customer.SendMessageType == websocket.TextMessage {
-				//utf8文本，直接写入
-				err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, utils.StrToReadOnlyBytes(onOpenResp.Data))
-			} else {
-				//二进制文本，需要base64解码
-				data := make([]byte, base64.StdEncoding.DecodedLen(len(onOpenResp.Data)))
-				if _, err = base64.StdEncoding.Decode(data, utils.StrToReadOnlyBytes(onOpenResp.Data)); err != nil {
-					err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, data)
-				}
-			}
+		if len(connOpenResp.Data) > 0 {
+			err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, connOpenResp.Data)
 			if err != nil {
 				_ = wsConn.Close()
 				return
@@ -239,34 +229,36 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 	wsConn.SetSession(session)
 	manager.Manager.Set(uniqId, wsConn)
 	//构建回调返回的关系
-	if onOpenResp != nil {
-		if onOpenResp.NewSession != "" {
-			session.SetSession(onOpenResp.NewSession)
+	if connOpenResp != nil {
+		if connOpenResp.NewSession != "" {
+			session.SetSession(connOpenResp.NewSession)
 		}
-		if onOpenResp.NewCustomerId != "" {
-			session.SetCustomerId(onOpenResp.NewCustomerId)
-			binder.Binder.Set(uniqId, onOpenResp.NewCustomerId)
+		if connOpenResp.NewCustomerId != "" {
+			session.SetCustomerId(connOpenResp.NewCustomerId)
+			binder.Binder.Set(uniqId, connOpenResp.NewCustomerId)
 		}
-		if len(onOpenResp.NewTopics) > 0 {
-			session.SubscribeTopics(onOpenResp.NewTopics)
-			topic.Topic.SetBySlice(onOpenResp.NewTopics, uniqId)
+		if len(connOpenResp.NewTopics) > 0 {
+			session.SubscribeTopics(connOpenResp.NewTopics)
+			topic.Topic.SetBySlice(connOpenResp.NewTopics, uniqId)
 		}
 	}
 	//需要将客户端连接打开的信息转发给business进程
 	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnOpen); worker != nil {
-		co := objPool.ConnOpen.Get()
-		co.UniqId = uniqId
-		co.RawQuery = r.URL.RawQuery
-		co.SubProtocol = subProtocols
-		co.XForwardedFor = xForwardedFor
-		co.XRealIp = xRealIp
-		co.RemoteAddr = remoteAddr
+		if co == nil {
+			co = objPool.ConnOpen.Get()
+			defer objPool.ConnOpen.Put(co)
+			co.UniqId = uniqId
+			co.RawQuery = r.URL.RawQuery
+			co.SubProtocol = subProtocols
+			co.XForwardedFor = xForwardedFor
+			co.XRealIp = xRealIp
+			co.RemoteAddr = remoteAddr
+		}
 		if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
 			//统计转发到business的次数与字节数
 			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 		}
-		objPool.ConnOpen.Put(co)
 	}
 }
 
@@ -299,30 +291,33 @@ func onClose(conn *websocket.Conn, _ error) {
 	}
 	//删除订阅关系
 	topic.Topic.DelBySlice(topics, uniqId)
+	var cl *netsvrProtocol.ConnClose
 	if configs.Config.Customer.OnCloseCallbackApi != "" {
-		onCloseReq := &callback.OnCloseReq{
-			CustomerId: customerId,
-			Session:    customerSession,
-			Topics:     topics,
-			UniqId:     uniqId,
-		}
-		//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
-		callback.OnClose(onCloseReq)
-	}
-	//将连接关闭的消息转发给business进程
-	worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose)
-	if worker != nil {
-		cl := objPool.ConnClose.Get()
+		cl = objPool.ConnClose.Get()
+		defer objPool.ConnClose.Put(cl)
 		cl.UniqId = uniqId
 		cl.CustomerId = customerId
 		cl.Session = customerSession
 		cl.Topics = topics
+		//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
+		callback.OnClose(cl)
+	}
+	//将连接关闭的消息转发给business进程
+	worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose)
+	if worker != nil {
+		if cl == nil {
+			cl = objPool.ConnClose.Get()
+			defer objPool.ConnClose.Put(cl)
+			cl.UniqId = uniqId
+			cl.CustomerId = customerId
+			cl.Session = customerSession
+			cl.Topics = topics
+		}
 		if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
 			//统计客户数据转发到worker的次数与字节数情况
 			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
 		}
-		objPool.ConnClose.Put(cl)
 	}
 }
 

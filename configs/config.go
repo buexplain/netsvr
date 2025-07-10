@@ -81,7 +81,7 @@ type config struct {
 		ReceivePackLimit int
 		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 		SendMessageType websocket.MessageType
-		//# 连接打开与关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/json，具体请求参数与返回要求，请参考internal/customer/callback/callback.go
+		//# 连接打开与关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/customer/callback/callback.go
 		OnOpenCallbackApi  string
 		OnCloseCallbackApi string
 		//连接打开与关闭的回调接口超时时间

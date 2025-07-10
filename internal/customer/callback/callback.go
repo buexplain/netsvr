@@ -19,51 +19,38 @@ package callback
 
 import (
 	"bytes"
-	"encoding/json"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	"time"
 )
 
-var httpClient http.Client
+var httpClient *http.Client
 
 func init() {
-	httpClient = http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
+	httpClient = &http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
 }
 
-type OnOpenReq struct {
-	//websocket能够承载的数据类型，1：TextMessage，2：BinaryMessage
-	MessageType   int8     `json:"messageType"`
-	UniqId        string   `json:"uniqId"`
-	RawQuery      string   `json:"rawQuery"`
-	SubProtocols  []string `json:"subProtocols"`
-	XForwardedFor string   `json:"xForwardedFor"`
-	XRealIp       string   `json:"xRealIp"`
-	RemoteAddr    string   `json:"remoteAddr"`
-}
-
-type OnOpenResp struct {
-	// 是否允许连接
-	Allow bool `json:"allow"`
-	// 新的session，传递了丢弃现有的，赋予新的
-	NewSession string `json:"newSession"`
-	// 新的客户id，传递了丢弃现有的，赋予新的
-	NewCustomerId string `json:"newCustomerId"`
-	// 新的主题，传递了丢弃现有的，赋予新的
-	NewTopics []string `json:"newTopics"`
-	// 需要发给客户的数据，传递了则转发给客户，注意，如果是BinaryMessage，则需要base64编码
-	Data string `json:"data"`
-}
-
-func OnOpen(req *OnOpenReq) *OnOpenResp {
-	paramsBytes, err := json.Marshal(req)
+func OnOpen(req *netsvrProtocol.ConnOpen) *netsvrProtocol.ConnOpenResp {
+	reqBytes, err := proto.Marshal(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the callback.OnOpenReq error")
 		return nil
 	}
-	resp, err := httpClient.Post(configs.Config.Customer.OnOpenCallbackApi, "application/json", bytes.NewReader(paramsBytes))
+	httpReq, err := http.NewRequest(
+		http.MethodPost,
+		configs.Config.Customer.OnOpenCallbackApi,
+		bytes.NewReader(reqBytes),
+	)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Send callback.OnOpenReq error")
+		return nil
+	}
+	httpReq.Header.Set("Content-Type", "application/x-protobuf")
+	httpReq.Header.Set("Accept", "application/x-protobuf")
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Send callback.OnOpenReq error")
 		return nil
@@ -76,8 +63,8 @@ func OnOpen(req *OnOpenReq) *OnOpenResp {
 		log.Logger.Error().Err(err).Msg("Read callback.OnOpenResp error")
 		return nil
 	}
-	data := &OnOpenResp{}
-	err = json.Unmarshal(body, data)
+	data := &netsvrProtocol.ConnOpenResp{}
+	err = proto.Unmarshal(body, data)
 	if err != nil {
 		log.Logger.Error().Err(err).Str("body", string(body)).Msg("Parse callback.OnOpenResp error")
 		return nil
@@ -85,21 +72,17 @@ func OnOpen(req *OnOpenReq) *OnOpenResp {
 	return data
 }
 
-type OnCloseReq struct {
-	UniqId     string   `json:"uniqId"`
-	CustomerId string   `json:"customerId"`
-	Session    string   `json:"session"`
-	Topics     []string `json:"topics"`
-}
-
-func OnClose(req *OnCloseReq) {
-	paramsBytes, err := json.Marshal(req)
+func OnClose(req *netsvrProtocol.ConnClose) {
+	reqBytes, err := proto.Marshal(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the callback.OnCloseReq error")
 		return
 	}
-	client := http.Client{Timeout: time.Second * 10}
-	resp, err := client.Post(configs.Config.Customer.OnCloseCallbackApi, "application/json", bytes.NewReader(paramsBytes))
+	resp, err := httpClient.Post(
+		configs.Config.Customer.OnCloseCallbackApi,
+		"application/x-protobuf",
+		bytes.NewReader(reqBytes),
+	)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Send callback.OnCloseReq error")
 		return
@@ -107,5 +90,7 @@ func OnClose(req *OnCloseReq) {
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	_, _ = io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusOK {
+		_, _ = io.ReadAll(resp.Body)
+	}
 }
