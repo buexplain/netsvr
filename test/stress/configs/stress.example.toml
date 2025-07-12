@@ -9,7 +9,7 @@ Heartbeat = 30
 # 是否并发初始化每个压测模块
 Concurrent = true
 # 当所有连接建立完毕后的持续时间，单位秒
-Suspend = 180
+Suspend = 300
 # 沉默的连接
 [Silent]
 Enable = true
@@ -36,11 +36,11 @@ GroupNum = 10
 # 发送的消息大小
 MessageLen = 1024
 # 每秒发消息条数
-SendSpeed = 10
+SendSpeed = 1
 # 每个群的人数
 Step = [
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 200, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 25, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 25, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂登录登出的连接
@@ -54,7 +54,7 @@ SessionLen = 1024
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂按uniqId单播的连接
@@ -66,7 +66,7 @@ MessageLen = 1024
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂按customerId单播的连接
@@ -78,7 +78,7 @@ MessageLen = 1024
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂按uniqId批量单播的连接
@@ -91,7 +91,7 @@ UniqIdNum = 15
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂按customerId批量单播的连接
@@ -117,7 +117,7 @@ UniqIdNum = 10
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂按customerId组播的连接
@@ -130,7 +130,7 @@ CustomerIdNum = 10
 SendInterval = 5
 Step = [
     { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 100, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
 ]
 
 # 疯狂订阅、取消订阅、发布，下面这套配置下，主题总数是1225个主题，平均每个主题被80个连接订阅，当然因为机器性能、网络等原因，实际订阅数可能不一样
@@ -183,8 +183,8 @@ TopicNum = 10
 Enable = true
 MessageLen = 1024
 # 每个连接间隔多少秒进行一次广播操作
-SendInterval = 5
+SendInterval = 15
 Step = [
-    { ConnNum = 5, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 5, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 1, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 2, ConnectNum = 100, Suspend = 10 },
 ]
