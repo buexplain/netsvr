@@ -184,18 +184,17 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			Msg("Customer websocket upgrade failed")
 		return
 	}
-	var co *netsvrProtocol.ConnOpen
+	co := objPool.ConnOpen.Get()
+	defer objPool.ConnOpen.Put(co)
+	co.UniqId = uniqId
+	co.RawQuery = r.URL.RawQuery
+	co.SubProtocol = subProtocols
+	co.XForwardedFor = xForwardedFor
+	co.XRealIp = xRealIp
+	co.RemoteAddr = remoteAddr
 	//调用回调函数
 	var connOpenResp *netsvrProtocol.ConnOpenResp
 	if configs.Config.Customer.OnOpenCallbackApi != "" {
-		co = objPool.ConnOpen.Get()
-		defer objPool.ConnOpen.Put(co)
-		co.UniqId = uniqId
-		co.RawQuery = r.URL.RawQuery
-		co.SubProtocol = subProtocols
-		co.XForwardedFor = xForwardedFor
-		co.XRealIp = xRealIp
-		co.RemoteAddr = remoteAddr
 		connOpenResp = callback.OnOpen(co)
 		if connOpenResp == nil {
 			_ = wsConn.Close()
@@ -221,39 +220,36 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
 	//统计客户连接的打开次数
 	metrics.Registry[metrics.ItemCustomerConnOpenCount].Meter.Mark(1)
-	//添加到管理器中
 	session := info.NewInfo(uniqId)
-	wsConn.SetSession(session)
-	manager.Manager.Set(uniqId, wsConn)
-	//构建回调返回的关系
+	//设置回调返回的数据
 	if connOpenResp != nil {
 		if connOpenResp.NewSession != "" {
 			session.SetSession(connOpenResp.NewSession)
 		}
 		if connOpenResp.NewCustomerId != "" {
 			session.SetCustomerId(connOpenResp.NewCustomerId)
-			binder.Binder.Set(uniqId, connOpenResp.NewCustomerId)
 		}
 		if len(connOpenResp.NewTopics) > 0 {
 			session.SubscribeTopics(connOpenResp.NewTopics)
+		}
+	}
+	//让连接持有session info对象
+	wsConn.SetSession(session)
+	//构建回调返回的关系
+	if connOpenResp != nil {
+		if connOpenResp.NewCustomerId != "" {
+			binder.Binder.Set(uniqId, connOpenResp.NewCustomerId)
+		}
+		if len(connOpenResp.NewTopics) > 0 {
 			topic.Topic.SetBySlice(connOpenResp.NewTopics, uniqId)
 		}
 	}
+	//添加到连接管理器
+	manager.Manager.Set(uniqId, wsConn)
 	//需要将客户端连接打开的信息转发给business进程
 	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnOpen); worker != nil {
-		if co == nil {
-			co = objPool.ConnOpen.Get()
-			defer objPool.ConnOpen.Put(co)
-			co.UniqId = uniqId
-			co.RawQuery = r.URL.RawQuery
-			co.SubProtocol = subProtocols
-			co.XForwardedFor = xForwardedFor
-			co.XRealIp = xRealIp
-			co.RemoteAddr = remoteAddr
-		}
 		if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
 			//统计转发到business的次数与字节数
 			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
@@ -291,28 +287,18 @@ func onClose(conn *websocket.Conn, _ error) {
 	}
 	//删除订阅关系
 	topic.Topic.DelBySlice(topics, uniqId)
-	var cl *netsvrProtocol.ConnClose
+	cl := objPool.ConnClose.Get()
+	defer objPool.ConnClose.Put(cl)
+	cl.UniqId = uniqId
+	cl.CustomerId = customerId
+	cl.Session = customerSession
+	cl.Topics = topics
 	if configs.Config.Customer.OnCloseCallbackApi != "" {
-		cl = objPool.ConnClose.Get()
-		defer objPool.ConnClose.Put(cl)
-		cl.UniqId = uniqId
-		cl.CustomerId = customerId
-		cl.Session = customerSession
-		cl.Topics = topics
 		//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
 		callback.OnClose(cl)
 	}
 	//将连接关闭的消息转发给business进程
-	worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose)
-	if worker != nil {
-		if cl == nil {
-			cl = objPool.ConnClose.Get()
-			defer objPool.ConnClose.Put(cl)
-			cl.UniqId = uniqId
-			cl.CustomerId = customerId
-			cl.Session = customerSession
-			cl.Topics = topics
-		}
+	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose); worker != nil {
 		if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
 			//统计客户数据转发到worker的次数与字节数情况
 			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
