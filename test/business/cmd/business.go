@@ -21,7 +21,10 @@ import (
 	_ "embed"
 	"errors"
 	_ "github.com/buexplain/netsvr-business-go"
+	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"netsvr/pkg/quit"
@@ -72,6 +75,7 @@ func main() {
 }
 
 // 输出html客户端
+// 提供websocket连接打开关闭的回调api
 func clientServer() {
 	if configs.Config.ClientListenAddress == "" {
 		return
@@ -112,6 +116,51 @@ func clientServer() {
 			log.Logger.Error().Msgf("模板输出失败：%s", err)
 			return
 		}
+	})
+	//监听onopen
+	http.HandleFunc("/onopen", func(writer http.ResponseWriter, request *http.Request) {
+		protobuf, err := io.ReadAll(request.Body)
+		if err != nil {
+			log.Logger.Error().Msgf("读取回调的netsvrProtocol.ConnOpen失败：%s", err)
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		cp := &netsvrProtocol.ConnOpen{}
+		if err := proto.Unmarshal(protobuf, cp); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			log.Logger.Error().Msgf("解析回调的netsvrProtocol.ConnOpen失败：%s", err)
+			return
+		}
+		cpResp := &netsvrProtocol.ConnOpenResp{
+			Allow: true,
+		}
+		responseData, err := proto.Marshal(cpResp)
+		if err != nil {
+			log.Logger.Error().Msgf("序列化回调的netsvrProtocol.ConnOpenResp失败：%s", err)
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/x-protobuf")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write(responseData)
+		log.Logger.Debug().Msgf("onopen --> %s", cp.String())
+	})
+	//监听onclose
+	http.HandleFunc("/onclose", func(writer http.ResponseWriter, request *http.Request) {
+		protobuf, err := io.ReadAll(request.Body)
+		if err != nil {
+			log.Logger.Error().Msgf("读取回调的netsvrProtocol.ConnClose失败：%s", err)
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		cc := &netsvrProtocol.ConnClose{}
+		if err := proto.Unmarshal(protobuf, cc); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			log.Logger.Error().Msgf("解析回调的netsvrProtocol.ConnClose失败：%s", err)
+			return
+		}
+		log.Logger.Debug().Msgf("onclose --> %s", cc.String())
+		writer.WriteHeader(http.StatusNoContent)
 	})
 	log.Logger.Info().Msg("点击访问客户端：http" + ":" + "//" + configs.Config.ClientListenAddress + "/")
 	_ = http.ListenAndServe(configs.Config.ClientListenAddress, nil)
