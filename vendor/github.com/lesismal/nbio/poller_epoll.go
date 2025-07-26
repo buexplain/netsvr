@@ -77,7 +77,7 @@ func (p *poller) addConn(c *Conn) error {
 			fd,
 			len(p.g.connsUnix),
 		)
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 		return err
 	}
 	c.p = p
@@ -90,7 +90,7 @@ func (p *poller) addConn(c *Conn) error {
 	err := p.addRead(fd)
 	if err != nil {
 		p.g.connsUnix[fd] = nil
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 	}
 	return err
 }
@@ -105,7 +105,7 @@ func (p *poller) addDialer(c *Conn) error {
 			fd,
 			len(p.g.connsUnix),
 		)
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 		return err
 	}
 	c.p = p
@@ -114,7 +114,7 @@ func (p *poller) addDialer(c *Conn) error {
 	err := p.addReadWrite(fd)
 	if err != nil {
 		p.g.connsUnix[fd] = nil
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 	}
 	return err
 }
@@ -154,8 +154,8 @@ func (p *poller) start() {
 		p.acceptorLoop()
 	} else {
 		defer func() {
-			syscall.Close(p.epfd)
-			syscall.Close(p.evtfd)
+			_ = syscall.Close(p.epfd)
+			_ = syscall.Close(p.evtfd)
 		}()
 		p.readWriteLoop()
 	}
@@ -175,7 +175,7 @@ func (p *poller) acceptorLoop() {
 			var c *Conn
 			c, err = NBConn(conn)
 			if err != nil {
-				conn.Close()
+				_ = conn.Close()
 				continue
 			}
 			err = p.g.pollers[c.Hash()%len(p.g.pollers)].addConn(c)
@@ -206,7 +206,9 @@ func (p *poller) acceptorLoop() {
 						err,
 					)
 				}
-				break
+				if p.g.onAcceptError != nil {
+					p.g.onAcceptError(err)
+				}
 			}
 		}
 	}
@@ -243,11 +245,8 @@ func (p *poller) readWriteLoop() {
 		}
 
 		if n <= 0 {
-			msec = -1
-			// runtime.Gosched()
 			continue
 		}
-		msec = 20
 
 		for _, ev := range events[:n] {
 			fd := int(ev.Fd)
@@ -259,7 +258,7 @@ func (p *poller) readWriteLoop() {
 				if c != nil {
 					if ev.Events&epollEventsWrite != 0 {
 						if c.onConnected == nil {
-							c.flush()
+							_ = c.flush()
 						} else {
 							c.onConnected(c, nil)
 							c.onConnected = nil
@@ -273,12 +272,14 @@ func (p *poller) readWriteLoop() {
 								c.AsyncRead()
 							} else {
 								for i := 0; i < g.MaxConnReadTimesPerEventLoop; i++ {
-									buffer := g.borrow(c)
-									rc, n, err := c.ReadAndGetConn(buffer)
+									pbuf := g.borrow(c)
+									bufLen := len(*pbuf)
+									rc, n, err := c.ReadAndGetConn(pbuf)
 									if n > 0 {
-										g.onData(rc, buffer[:n])
+										*pbuf = (*pbuf)[:n]
+										g.onDataPtr(rc, pbuf)
 									}
-									g.payback(c, buffer)
+									g.payback(c, pbuf)
 									if errors.Is(err, syscall.EINTR) {
 										continue
 									}
@@ -286,10 +287,10 @@ func (p *poller) readWriteLoop() {
 										break
 									}
 									if err != nil {
-										c.closeWithError(err)
+										_ = c.closeWithError(err)
 										break
 									}
-									if n < len(buffer) {
+									if n < bufLen {
 										break
 									}
 								}
@@ -303,7 +304,7 @@ func (p *poller) readWriteLoop() {
 					}
 
 					if ev.Events&epollEventsError != 0 {
-						c.closeWithError(io.EOF)
+						_ = c.closeWithError(io.EOF)
 						continue
 					}
 				}
@@ -317,13 +318,13 @@ func (p *poller) stop() {
 	logging.Debug("NBIO[%v][%v_%v] stop...", p.g.Name, p.pollType, p.index)
 	p.shutdown = true
 	if p.listener != nil {
-		p.listener.Close()
+		_ = p.listener.Close()
 		if p.unixSockAddr != "" {
-			os.Remove(p.unixSockAddr)
+			_ = os.Remove(p.unixSockAddr)
 		}
 	} else {
 		n := uint64(1)
-		syscall.Write(p.evtfd, (*(*[8]byte)(unsafe.Pointer(&n)))[:])
+		_, _ = syscall.Write(p.evtfd, (*(*[8]byte)(unsafe.Pointer(&n)))[:])
 	}
 }
 
@@ -472,7 +473,7 @@ func newPoller(g *Engine, isListener bool, index int) (*poller, error) {
 
 	r0, _, e0 := syscall.Syscall(syscall.SYS_EVENTFD2, 0, syscall.O_NONBLOCK, 0)
 	if e0 != 0 {
-		syscall.Close(fd)
+		_ = syscall.Close(fd)
 		return nil, e0
 	}
 
@@ -482,8 +483,8 @@ func newPoller(g *Engine, isListener bool, index int) (*poller, error) {
 		},
 	)
 	if err != nil {
-		syscall.Close(fd)
-		syscall.Close(int(r0))
+		_ = syscall.Close(fd)
+		_ = syscall.Close(int(r0))
 		return nil, err
 	}
 
@@ -506,9 +507,9 @@ func (c *Conn) ResetPollerEvent() {
 	fd := c.fd
 	if g.isOneshot && !c.closed {
 		if len(c.writeList) == 0 {
-			p.resetRead(fd)
+			_ = p.resetRead(fd)
 		} else {
-			p.modWrite(fd)
+			_ = p.modWrite(fd)
 		}
 	}
 }

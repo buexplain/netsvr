@@ -157,6 +157,9 @@ type Config struct {
 	// MaxConnReadTimesPerEventLoop represents max read times in one poller loop for one fd.
 	MaxConnReadTimesPerEventLoop int
 
+	// OnAcceptError is called when accept error.
+	OnAcceptError func(err error)
+
 	// Handler sets HTTP handler for Engine.
 	Handler http.Handler
 
@@ -221,7 +224,7 @@ type Config struct {
 	//        false is by defalt.
 	AsyncReadInPoller bool
 	// IOExecute is used to handle the aysnc reading, users can customize it.
-	IOExecute func(f func([]byte))
+	IOExecute func(f func(*[]byte))
 }
 
 // Engine .
@@ -236,9 +239,10 @@ type Engine struct {
 	listenerMux *lmux.ListenerMux
 	listeners   []net.Listener
 
-	_onOpen  func(c net.Conn)
-	_onClose func(c net.Conn, err error)
-	_onStop  func()
+	_onAcceptError func(err error)
+	_onOpen        func(c net.Conn)
+	_onClose       func(c net.Conn, err error)
+	_onStop        func()
 
 	mux         sync.Mutex
 	conns       map[connValue]struct{}
@@ -255,6 +259,14 @@ type Engine struct {
 	ExecuteClient func(f func())
 
 	// isOneshot bool
+}
+
+// OnAcceptError is called when accept error.
+//
+//go:norace
+func (e *Engine) OnAcceptError(h func(err error)) {
+	e._onAcceptError = h
+	e.Engine.OnAcceptError(h)
 }
 
 // OnOpen registers callback for new connection.
@@ -298,12 +310,12 @@ func (e *Engine) closeAllConns() {
 	defer e.mux.Unlock()
 	for key := range e.conns {
 		if c, err := array2Conn(key); err == nil {
-			c.Close()
+			_ = c.Close()
 		}
 	}
 	for key := range e.dialerConns {
 		if c, err := array2Conn(key); err == nil {
-			c.Close()
+			_ = c.Close()
 		}
 	}
 }
@@ -316,11 +328,11 @@ type Conn struct {
 
 //go:norace
 func (e *Engine) listen(ln net.Listener, tlsConfig *tls.Config, addConn func(*Conn, *tls.Config, func()), decrease func()) {
-	e.WaitGroup.Add(1)
+	e.Add(1)
 	go func() {
 		defer func() {
 			// ln.Close()
-			e.WaitGroup.Done()
+			e.Done()
 		}()
 		for !e.shutdown {
 			conn, err := ln.Accept()
@@ -335,7 +347,9 @@ func (e *Engine) listen(ln net.Listener, tlsConfig *tls.Config, addConn func(*Co
 					if !e.shutdown {
 						logging.Error("Accept failed: %v, exit...", err)
 					}
-					break
+					if e._onAcceptError != nil {
+						e._onAcceptError(err)
+					}
 				}
 			}
 		}
@@ -362,7 +376,7 @@ func (e *Engine) startListeners() error {
 				ln, err := e.Listen(network, conf.Addr)
 				if err != nil {
 					for _, l := range e.listeners {
-						l.Close()
+						_ = l.Close()
 					}
 					return err
 				}
@@ -410,7 +424,7 @@ func (e *Engine) startListeners() error {
 				ln, err := e.Listen(network, conf.Addr)
 				if err != nil {
 					for _, l := range e.listeners {
-						l.Close()
+						_ = l.Close()
 					}
 					return err
 				}
@@ -448,7 +462,7 @@ func (e *Engine) stopListeners() {
 		e.listenerMux.Stop()
 	}
 	for _, ln := range e.listeners {
-		ln.Close()
+		_ = ln.Close()
 	}
 }
 
@@ -575,7 +589,7 @@ func (e *Engine) DataHandler(c *nbio.Conn, data []byte) {
 	err := readerCloser.Parse(data)
 	if err != nil {
 		logging.Debug("ParserCloser.Read failed: %v", err)
-		c.CloseWithError(err)
+		_ = c.CloseWithError(err)
 	}
 }
 
@@ -594,7 +608,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 	parserCloser := c.Session().(ParserCloser)
 	if parserCloser == nil {
 		logging.Error("nil ParserCloser")
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	nbhttpConn, ok := parserCloser.UnderlayerConn().(*Conn)
@@ -608,7 +622,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 				_, nread, err := tlsConn.AppendAndRead(readed, buffer)
 				readed = nil
 				if err != nil {
-					c.CloseWithError(err)
+					_ = c.CloseWithError(err)
 					return
 				}
 				if nread > 0 {
@@ -616,7 +630,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 					err := parserCloser.Parse(buffer[:nread])
 					if err != nil {
 						logging.Debug("ParserCloser.Read failed: %v", err)
-						c.CloseWithError(err)
+						_ = c.CloseWithError(err)
 						return
 					}
 				}
@@ -635,7 +649,7 @@ func (e *Engine) TLSDataHandler(c *nbio.Conn, data []byte) {
 func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
 	key, err := conn2Array(nbc)
 	if err != nil {
-		nbc.Close()
+		_ = nbc.Close()
 		logging.Error("AddTransferredConn failed: %v", err)
 		return err
 	}
@@ -643,7 +657,7 @@ func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		nbc.Close()
+		_ = nbc.Close()
 		logging.Error("AddTransferredConn failed: overload, already has %v online", engine.MaxLoad)
 		return ErrServiceOverload
 	}
@@ -666,21 +680,21 @@ func (engine *Engine) AddTransferredConn(nbc *nbio.Conn) error {
 func (engine *Engine) AddConnNonTLSNonBlocking(conn *Conn, tlsConfig *tls.Config, decrease func()) {
 	nbc, err := nbio.NBConn(conn.Conn)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnNonTLSNonBlocking failed: %v", err)
 		return
 	}
 	conn.Conn = nbc
 	if nbc.Session() != nil {
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnNonTLSNonBlocking failed, invalid session: %v", nbc.Session())
 		return
 	}
 	key, err := conn2Array(nbc)
 	if err != nil {
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnNonTLSNonBlocking failed: %v", err)
 		return
@@ -689,7 +703,7 @@ func (engine *Engine) AddConnNonTLSNonBlocking(conn *Conn, tlsConfig *tls.Config
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnNonTLSNonBlocking failed: overload, already has %v online", engine.MaxLoad)
 		return
@@ -712,7 +726,7 @@ func (engine *Engine) AddConnNonTLSNonBlocking(conn *Conn, tlsConfig *tls.Config
 		engine.mux.Unlock()
 		return
 	}
-	nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
+	_ = nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 }
 
 // AddConnNonTLSBlocking .
@@ -722,7 +736,7 @@ func (engine *Engine) AddConnNonTLSBlocking(conn *Conn, tlsConfig *tls.Config, d
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnNonTLSBlocking failed: overload, already has %v online", engine.MaxLoad)
 		return
@@ -732,7 +746,7 @@ func (engine *Engine) AddConnNonTLSBlocking(conn *Conn, tlsConfig *tls.Config, d
 		key, err := conn2Array(vt)
 		if err != nil {
 			engine.mux.Unlock()
-			conn.Close()
+			_ = conn.Close()
 			decrease()
 			logging.Error("AddConnNonTLSBlocking failed: %v", err)
 			return
@@ -740,7 +754,7 @@ func (engine *Engine) AddConnNonTLSBlocking(conn *Conn, tlsConfig *tls.Config, d
 		engine.conns[key] = struct{}{}
 	default:
 		engine.mux.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnNonTLSBlocking failed: unknown conn type: %v", vt)
 		return
@@ -751,7 +765,7 @@ func (engine *Engine) AddConnNonTLSBlocking(conn *Conn, tlsConfig *tls.Config, d
 	parser := NewParser(conn, engine, processor, false, SyncExecutor)
 	parser.Engine = engine
 	conn.Parser = parser
-	conn.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
+	_ = conn.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 	go engine.readConnBlocking(conn, parser, decrease)
 }
 
@@ -761,21 +775,21 @@ func (engine *Engine) AddConnNonTLSBlocking(conn *Conn, tlsConfig *tls.Config, d
 func (engine *Engine) AddConnTLSNonBlocking(conn *Conn, tlsConfig *tls.Config, decrease func()) {
 	nbc, err := nbio.NBConn(conn.Conn)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnTLSNonBlocking failed: %v", err)
 		return
 	}
 	conn.Conn = nbc
 	if nbc.Session() != nil {
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnTLSNonBlocking failed: session should not be nil")
 		return
 	}
 	key, err := conn2Array(nbc)
 	if err != nil {
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnTLSNonBlocking failed: %v", err)
 		return
@@ -784,7 +798,7 @@ func (engine *Engine) AddConnTLSNonBlocking(conn *Conn, tlsConfig *tls.Config, d
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		nbc.Close()
+		_ = nbc.Close()
 		decrease()
 		logging.Error("AddConnTLSNonBlocking failed: overload, already has %v online", engine.MaxLoad)
 		return
@@ -815,7 +829,7 @@ func (engine *Engine) AddConnTLSNonBlocking(conn *Conn, tlsConfig *tls.Config, d
 		delete(engine.conns, key)
 		engine.mux.Unlock()
 	}
-	nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
+	_ = nbc.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 }
 
 // AddConnTLSBlocking .
@@ -825,7 +839,7 @@ func (engine *Engine) AddConnTLSBlocking(conn *Conn, tlsConfig *tls.Config, decr
 	engine.mux.Lock()
 	if len(engine.conns) >= engine.MaxLoad {
 		engine.mux.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnTLSBlocking failed: overload, already has %v online", engine.MaxLoad)
 		return
@@ -837,7 +851,7 @@ func (engine *Engine) AddConnTLSBlocking(conn *Conn, tlsConfig *tls.Config, decr
 		key, err := conn2Array(vt)
 		if err != nil {
 			engine.mux.Unlock()
-			conn.Close()
+			_ = conn.Close()
 			decrease()
 			logging.Error("AddConnTLSBlocking failed: %v", err)
 			return
@@ -845,7 +859,7 @@ func (engine *Engine) AddConnTLSBlocking(conn *Conn, tlsConfig *tls.Config, decr
 		engine.conns[key] = struct{}{}
 	default:
 		engine.mux.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		decrease()
 		logging.Error("AddConnTLSBlocking unknown conn type: %v", vt)
 		return
@@ -860,7 +874,7 @@ func (engine *Engine) AddConnTLSBlocking(conn *Conn, tlsConfig *tls.Config, decr
 	processor := NewServerProcessor()
 	parser := NewParser(conn, engine, processor, false, SyncExecutor)
 	conn.Parser = parser
-	conn.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
+	_ = conn.SetReadDeadline(time.Now().Add(engine.KeepaliveTime))
 	tlsConn.SetSession(parser)
 	go engine.readTLSConnBlocking(conn, underLayerConn, tlsConn, parser, decrease)
 }
@@ -901,7 +915,7 @@ func (engine *Engine) readConnBlocking(conn *Conn, parser *Parser, decrease func
 		if err != nil {
 			return
 		}
-		parserCloser.Parse((*pbuf)[:n])
+		_ = parserCloser.Parse((*pbuf)[:n])
 		if conn.Trasfered {
 			parser.onClose = nil
 			parser.CloseAndClean(nil)
@@ -933,7 +947,7 @@ func (engine *Engine) readTLSConnBlocking(conn *Conn, rconn net.Conn, tlsConn *t
 		readBufferPool.Free(pbuf)
 		if !conn.Trasfered {
 			parserCloser.CloseAndClean(err)
-			tlsConn.Close()
+			_ = tlsConn.Close()
 		}
 		engine.mux.Lock()
 		switch vt := rconn.(type) {

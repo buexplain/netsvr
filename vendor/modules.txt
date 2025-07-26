@@ -8,7 +8,7 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-business-go v1.0.1
+# github.com/buexplain/netsvr-business-go v1.0.2
 ## explicit; go 1.22.7
 github.com/buexplain/netsvr-business-go
 github.com/buexplain/netsvr-business-go/resp
@@ -22,7 +22,7 @@ github.com/gorilla/websocket
 ## explicit; go 1.16
 github.com/lesismal/llib/std/crypto/tls
 github.com/lesismal/llib/std/internal/cpu
-# github.com/lesismal/nbio v1.6.4
+# github.com/lesismal/nbio v1.6.6
 ## explicit; go 1.16
 github.com/lesismal/nbio
 github.com/lesismal/nbio/lmux
@@ -64,7 +64,7 @@ github.com/tidwall/match
 # github.com/tidwall/pretty v1.2.1
 ## explicit; go 1.16
 github.com/tidwall/pretty
-# golang.org/x/crypto v0.39.0
+# golang.org/x/crypto v0.40.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305

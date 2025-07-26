@@ -83,7 +83,7 @@ func (c *Conn) releaseToWrite(t *toWrite) {
 		c.p.g.BodyAllocator.Free(t.buf)
 	}
 	if t.fd > 0 {
-		syscall.Close(t.fd)
+		_ = syscall.Close(t.fd)
 	}
 	// *t = emptyToWrite
 	// poolToWrite.Put(t)
@@ -162,11 +162,12 @@ func (c *Conn) AsyncRead() {
 	// If is EPOLLONESHOT, run the read job directly, because the reading event wouldn't
 	// be re-dispatched before this reading event has been handled and set again.
 	if g.isOneshot {
-		g.IOExecute(func(buffer []byte) {
+		g.IOExecute(func(pbuf *[]byte) {
 			for i := 0; i < g.MaxConnReadTimesPerEventLoop; i++ {
-				rc, n, err := c.ReadAndGetConn(buffer)
+				rc, n, err := c.ReadAndGetConn(pbuf)
 				if n > 0 {
-					g.onData(rc, buffer[:n])
+					*pbuf = (*pbuf)[:n]
+					g.onDataPtr(rc, pbuf)
 				}
 				if errors.Is(err, syscall.EINTR) {
 					continue
@@ -175,10 +176,10 @@ func (c *Conn) AsyncRead() {
 					break
 				}
 				if err != nil {
-					c.closeWithError(err)
+					_ = c.closeWithError(err)
 					return
 				}
-				if n < len(buffer) {
+				if n < len(*pbuf) {
 					break
 				}
 			}
@@ -199,13 +200,14 @@ func (c *Conn) AsyncRead() {
 		return
 	}
 
-	g.IOExecute(func(buffer []byte) {
+	g.IOExecute(func(pBuf *[]byte) {
 		for {
 			// try to read all the data available.
 			for i := 0; i < g.MaxConnReadTimesPerEventLoop; i++ {
-				rc, n, err := c.ReadAndGetConn(buffer)
+				rc, n, err := c.ReadAndGetConn(pBuf)
 				if n > 0 {
-					g.onData(rc, buffer[:n])
+					*pBuf = (*pBuf)[:n]
+					g.onDataPtr(rc, pBuf)
 				}
 				if errors.Is(err, syscall.EINTR) {
 					continue
@@ -214,10 +216,10 @@ func (c *Conn) AsyncRead() {
 					break
 				}
 				if err != nil {
-					c.closeWithError(err)
+					_ = c.closeWithError(err)
 					return
 				}
-				if n < len(buffer) {
+				if n < len(*pBuf) {
 					break
 				}
 			}
@@ -264,7 +266,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 // Notice: non-blocking interface, should not be used as you use std.
 //
 //go:norace
-func (c *Conn) ReadAndGetConn(b []byte) (*Conn, int, error) {
+func (c *Conn) ReadAndGetConn(pdata *[]byte) (*Conn, int, error) {
 	// When the connection is closed and the fd is reused on Unix,
 	// new connection maybe hold the same fd.
 	// Use lock to prevent data confusion.
@@ -274,7 +276,7 @@ func (c *Conn) ReadAndGetConn(b []byte) (*Conn, int, error) {
 		return c, 0, net.ErrClosed
 	}
 
-	dstConn, n, err := c.doRead(b)
+	dstConn, n, err := c.doRead(*pdata)
 	c.mux.Unlock()
 	// if err == nil {
 	// 	c.p.g.afterRead(c)
@@ -325,7 +327,7 @@ func (c *Conn) readUDP(b []byte) (*Conn, int, error) {
 		// that has the same local addr and remote addr.
 		uc, ok := c.connUDP.getConn(c.p, c.fd, rAddr)
 		if g.UDPReadTimeout > 0 {
-			uc.SetReadDeadline(time.Now().Add(g.UDPReadTimeout))
+			_ = uc.SetReadDeadline(time.Now().Add(g.UDPReadTimeout))
 		}
 		if !ok {
 			g.onOpen(uc)
@@ -358,7 +360,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 		!errors.Is(err, syscall.EAGAIN) {
 		c.closed = true
 		c.mux.Unlock()
-		c.closeWithErrorWithoutLock(err)
+		_ = c.closeWithErrorWithoutLock(err)
 		return n, err
 	}
 
@@ -404,7 +406,7 @@ func (c *Conn) Writev(in [][]byte) (int, error) {
 		!errors.Is(err, syscall.EAGAIN) {
 		c.closed = true
 		c.mux.Unlock()
-		c.closeWithErrorWithoutLock(err)
+		_ = c.closeWithErrorWithoutLock(err)
 		return n, err
 	}
 	if len(c.writeList) == 0 {
@@ -486,14 +488,14 @@ func (c *Conn) SetDeadline(t time.Time) error {
 			g := c.p.g
 			if c.rTimer == nil {
 				c.rTimer = g.AfterFunc(time.Until(t), func() {
-					c.closeWithError(errReadTimeout)
+					_ = c.closeWithError(errReadTimeout)
 				})
 			} else {
 				c.rTimer.Reset(time.Until(t))
 			}
 			if c.wTimer == nil {
 				c.wTimer = g.AfterFunc(time.Until(t), func() {
-					c.closeWithError(errWriteTimeout)
+					_ = c.closeWithError(errWriteTimeout)
 				})
 			} else {
 				c.wTimer.Reset(time.Until(t))
@@ -523,7 +525,7 @@ func (c *Conn) setDeadline(timer **time.Timer, errClose error, t time.Time) erro
 	if !t.IsZero() {
 		if *timer == nil {
 			*timer = c.p.g.AfterFunc(time.Until(t), func() {
-				c.closeWithError(errClose)
+				_ = c.closeWithError(errClose)
 			})
 		} else {
 			(*timer).Reset(time.Until(t))
@@ -679,7 +681,7 @@ func (c *Conn) SetLinger(onoff int32, linger int32) error {
 func (c *Conn) modWrite() {
 	if !c.closed && !c.isWAdded {
 		c.isWAdded = true
-		c.p.modWrite(c.fd)
+		_ = c.p.modWrite(c.fd)
 	}
 }
 
@@ -690,7 +692,7 @@ func (c *Conn) resetRead() {
 	if !c.closed && c.isWAdded {
 		c.isWAdded = false
 		p := c.p
-		p.resetRead(c.fd)
+		_ = p.resetRead(c.fd)
 	}
 }
 
@@ -939,7 +941,7 @@ func (c *Conn) flush() error {
 		}
 		if err != nil {
 			c.closed = true
-			c.closeWithErrorWithoutLock(err)
+			_ = c.closeWithErrorWithoutLock(err)
 			return err
 		}
 	}
@@ -1063,9 +1065,9 @@ func (u *udpConn) Close() error {
 	} else {
 		// This connection is a UDP server or dialer, need to close itself
 		// and close all children if this is a server.
-		syscall.Close(u.parent.fd)
+		_ = syscall.Close(u.parent.fd)
 		for _, c := range u.conns {
-			c.Close()
+			_ = c.Close()
 		}
 		u.conns = nil
 	}

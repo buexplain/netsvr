@@ -68,7 +68,7 @@ func (p *poller) addConn(c *Conn) error {
 		err := fmt.Errorf("too many open files, fd[%d] >= MaxOpenFiles[%d]",
 			fd,
 			len(p.g.connsUnix))
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 		return err
 	}
 	c.p = p
@@ -90,7 +90,7 @@ func (p *poller) addDialer(c *Conn) error {
 			fd,
 			len(p.g.connsUnix),
 		)
-		c.closeWithError(err)
+		_ = c.closeWithError(err)
 		return err
 	}
 	c.p = p
@@ -125,8 +125,9 @@ func (p *poller) deleteConn(c *Conn) {
 }
 
 //go:norace
-func (p *poller) trigger() {
-	syscall.Kevent(p.kfd, []syscall.Kevent_t{{Ident: 0, Filter: syscall.EVFILT_USER, Fflags: syscall.NOTE_TRIGGER}}, nil, nil)
+func (p *poller) trigger() error {
+	_, err := syscall.Kevent(p.kfd, []syscall.Kevent_t{{Ident: 0, Filter: syscall.EVFILT_USER, Fflags: syscall.NOTE_TRIGGER}}, nil, nil)
+	return err
 }
 
 //go:norace
@@ -139,19 +140,19 @@ func (p *poller) addRead(fd int) {
 }
 
 //go:norace
-func (p *poller) resetRead(fd int) {
+func (p *poller) resetRead(fd int) error {
 	p.mux.Lock()
 	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE})
 	p.mux.Unlock()
-	p.trigger()
+	return p.trigger()
 }
 
 //go:norace
-func (p *poller) modWrite(fd int) {
+func (p *poller) modWrite(fd int) error {
 	p.mux.Lock()
 	p.eventList = append(p.eventList, syscall.Kevent_t{Ident: uint64(fd), Flags: syscall.EV_ADD, Filter: syscall.EVFILT_WRITE})
 	p.mux.Unlock()
-	p.trigger()
+	return p.trigger()
 }
 
 //go:norace
@@ -183,12 +184,14 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 		if ev.Filter == syscall.EVFILT_READ {
 			if p.g.onRead == nil {
 				for {
-					buffer := p.g.borrow(c)
-					rc, n, err := c.ReadAndGetConn(buffer)
+					pbuf := p.g.borrow(c)
+					bufLen := len(*pbuf)
+					rc, n, err := c.ReadAndGetConn(pbuf)
 					if n > 0 {
-						p.g.onData(rc, buffer[:n])
+						*pbuf = (*pbuf)[:n]
+						p.g.onDataPtr(rc, pbuf)
 					}
-					p.g.payback(c, buffer)
+					p.g.payback(c, pbuf)
 					if errors.Is(err, syscall.EINTR) {
 						continue
 					}
@@ -199,9 +202,9 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 						if err == nil {
 							err = io.EOF
 						}
-						c.closeWithError(err)
+						_ = c.closeWithError(err)
 					}
-					if n < len(buffer) {
+					if n < bufLen {
 						break
 					}
 				}
@@ -211,7 +214,7 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 
 			if ev.Flags&syscall.EV_EOF != 0 {
 				if c.onConnected == nil {
-					c.flush()
+					_ = c.flush()
 				} else {
 					c.onConnected(c, nil)
 					c.onConnected = nil
@@ -222,7 +225,7 @@ func (p *poller) readWrite(ev *syscall.Kevent_t) {
 
 		if ev.Filter == syscall.EVFILT_WRITE {
 			if c.onConnected == nil {
-				c.flush()
+				_ = c.flush()
 			} else {
 				c.resetRead()
 				c.onConnected(c, nil)
@@ -246,7 +249,7 @@ func (p *poller) start() {
 	if p.isListener {
 		p.acceptorLoop()
 	} else {
-		defer syscall.Close(p.kfd)
+		defer func() { _ = syscall.Close(p.kfd) }()
 		p.readWriteLoop()
 	}
 }
@@ -265,10 +268,10 @@ func (p *poller) acceptorLoop() {
 			var c *Conn
 			c, err = NBConn(conn)
 			if err != nil {
-				conn.Close()
+				_ = conn.Close()
 				continue
 			}
-			p.g.pollers[c.Hash()%len(p.g.pollers)].addConn(c)
+			_ = p.g.pollers[c.Hash()%len(p.g.pollers)].addConn(c)
 		} else {
 			var ne net.Error
 			if ok := errors.As(err, &ne); ok && ne.Timeout() {
@@ -278,7 +281,9 @@ func (p *poller) acceptorLoop() {
 				if !p.shutdown {
 					logging.Error("NBIO[%v][%v_%v] Accept failed: %v, exit...", p.g.Name, p.pollType, p.index, err)
 				}
-				break
+				if p.g.onAcceptError != nil {
+					p.g.onAcceptError(err)
+				}
 			}
 		}
 	}
@@ -321,9 +326,9 @@ func (p *poller) stop() {
 	logging.Debug("NBIO[%v][%v_%v] stop...", p.g.Name, p.pollType, p.index)
 	p.shutdown = true
 	if p.listener != nil {
-		p.listener.Close()
+		_ = p.listener.Close()
 		if p.unixSockAddr != "" {
-			os.Remove(p.unixSockAddr)
+			_ = os.Remove(p.unixSockAddr)
 		}
 	}
 	p.trigger()
@@ -368,7 +373,7 @@ func newPoller(g *Engine, isListener bool, index int) (*poller, error) {
 	}}, nil, nil)
 
 	if err != nil {
-		syscall.Close(fd)
+		_ = syscall.Close(fd)
 		return nil, err
 	}
 

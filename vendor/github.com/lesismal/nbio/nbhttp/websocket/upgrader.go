@@ -67,8 +67,8 @@ type commonFields struct {
 	closeMessageHandler func(c *Conn, code int, text string)
 
 	openHandler      func(*Conn)
-	messageHandler   func(c *Conn, messageType MessageType, data []byte)
-	dataFrameHandler func(c *Conn, messageType MessageType, fin bool, data []byte)
+	messageHandler   func(c *Conn, messageType MessageType, messagePtr *[]byte)
+	dataFrameHandler func(c *Conn, messageType MessageType, fin bool, framePtr *[]byte)
 }
 
 type Options = Upgrader
@@ -103,12 +103,11 @@ type Upgrader struct {
 	BlockingModAsyncWrite bool
 
 	// BlockingModHandleRead represents whether start a goroutine to handle reading automatically during `Upgrade``:
-	// true: use dynamic goroutine to handle writing.
-	// false: write buffer to the conn directely.
-	//
+	// true: start a new goroutine to handle reading.
+	// false: use the current goroutine to handle reading.
 	//
 	// Notice:
-	// If we start a goroutine to handle read during `Upgrade`, we may receive a new websocket message
+	// If we start a goroutine to handle read during `Upgrade`, we may receive a new websocket message.
 	// before we have left the http.Handler for the `Websocket Handshake`.
 	// Then if we have the logic of `websocket.Conn.SetSession` in the http.Handler, it's possible that when we receive
 	// and are handling a websocket message and call `websocket.Conn.Session()`, we get nil.
@@ -165,20 +164,20 @@ func NewUpgrader() *Upgrader {
 		err := c.WriteMessage(PongMessage, []byte(data))
 		if err != nil {
 			logging.Debug("failed to send pong %v", err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 	}
 	u.pongMessageHandler = func(*Conn, string) {}
 	u.closeMessageHandler = func(c *Conn, code int, text string) {
 		if code == 1005 {
-			c.WriteMessage(CloseMessage, nil)
+			_ = c.WriteMessage(CloseMessage, nil)
 			return
 		}
 		pbuf := u.Engine.BodyAllocator.Malloc(len(text) + 2)
 		binary.BigEndian.PutUint16((*pbuf)[:2], uint16(code))
 		copy((*pbuf)[2:], text)
-		c.WriteMessage(CloseMessage, (*pbuf))
+		_ = c.WriteMessage(CloseMessage, (*pbuf))
 		u.Engine.BodyAllocator.Free(pbuf)
 	}
 
@@ -241,11 +240,24 @@ func (u *Upgrader) OnOpen(h func(*Conn)) {
 //
 //go:norace
 func (u *Upgrader) OnMessage(h func(*Conn, MessageType, []byte)) {
-	if h != nil {
-		u.messageHandler = func(c *Conn, messageType MessageType, message []byte) {
-			if !c.closed {
-				h(c, messageType, message)
+	u.messageHandler = func(c *Conn, messageType MessageType, messagePtr *[]byte) {
+		if !c.closed && h != nil {
+			if messagePtr != nil {
+				h(c, messageType, *messagePtr)
+			} else {
+				h(c, messageType, nil)
 			}
+		}
+	}
+}
+
+// OnMessage .
+//
+//go:norace
+func (u *Upgrader) OnMessagePtr(h func(*Conn, MessageType, *[]byte)) {
+	u.messageHandler = func(c *Conn, messageType MessageType, messagePtr *[]byte) {
+		if !c.closed && h != nil {
+			h(c, messageType, messagePtr)
 		}
 	}
 }
@@ -254,11 +266,24 @@ func (u *Upgrader) OnMessage(h func(*Conn, MessageType, []byte)) {
 //
 //go:norace
 func (u *Upgrader) OnDataFrame(h func(*Conn, MessageType, bool, []byte)) {
-	if h != nil {
-		u.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, frame []byte) {
-			if !c.closed {
-				h(c, messageType, fin, frame)
+	u.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, framePtr *[]byte) {
+		if !c.closed && h != nil {
+			if framePtr != nil {
+				h(c, messageType, fin, *framePtr)
+			} else {
+				h(c, messageType, fin, nil)
 			}
+		}
+	}
+}
+
+// OnDataFramePtr .
+//
+//go:norace
+func (u *Upgrader) OnDataFramePtr(h func(*Conn, MessageType, bool, *[]byte)) {
+	u.dataFrameHandler = func(c *Conn, messageType MessageType, fin bool, framePtr *[]byte) {
+		if !c.closed && h != nil {
+			h(c, messageType, fin, framePtr)
 		}
 	}
 }
@@ -385,14 +410,14 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 						_, nread, errRead = vt.AppendAndRead(readed, buffer)
 						readed = nil
 						if errRead != nil {
-							c.CloseWithError(err)
+							_ = c.CloseWithError(err)
 							return
 						}
 						if nread > 0 {
 							errRead = wsc.Parse(buffer[:nread])
 							if err != nil {
 								logging.Debug("websocket Conn Parse failed: %v", errRead)
-								c.CloseWithError(errRead)
+								_ = c.CloseWithError(errRead)
 								return
 							}
 						}
@@ -470,7 +495,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 				errRead := wsc.Parse(data)
 				if errRead != nil {
 					logging.Debug("websocket Conn Parse failed: %v", errRead)
-					c.CloseWithError(errRead)
+					_ = c.CloseWithError(errRead)
 					return
 				}
 			})
@@ -513,9 +538,9 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeade
 	}
 
 	if u.KeepaliveTime > 0 {
-		conn.SetReadDeadline(time.Now().Add(u.KeepaliveTime))
+		_ = conn.SetReadDeadline(time.Now().Add(u.KeepaliveTime))
 	} else {
-		conn.SetReadDeadline(time.Time{})
+		_ = conn.SetReadDeadline(time.Time{})
 	}
 
 	if wsc.openHandler != nil {
@@ -654,13 +679,13 @@ func (u *Upgrader) commResponse(conn net.Conn, responseHeader http.Header, chall
 	pbuf = allocator.AppendString(pbuf, "\r\n")
 
 	if u.HandshakeTimeout > 0 {
-		conn.SetWriteDeadline(time.Now().Add(u.HandshakeTimeout))
+		_ = conn.SetWriteDeadline(time.Now().Add(u.HandshakeTimeout))
 	}
 
 	_, err := conn.Write(*pbuf)
 	allocator.Free(pbuf)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return err
 	}
 
