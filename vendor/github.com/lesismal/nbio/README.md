@@ -23,9 +23,46 @@
 [16]: https://godoc.org/github.com/lesismal/nbio
 
 
+## Recommendation
+
+Based on years of development and testing of nbio, I have drawn some conclusions:
+
+For massive connection scenarios, combined with memory pools and goroutine pools, it can effectively reduce the number of goroutines and objects, thereby lowering memory consumption and GC pressure, avoiding OOM and significant STW. For example, in a million WebSocket 1k payload echo test, nbio can maintain memory at 1GB with 100k TPS.
+
+For regular connection scenarios, nbio's performance is inferior to the standard library due to goroutine affinity, lower buffer reuse rate for individual connections, and variable escape issues.
+
+The vast majority of business scenarios using Golang do not require support for massive connections. The few scenarios that do require massive connections are mostly infrastructure such as gateways and proxies, and these types of infrastructure have higher requirements for performance and hardware resource overhead, where C/C++/Rust are more suitable.
+
+Therefore, the scenarios where nbio can demonstrate its advantages are very limited.
+
+### For WebSocket in regular connection scenarios
+
+I recommend: 
+- https://github.com/lxzan/gws
+- https://github.com/antlabs/quickws
+
+While gorilla/websocket is mature and stable, its default ReadMessage performance is poor, and it requires additional encapsulation for reading and writing to avoid consistency issues, concurrent timing problems, and the issue where a single connection's write blocking in broadcast scenarios causes other connections to wait.
+
+nbio, [gws](https://github.com/lxzan/gws) and [quickws](https://github.com/antlabs/quickws) all provide better out-of-the-box designs, which spare users the trouble of doing more encapsulation work on gorilla/websocket.
+
+However, as mentioned above, nbio has no advantage in regular connection scenarios, and it supports more features with more complex compatibility code. Its performance in regular connection scenarios is inferior to [gws](https://github.com/lxzan/gws) and [quickws](https://github.com/antlabs/quickws), so I recommend [gws](https://github.com/lxzan/gws) and [quickws](https://github.com/antlabs/quickws).
+
+
+### Some other well-implemented epoll libs
+
+nbio's functionality is somewhat complex. 
+
+If anyone is just interested in exploring the epoll wrapper part, I recommend:
+- https://github.com/urpc/uio
+- https://github.com/antlabs/pulse
+
+
 ## Contents
 
 - [NBIO - NON-BLOCKING IO](#nbio---non-blocking-io)
+	- [Recommendation](#recommendation)
+		- [For WebSocket in regular connection scenarios](#for-websocket-in-regular-connection-scenarios)
+		- [Some other well-implemented epoll libs](#some-other-well-implemented-epoll-libs)
 	- [Contents](#contents)
 	- [Features](#features)
 		- [Cross Platform](#cross-platform)
@@ -319,10 +356,10 @@ Thanks Everyone:
 - [yicixin](https://github.com/yicixin)
 - [youzhixiaomutou](https://github.com/youzhixiaomutou)
 - [zbh255](https://github.com/zbh255)
+- [DevNewbie1826](https://github.com/DevNewbie1826)
 - [IceflowRE](https://github.com/IceflowRE)
 - [Jourmey](https://github.com/Jourmey)
 - [YanKawaYu](https://github.com/YanKawaYu)
-
 
 ## Star History
 
