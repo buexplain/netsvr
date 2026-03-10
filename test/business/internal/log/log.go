@@ -26,5 +26,5 @@ import (
 var Logger zerolog.Logger
 
 func init() {
-	Logger = log.New(configs.Config.GetLogLevel(), "")
+	Logger = log.New(configs.Config.GetLogLevel(), "", false)
 }

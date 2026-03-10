@@ -18,7 +18,7 @@
 package log
 
 import (
-	"github.com/lesismal/nbio/logging"
+	"github.com/panjf2000/gnet/v2/pkg/logging"
 	"github.com/rs/zerolog"
 	"netsvr/configs"
 	"netsvr/pkg/log"
@@ -27,27 +27,42 @@ import (
 var Logger zerolog.Logger
 
 func init() {
-	Logger = log.New(configs.Config.GetLogLevel(), configs.Config.GetLogFile())
-	logging.DefaultLogger = newLoggingSubstitute(&Logger)
+	Logger = log.New(configs.Config.GetLogLevel(), configs.Config.GetLogFile(), true)
+}
+
+func NewLoggingSubstitute(zero *zerolog.Logger) logging.Logger {
+	return &loggingSubstitute{
+		zero: zero,
+	}
 }
 
 type loggingSubstitute struct {
 	zero *zerolog.Logger
 }
 
-func newLoggingSubstitute(zero *zerolog.Logger) logging.Logger {
-	return &loggingSubstitute{
-		zero: zero,
-	}
+func (r *loggingSubstitute) Debugf(_ string, _ ...any) {
 }
 
-func (r *loggingSubstitute) SetLevel(_ int) {
+func (r *loggingSubstitute) Infof(format string, v ...any) {
+	r.zero.Info().CallerSkipFrame(2).Msgf(format, v...)
 }
 
-func (r *loggingSubstitute) Debug(_ string, _ ...interface{}) {
+func (r *loggingSubstitute) Warnf(format string, args ...any) {
+	r.zero.Warn().CallerSkipFrame(2).Msgf(format, args...)
 }
 
-func (r *loggingSubstitute) Info(_ string, _ ...interface{}) {
+func (r *loggingSubstitute) Errorf(format string, args ...any) {
+	r.zero.Error().CallerSkipFrame(2).Msgf(format, args...)
+}
+
+func (r *loggingSubstitute) Fatalf(format string, args ...any) {
+	r.zero.Fatal().CallerSkipFrame(2).Msgf(format, args...)
+}
+
+func (r *loggingSubstitute) Debug(_ string, _ ...interface{}) {}
+
+func (r *loggingSubstitute) Info(format string, v ...interface{}) {
+	r.zero.Info().CallerSkipFrame(2).Msgf(format, v...)
 }
 
 func (r *loggingSubstitute) Warn(format string, v ...interface{}) {

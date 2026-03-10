@@ -19,7 +19,7 @@ package callback
 
 import (
 	"bytes"
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
@@ -33,11 +33,11 @@ func init() {
 	httpClient = &http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
 }
 
-func OnOpen(req *netsvrProtocol.ConnOpen) *netsvrProtocol.ConnOpenResp {
+func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) {
 	reqBytes, err := proto.Marshal(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.ConnOpen failed")
-		return nil
+		return nil, err
 	}
 	httpReq, err := http.NewRequest(
 		http.MethodPost,
@@ -46,14 +46,14 @@ func OnOpen(req *netsvrProtocol.ConnOpen) *netsvrProtocol.ConnOpenResp {
 	)
 	if err != nil {
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Customer.OnOpenCallbackApi)
-		return nil
+		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/x-protobuf")
 	httpReq.Header.Set("Accept", "application/x-protobuf")
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Customer.OnOpenCallbackApi)
-		return nil
+		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -61,15 +61,15 @@ func OnOpen(req *netsvrProtocol.ConnOpen) *netsvrProtocol.ConnOpenResp {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Customer.OnOpenCallbackApi)
-		return nil
+		return nil, err
 	}
 	data := &netsvrProtocol.ConnOpenResp{}
 	err = proto.Unmarshal(body, data)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Parse netsvrProtocol.ConnOpen failed")
-		return nil
+		return nil, err
 	}
-	return data
+	return data, nil
 }
 
 func OnClose(req *netsvrProtocol.ConnClose) {

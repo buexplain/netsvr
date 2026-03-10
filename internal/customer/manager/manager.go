@@ -18,108 +18,262 @@
 package manager
 
 import (
-	"github.com/lesismal/nbio/nbhttp/websocket"
+	"github.com/panjf2000/gnet/v2"
+	"netsvr/internal/customer/info"
+	"netsvr/internal/utils/slicePool"
+	"netsvr/internal/wsServer"
 	"sync"
+	"unsafe"
 )
 
+// shardCount 分段锁数量，必须是 2 的幂次方以便用位运算取模
+const shardCount = 256
+const shardMask = shardCount - 1 // 255 = 0b11111111
+
+type shard struct {
+	mux  sync.RWMutex
+	data map[string]gnet.Conn //uniqId --> gnet.Conn
+}
+
 type collect struct {
-	//uniqId --> *websocket.Conn
-	conn map[string]*websocket.Conn
-	mux  *sync.RWMutex
+	shards [shardCount]shard
 }
 
-func (r *collect) Len() int {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	return len(r.conn)
-}
-
-func (r *collect) GetConnections(connections *[]*websocket.Conn) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	for _, conn := range r.conn {
-		*connections = append(*connections, conn)
+func hashUniqId(uniqId string) int {
+	//算子常数与标准库保持一致 Go/src/hash/fnv/fnv.go
+	data := unsafe.Slice(unsafe.StringData(uniqId), len(uniqId))
+	var hash uint32 = 2166136261
+	for _, c := range data {
+		hash *= 16777619
+		hash ^= uint32(c)
 	}
-}
-
-func (r *collect) GetUniqIds(uniqIds *[]string) {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	for uniqId := range r.conn {
-		*uniqIds = append(*uniqIds, uniqId)
-	}
+	return int(hash & uint32(shardMask))
 }
 
 func (r *collect) Has(uniqId string) bool {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	_, ok := r.conn[uniqId]
+	if uniqId == "" {
+		return false
+	}
+	idx := hashUniqId(uniqId)
+	sd := &r.shards[idx]
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
+	_, ok := sd.data[uniqId]
 	return ok
 }
 
-func (r *collect) Get(uniqId string) *websocket.Conn {
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	if c, ok := r.conn[uniqId]; ok {
+func (r *collect) Get(uniqId string) gnet.Conn {
+	if uniqId == "" {
+		return nil
+	}
+	idx := hashUniqId(uniqId)
+	sd := &r.shards[idx]
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
+	if c, ok := sd.data[uniqId]; ok {
 		return c
 	}
 	return nil
 }
 
-func (r *collect) Set(uniqId string, conn *websocket.Conn) {
-	r.mux.Lock()
-	r.conn[uniqId] = conn
-	r.mux.Unlock()
+func (r *collect) Set(uniqId string, conn gnet.Conn) {
+	idx := hashUniqId(uniqId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	sd.data[uniqId] = conn
 }
 
 func (r *collect) Del(uniqId string) {
-	r.mux.Lock()
-	delete(r.conn, uniqId)
-	r.mux.Unlock()
-}
-
-const managerLen = 8
-
-type manager [managerLen]*collect
-
-func (r manager) index(uniqId string) uint32 {
-	//算子常数与标准库保持一致 Go/src/hash/fnv/fnv.go
-	var hash uint32 = 2166136261
-	for i := 0; i < len(uniqId); i++ {
-		hash *= 16777619
-		hash ^= uint32(uniqId[i])
+	if uniqId == "" {
+		return
 	}
-	return hash % managerLen
+	idx := hashUniqId(uniqId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	delete(sd.data, uniqId)
 }
 
-func (r manager) Has(uniqId string) bool {
-	return r[r.index(uniqId)].Has(uniqId)
-}
-
-func (r manager) Get(uniqId string) *websocket.Conn {
-	return r[r.index(uniqId)].Get(uniqId)
-}
-
-func (r manager) Set(uniqId string, conn *websocket.Conn) {
-	r[r.index(uniqId)].Set(uniqId, conn)
-}
-
-func (r manager) Del(uniqId string) {
-	r[r.index(uniqId)].Del(uniqId)
-}
-
-func (r manager) Len() int {
-	length := 0
-	for _, c := range r {
-		length += c.Len()
+func (r *collect) Len() int {
+	total := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		total += len(sd.data)
+		sd.mux.RUnlock()
 	}
-	return length
+	return total
 }
 
-var Manager manager
+// GetConnections 获取所有连接对象
+// ⚠️ 使用说明：
+//   - 返回 nil 表示无连接，调用方无需调用 sp.Put()
+//   - 返回非 nil 时，调用方使用完后必须调用 sp.Put(connections) 归还
+func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]gnet.Conn) {
+	// 预估算容量
+	capacity := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		capacity += len(sd.data)
+		sd.mux.RUnlock()
+	}
+	if capacity == 0 {
+		return nil
+	}
+	extra := capacity / 10 // 额外 10% 缓冲
+	if extra < 256 {
+		extra = 256
+	} else if extra > 4096 {
+		extra = 4096
+	}
+	connections = sp.Get(capacity + extra)
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		for _, conn := range sd.data {
+			*connections = append(*connections, conn)
+		}
+		sd.mux.RUnlock()
+	}
+	return connections
+}
+
+func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
+	if len(uniqIds) == 0 {
+		return nil
+	}
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
+	for _, uniqId := range uniqIds {
+		if uniqId == "" {
+			continue
+		}
+		idx := hashUniqId(uniqId)
+		shardGroups[idx] = append(shardGroups[idx], uniqId)
+	}
+	//再取出所有的连接对象，避免嵌套获取锁
+	connList := make([]gnet.Conn, 0, len(uniqIds))
+	for idx, uList := range shardGroups {
+		if len(uList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.RLock()
+		for _, uniqId := range uList {
+			conn, ok := sd.data[uniqId]
+			if ok {
+				connList = append(connList, conn)
+			}
+		}
+		sd.mux.RUnlock()
+	}
+	//收集所有连接对应的customerId
+	customerIds = make([]string, 0, len(connList))
+	for _, conn := range connList {
+		if conn == nil {
+			continue
+		}
+		wsCodec, ok := conn.Context().(*wsServer.Codec)
+		if ok && wsCodec != nil {
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if ok && session != nil {
+				customerId := session.GetCustomerIdOnSafe()
+				if customerId != "" {
+					customerIds = append(customerIds, customerId)
+				}
+			}
+		}
+	}
+	return customerIds
+}
+
+func (r *collect) CountCustomerIds(uniqIds []string) int32 {
+	if len(uniqIds) == 0 {
+		return 0
+	}
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
+	for _, uniqId := range uniqIds {
+		if uniqId == "" {
+			continue
+		}
+		idx := hashUniqId(uniqId)
+		shardGroups[idx] = append(shardGroups[idx], uniqId)
+	}
+	//再取出所有的连接对象，避免嵌套获取锁
+	connList := make([]gnet.Conn, 0, len(uniqIds))
+	for idx, uList := range shardGroups {
+		if len(uList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.RLock()
+		for _, uniqId := range uList {
+			conn, ok := sd.data[uniqId]
+			if ok {
+				connList = append(connList, conn)
+			}
+		}
+		sd.mux.RUnlock()
+	}
+	//收集所有连接对应的customerId
+	var total int32
+	for _, conn := range connList {
+		if conn == nil {
+			continue
+		}
+		wsCodec, ok := conn.Context().(*wsServer.Codec)
+		if ok && wsCodec != nil {
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if ok && session != nil {
+				customerId := session.GetCustomerIdOnSafe()
+				if customerId != "" {
+					total++
+				}
+			}
+		}
+	}
+	return total
+}
+
+func (r *collect) GetUniqIds() (uniqIds []string) {
+	// 预估算容量
+	capacity := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		capacity += len(sd.data)
+		sd.mux.RUnlock()
+	}
+	if capacity == 0 {
+		return nil
+	}
+	extra := capacity / 10 // 额外 10% 缓冲
+	if extra < 256 {
+		extra = 256
+	} else if extra > 4096 {
+		extra = 4096
+	}
+	uniqIds = make([]string, 0, capacity+extra)
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		for uniqId := range sd.data {
+			uniqIds = append(uniqIds, uniqId)
+		}
+		sd.mux.RUnlock()
+	}
+	return uniqIds
+}
+
+// Manager 全局实例
+var Manager *collect
 
 func init() {
-	for i := 0; i < len(Manager); i++ {
-		Manager[i] = &collect{conn: make(map[string]*websocket.Conn, 4096), mux: &sync.RWMutex{}}
+	Manager = &collect{}
+	for i := range Manager.shards {
+		Manager.shards[i].data = make(map[string]gnet.Conn, 128)
 	}
 }

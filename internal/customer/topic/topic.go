@@ -20,172 +20,336 @@ package topic
 import (
 	"netsvr/internal/utils/slicePool"
 	"sync"
+	"unsafe"
 )
 
-type collect struct {
-	//topic --> []uniqId
-	topics  map[string]map[string]struct{}
-	rwMutex *sync.RWMutex
+// shardCount 分段锁数量，必须是 2 的幂次方以便用位运算取模
+const shardCount = 256
+const shardMask = shardCount - 1 // 255 = 0b11111111
+
+type shard struct {
+	mux  sync.RWMutex
+	data map[string]map[string]struct{} // topic → set(uniqId)
 }
 
-// Len 统计主题个数
+type collect struct {
+	shards [shardCount]shard
+}
+
+func hashTopic(topic string) int {
+	//算子常数与标准库保持一致 Go/src/hash/fnv/fnv.go
+	data := unsafe.Slice(unsafe.StringData(topic), len(topic))
+	var hash uint32 = 2166136261
+	for _, c := range data {
+		hash *= 16777619
+		hash ^= uint32(c)
+	}
+	return int(hash & uint32(shardMask))
+}
+
+// Len 统计主题个数（近似值，跨 shard 累加）
 func (r *collect) Len() int {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	return len(r.topics)
+	total := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		total += len(sd.data)
+		sd.mux.RUnlock()
+	}
+	return total
 }
 
 // CountAll 统计每个主题的人数
-func (r *collect) CountAll(items map[string]int32) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	for topic, c := range r.topics {
-		items[topic] = int32(len(c))
+func (r *collect) CountAll() (ret map[string]int32) {
+	// 预估算容量
+	capacity := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		capacity += len(sd.data)
+		sd.mux.RUnlock()
 	}
-}
-
-// Count 统计某几个主题的人数
-func (r *collect) Count(topics []string, items map[string]int32) {
-	if len(topics) == 0 {
-		return
+	extra := capacity / 10 // 额外 10% 缓冲
+	if extra < 256 {
+		extra = 256
+	} else if extra > 4096 {
+		extra = 4096
 	}
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	for _, topic := range topics {
-		c, ok := r.topics[topic]
-		if !ok {
-			continue
+	ret = make(map[string]int32, capacity+extra)
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		for topic, c := range sd.data {
+			ret[topic] = int32(len(c))
 		}
-		items[topic] = int32(len(c))
-	}
-}
-
-// SetBySlice 设置主题与uniqId的对应关系
-func (r *collect) SetBySlice(topics []string, uniqId string) {
-	if len(topics) == 0 || uniqId == "" {
-		return
-	}
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
-	for _, topic := range topics {
-		if topic == "" {
-			continue
-		}
-		c, ok := r.topics[topic]
-		if ok {
-			if _, ok = c[uniqId]; !ok {
-				c[uniqId] = struct{}{}
-			}
-		} else {
-			c = map[string]struct{}{}
-			r.topics[topic] = c
-			c[uniqId] = struct{}{}
-		}
-	}
-}
-
-// PullAndReturnUniqIds 删除某几个主题，并返回主题包含的uniqId
-func (r *collect) PullAndReturnUniqIds(topics []string) map[string]map[string]struct{} {
-	if len(topics) == 0 {
-		return nil
-	}
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
-	ret := make(map[string]map[string]struct{}, len(topics))
-	for _, topic := range topics {
-		c, ok := r.topics[topic]
-		if !ok {
-			continue
-		}
-		delete(r.topics, topic)
-		ret[topic] = c
+		sd.mux.RUnlock()
 	}
 	return ret
 }
 
-// GetUniqIds 获取某个主题的所有uniqId
-func (r *collect) GetUniqIds(topic string, slicePool *slicePool.StrSlice) *[]string {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	c, ok := r.topics[topic]
+// Count 统计某几个主题的人数
+func (r *collect) Count(topics []string) (ret map[string]int32) {
+	if len(topics) == 0 {
+		return
+	}
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
+	for _, topic := range topics {
+		if topic == "" {
+			continue
+		}
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
+	}
+	ret = make(map[string]int32, len(topics))
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.RLock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				ret[topic] = int32(len(c))
+			}
+		}
+		sd.mux.RUnlock()
+	}
+	return ret
+}
+
+// SetBySlice 设置主题与 uniqId 的对应关系
+func (r *collect) SetBySlice(topics []string, uniqId string) {
+	if len(topics) == 0 || uniqId == "" {
+		return
+	}
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
+	for _, topic := range topics {
+		if topic == "" {
+			continue
+		}
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
+	}
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.Lock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				c[uniqId] = struct{}{}
+			} else {
+				c = make(map[string]struct{}, 8) // 预分配小容量
+				c[uniqId] = struct{}{}
+				sd.data[topic] = c
+			}
+		}
+		sd.mux.Unlock()
+	}
+}
+
+// PullAndReturnUniqIds 删除某几个主题，并返回主题包含的 uniqId
+// ⚠️ 所有权说明：
+//   - 返回的 map[string]struct{} 是原内部 map 的直接引用
+//   - 调用方获得独占所有权，可安全修改/遍历/丢弃
+//   - 该 topic 从管理器中完全移除，后续 SetBySlice 会创建新 map
+func (r *collect) PullAndReturnUniqIds(topics []string) (ret map[string]map[string]struct{}) {
+	if len(topics) == 0 {
+		return nil
+	}
+	ret = make(map[string]map[string]struct{}, len(topics))
+	// 按 shard 分组
+	var shardGroups [shardCount][]string
+	for _, topic := range topics {
+		if topic == "" {
+			continue
+		}
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
+	}
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.Lock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				delete(sd.data, topic) //从 shard 移除引用
+				ret[topic] = c         // 返回内部 map 的引用
+			}
+		}
+		sd.mux.Unlock()
+	}
+	return ret
+}
+
+// GetUniqIds 获取某个主题的所有 uniqId（使用外部 slicePool 复用内存）
+// 调用方使用完后必须调用 sp.Put(uniqIds) 归还到池
+func (r *collect) GetUniqIds(topic string, sp *slicePool.StrSlice) *[]string {
+	if topic == "" {
+		return nil
+	}
+	idx := hashTopic(topic)
+	sd := &r.shards[idx]
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
+	c, ok := sd.data[topic]
 	if !ok {
 		return nil
 	}
-	uniqIds := slicePool.Get(len(c))
+	// 从 pool 获取 slice，避免分配
+	uniqIds := sp.Get(len(c))
 	for uniqId := range c {
 		*uniqIds = append(*uniqIds, uniqId)
 	}
 	return uniqIds
 }
 
-// GetUniqIdsByTopics 获取多个主题的所有uniqId
-func (r *collect) GetUniqIdsByTopics(topics []string) (topicUniqIds map[string][]string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	topicUniqIds = make(map[string][]string, len(topics))
+// GetUniqIdsByTopics 获取多个主题的所有 uniqId
+// ⚠️ 注意：此方法仍会分配 map 和 slice，高频调用建议改用迭代器模式
+func (r *collect) GetUniqIdsByTopics(topics []string) (ret map[string][]string) {
+	if len(topics) == 0 {
+		return nil
+	}
+	ret = make(map[string][]string, len(topics))
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
 	for _, topic := range topics {
-		c, ok := r.topics[topic]
-		if !ok {
+		if topic == "" {
 			continue
 		}
-		uniqIds := make([]string, 0, len(c))
-		for uniqId := range c {
-			uniqIds = append(uniqIds, uniqId)
-		}
-		topicUniqIds[topic] = uniqIds
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
 	}
-	return topicUniqIds
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.RLock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				// ⚠️ 此处仍会分配，如需优化可传入 slicePool
+				uniqIds := make([]string, 0, len(c))
+				for uniqId := range c {
+					uniqIds = append(uniqIds, uniqId)
+				}
+				ret[topic] = uniqIds
+			}
+		}
+		sd.mux.RUnlock()
+	}
+	return ret
 }
 
 // Get 获取所有的主题
-func (r *collect) Get() (topics []string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	topics = make([]string, 0, len(r.topics))
-	for topic := range r.topics {
-		topics = append(topics, topic)
+func (r *collect) Get() []string {
+	// 预估算容量
+	capacity := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		capacity += len(sd.data)
+		sd.mux.RUnlock()
+	}
+	extra := capacity / 10 // 额外 10% 缓冲
+	if extra < 256 {
+		extra = 256
+	} else if extra > 4096 {
+		extra = 4096
+	}
+	topics := make([]string, 0, capacity+extra)
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		for topic := range sd.data {
+			topics = append(topics, topic)
+		}
+		sd.mux.RUnlock()
 	}
 	return topics
 }
 
-// DelByMap 删除主题与uniqId的对应关系
+// DelByMap 删除主题与 uniqId 的对应关系
 func (r *collect) DelByMap(topics map[string]struct{}, uniqId string) {
 	if len(topics) == 0 {
 		return
 	}
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
 	for topic := range topics {
-		c, ok := r.topics[topic]
-		if ok {
-			delete(c, uniqId)
-			if len(c) == 0 {
-				delete(r.topics, topic)
+		if topic == "" {
+			continue
+		}
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
+	}
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.Lock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				delete(c, uniqId)
+				if len(c) == 0 {
+					delete(sd.data, topic)
+				}
 			}
 		}
+		sd.mux.Unlock()
 	}
 }
 
-// DelBySlice 删除主题与uniqId的对应关系
+// DelBySlice 删除主题与 uniqId 的对应关系
 func (r *collect) DelBySlice(topics []string, uniqId string) {
 	if len(topics) == 0 {
 		return
 	}
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
 	for _, topic := range topics {
-		c, ok := r.topics[topic]
-		if ok {
-			delete(c, uniqId)
-			if len(c) == 0 {
-				delete(r.topics, topic)
+		if topic == "" {
+			continue
+		}
+		idx := hashTopic(topic)
+		shardGroups[idx] = append(shardGroups[idx], topic)
+	}
+	for idx, tList := range shardGroups {
+		if len(tList) == 0 {
+			continue
+		}
+		sd := &r.shards[idx]
+		sd.mux.Lock()
+		for _, topic := range tList {
+			c, ok := sd.data[topic]
+			if ok {
+				delete(c, uniqId)
+				if len(c) == 0 {
+					delete(sd.data, topic)
+				}
 			}
 		}
+		sd.mux.Unlock()
 	}
 }
 
+// Topic 全局实例
 var Topic *collect
 
 func init() {
-	Topic = &collect{topics: map[string]map[string]struct{}{}, rwMutex: &sync.RWMutex{}}
+	Topic = &collect{}
+	for i := range Topic.shards {
+		Topic.shards[i].data = make(map[string]map[string]struct{}, 64)
+	}
 }

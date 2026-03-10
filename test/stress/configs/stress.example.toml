@@ -4,6 +4,8 @@ LogLevel = "debug"
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
 # 客户端websocket发送的心跳消息
 CustomerHeartbeatMessage = "~6YOt5rW35piO~"
+# 是否启动websocket压缩
+EnableCompression = false
 # 每个连接间隔多少秒进行心跳
 Heartbeat = 30
 # 是否并发初始化每个压测模块

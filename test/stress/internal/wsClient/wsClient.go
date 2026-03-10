@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
 	"io"
+	"net/http"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils"
@@ -65,7 +66,12 @@ type Client struct {
 }
 
 func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *Client {
-	c, resp, err := websocket.DefaultDialer.DialContext(quit.Ctx, connUrl, nil)
+	var dialer = websocket.Dialer{
+		EnableCompression: configs.Config.EnableCompression,
+		Proxy:             http.ProxyFromEnvironment,
+		HandshakeTimeout:  45 * time.Second,
+	}
+	c, resp, err := dialer.DialContext(quit.Ctx, connUrl, nil)
 	if err != nil {
 		if resp != nil {
 			respByte, _ := io.ReadAll(resp.Body)
@@ -76,6 +82,7 @@ func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *C
 		}
 		return nil
 	}
+	c.EnableWriteCompression(configs.Config.EnableCompression)
 	//接收连接打开的信息
 	if err = c.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		_ = c.Close()

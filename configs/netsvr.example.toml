@@ -5,7 +5,9 @@ LogFile = "log/netSvr.log"
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 ShutdownWaitTime = "5s"
 # pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
-PprofListenAddress = "127.0.0.1:6062"
+PprofListenAddress = "127.0.0.1:6063"
+# 测试用，是否开启Autobahn测试
+Autobahn = false
 # 限流器，如果配置是0，则表示不启用限流器
 [Limit]
 # 网关允许每秒打开多少个连接，配置为0，则不做任何限制
@@ -20,28 +22,19 @@ ListenAddress = "127.0.0.1:6060"
 HandlePattern = "/netsvr"
 # 允许连接的origin，空表示不限制，否则会循环列表进行包含匹配
 AllowOrigin = []
-# websocket服务器读取客户端连接的超时时间，该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
-ReadDeadline = "120s"
-# websocket服务器写入客户端连接的超时时间，该时间段内，没发送成功连接会被关闭
-SendDeadline = "1s"
+# 该时间段内，客户端连接没有发消息过来，则会超时，连接会被关闭，所以客户端连接必须在该时间间隔内发送心跳字符串
+HeartbeatInterval = "120s"
 # 最大连接数，超过的会被拒绝
 MaxOnlineNum = 100000
-# io模式，0：IOModNonBlocking，1：IOModBlocking，2：IOModMixed，详细见：https://github.com/lesismal/nbio
-IOMod = 0
-# 最大阻塞连接数，IOMod是2时有效，详细见：https://github.com/lesismal/nbio
-MaxBlockingOnline = 10000
 # 客户发送数据的大小限制（单位：字节）
 ReceivePackLimit = 2097152
 # 往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 SendMessageType = 1
 # 连接打开与关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/customer/callback/callback.go
-OnOpenCallbackApi = "http://127.0.0.1:6063/onopen"
-OnCloseCallbackApi = "http://127.0.0.1:6063/onclose"
+OnOpenCallbackApi = "http://127.0.0.1:6064/onopen"
+OnCloseCallbackApi = "http://127.0.0.1:6064/onclose"
 # 连接打开与关闭的回调接口超时时间
 CallbackApiDeadline = "3s"
-# tls配置
-TLSCert = ""
-TLSKey = ""
 # 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 HeartbeatMessage = "~6YOt5rW35piO~"
 # 压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
@@ -53,7 +46,7 @@ LimitWindowMaxRequests = 100
 # 固定窗口限流器的第0个窗口允许的最大请求数
 LimitZeroWindowMaxRequests = 1000
 
-#业务进程的tcp服务器配置
+#Worker的tcp服务器配置
 [Worker]
 # 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 ListenAddress = "127.0.0.1:6061"
@@ -69,6 +62,21 @@ ReadBufferSize = 4096
 SendChanCap = 1024
 # worker发送给business的缓通道写入超时，默认是100毫秒，超过该时间还没写入，则丢弃消息并统计worker到business的失败次数
 SendChanDeadline = "100ms"
+# 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
+HeartbeatMessage = "~6YOt5rW35piO~"
+
+#Task的tcp服务器配置
+[Task]
+# 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
+ListenAddress = "127.0.0.1:6062"
+# 读取task连接的超时时间，该时间段内，task连接没有发消息过来，则会超时，连接会被关闭
+ReadDeadline = "120s"
+# 发送给task连接的超时时间，该时间段内，没发送成功且有部分写入，则task连接会被关闭
+SendDeadline = "10s"
+# task发送数据的大小限制（单位：字节），task发送了超过该限制的包，则连接会被关闭
+ReceivePackLimit = 2097152
+# 读取task发送数据的缓冲区大小（单位：字节）
+ReadBufferSize = 65536
 # 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 HeartbeatMessage = "~6YOt5rW35piO~"
 

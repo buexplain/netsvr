@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
@@ -36,7 +36,6 @@ func (connSwitch) ConnOpen(payload *netsvrProtocol.ConnOpen) {
 		"data": map[string]interface{}{
 			"uniqId":        payload.UniqId,
 			"rawQuery":      payload.RawQuery,
-			"subProtocol":   payload.SubProtocol,
 			"xForwardedFor": payload.XForwardedFor,
 			"xRealIp":       payload.XRealIp,
 			"remoteAddr":    payload.RemoteAddr,

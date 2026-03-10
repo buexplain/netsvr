@@ -55,7 +55,7 @@ while true; do
       if [ ! -d ${save_dir} ]; then
         mkdir ${save_dir}
       fi
-      curl -o ${save_dir}/amd64-cpu.pprof http://127.0.0.1:6062/debug/pprof/profile?seconds=60
+      curl -o ${save_dir}/amd64-cpu.pprof http://127.0.0.1:6063/debug/pprof/profile?seconds=60
       clearAll
       read -n 1 -s -r -p "按任意键继续..."
       exit 0

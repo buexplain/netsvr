@@ -1,19 +1,19 @@
 package netBus
 
 import (
-	netsvrBusiness "github.com/buexplain/netsvr-business-go"
+	netsvrBusiness "github.com/buexplain/netsvr-business-go/v2"
+	"github.com/buexplain/netsvr-business-go/v2/taskSocket"
 	"netsvr/test/business/configs"
-	"netsvr/test/business/internal/mainSocketManager"
 	"time"
 )
 
 var NetBus *netsvrBusiness.NetBus
 
-func Init() {
-	poolManger := netsvrBusiness.NewTaskSocketPoolManger()
-	factory := netsvrBusiness.NewTaskSocketFactory(configs.Config.WorkerListenAddress, time.Second*10, time.Second*10, time.Second*10)
-	pool := netsvrBusiness.NewTaskSocketPool(configs.Config.ProcessCmdGoroutineNum, factory, time.Second*30, time.Second*10, configs.Config.WorkerHeartbeatMessage)
+func init() {
+	poolManger := taskSocket.NewManger()
+	factory := taskSocket.NewFactory(configs.Config.TaskListenAddress, time.Second*10, time.Second*10, time.Second*10)
+	pool := taskSocket.NewPool(200, factory, time.Second*30, time.Second*10, configs.Config.TaskHeartbeatMessage)
 	pool.LoopHeartbeat()
 	poolManger.AddSocket(pool)
-	NetBus = netsvrBusiness.NewNetBus(mainSocketManager.MainSocketManager, poolManger)
+	NetBus = netsvrBusiness.NewNetBus(poolManger)
 }

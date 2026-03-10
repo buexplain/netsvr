@@ -18,7 +18,7 @@
 package slicePool
 
 import (
-	"github.com/lesismal/nbio/nbhttp/websocket"
+	"github.com/panjf2000/gnet/v2"
 	"sync"
 )
 
@@ -37,19 +37,19 @@ func NewWsConn(step int) *WsConn {
 	}
 }
 
-func (r *WsConn) Get(capacity int) *[]*websocket.Conn {
+func (r *WsConn) Get(capacity int) *[]gnet.Conn {
 	poolIndex := (capacity + r.step - 1) / r.step
 	r.mux.RLock()
 	pool, ok := r.pools[poolIndex]
 	r.mux.RUnlock()
 	if ok {
-		return pool.Get().(*[]*websocket.Conn)
+		return pool.Get().(*[]gnet.Conn)
 	}
-	s := make([]*websocket.Conn, 0, poolIndex*r.step)
+	s := make([]gnet.Conn, 0, poolIndex*r.step)
 	return &s
 }
 
-func (r *WsConn) Put(s *[]*websocket.Conn) {
+func (r *WsConn) Put(s *[]gnet.Conn) {
 	poolIndex := (cap(*s) + r.step - 1) / r.step
 	*s = (*s)[:0]
 	r.mux.RLock()
@@ -68,7 +68,7 @@ func (r *WsConn) Put(s *[]*websocket.Conn) {
 	}
 	pool = &sync.Pool{
 		New: func() any {
-			tmp := make([]*websocket.Conn, 0, poolIndex*r.step)
+			tmp := make([]gnet.Conn, 0, poolIndex*r.step)
 			return &tmp
 		},
 	}

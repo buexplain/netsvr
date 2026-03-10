@@ -8,48 +8,77 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-business-go v1.0.2
-## explicit; go 1.22.7
-github.com/buexplain/netsvr-business-go
-github.com/buexplain/netsvr-business-go/resp
-# github.com/buexplain/netsvr-protocol-go/v5 v5.1.0
-## explicit; go 1.22
-github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol
+# github.com/buexplain/netsvr-business-go/v2 v2.0.0
+## explicit; go 1.23
+github.com/buexplain/netsvr-business-go/v2
+github.com/buexplain/netsvr-business-go/v2/contract
+github.com/buexplain/netsvr-business-go/v2/log
+github.com/buexplain/netsvr-business-go/v2/mainSocket
+github.com/buexplain/netsvr-business-go/v2/ret
+github.com/buexplain/netsvr-business-go/v2/socket
+github.com/buexplain/netsvr-business-go/v2/taskSocket
+# github.com/buexplain/netsvr-protocol-go/v6 v6.0.0
+## explicit; go 1.23
+github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol
+# github.com/clipperhouse/uax29/v2 v2.2.0
+## explicit; go 1.18
+github.com/clipperhouse/uax29/v2/graphemes
+github.com/clipperhouse/uax29/v2/internal/iterators
+# github.com/gobwas/httphead v0.1.0
+## explicit; go 1.15
+github.com/gobwas/httphead
+# github.com/gobwas/pool v0.2.1
+## explicit
+github.com/gobwas/pool
+github.com/gobwas/pool/internal/pmath
+github.com/gobwas/pool/pbufio
+github.com/gobwas/pool/pbytes
+# github.com/gobwas/ws v1.4.0
+## explicit; go 1.16
+github.com/gobwas/ws
+github.com/gobwas/ws/wsflate
+github.com/gobwas/ws/wsutil
 # github.com/gorilla/websocket v1.5.3
 ## explicit; go 1.12
 github.com/gorilla/websocket
-# github.com/lesismal/llib v1.2.2
-## explicit; go 1.16
-github.com/lesismal/llib/std/crypto/tls
-github.com/lesismal/llib/std/internal/cpu
-# github.com/lesismal/nbio v1.6.8
-## explicit; go 1.16
-github.com/lesismal/nbio
-github.com/lesismal/nbio/lmux
-github.com/lesismal/nbio/logging
-github.com/lesismal/nbio/mempool
-github.com/lesismal/nbio/nbhttp
-github.com/lesismal/nbio/nbhttp/websocket
-github.com/lesismal/nbio/taskpool
-github.com/lesismal/nbio/timer
 # github.com/mattn/go-colorable v0.1.14
 ## explicit; go 1.18
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-runewidth v0.0.16
-## explicit; go 1.9
+# github.com/mattn/go-runewidth v0.0.20
+## explicit; go 1.20
 github.com/mattn/go-runewidth
 # github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
+# github.com/panjf2000/ants/v2 v2.11.5
+## explicit; go 1.18
+github.com/panjf2000/ants/v2
+github.com/panjf2000/ants/v2/pkg/sync
+# github.com/panjf2000/gnet/v2 v2.9.7
+## explicit; go 1.20
+github.com/panjf2000/gnet/v2
+github.com/panjf2000/gnet/v2/internal/gfd
+github.com/panjf2000/gnet/v2/pkg/bs
+github.com/panjf2000/gnet/v2/pkg/buffer/elastic
+github.com/panjf2000/gnet/v2/pkg/buffer/linkedlist
+github.com/panjf2000/gnet/v2/pkg/buffer/ring
+github.com/panjf2000/gnet/v2/pkg/errors
+github.com/panjf2000/gnet/v2/pkg/io
+github.com/panjf2000/gnet/v2/pkg/logging
+github.com/panjf2000/gnet/v2/pkg/math
+github.com/panjf2000/gnet/v2/pkg/netpoll
+github.com/panjf2000/gnet/v2/pkg/pool/bytebuffer
+github.com/panjf2000/gnet/v2/pkg/pool/byteslice
+github.com/panjf2000/gnet/v2/pkg/pool/goroutine
+github.com/panjf2000/gnet/v2/pkg/pool/ringbuffer
+github.com/panjf2000/gnet/v2/pkg/queue
+github.com/panjf2000/gnet/v2/pkg/socket
 # github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
 ## explicit
 github.com/rcrowley/go-metrics
-# github.com/rivo/uniseg v0.4.7
-## explicit; go 1.18
-github.com/rivo/uniseg
 # github.com/rs/zerolog v1.34.0
 ## explicit; go 1.15
 github.com/rs/zerolog
@@ -64,19 +93,28 @@ github.com/tidwall/match
 # github.com/tidwall/pretty v1.2.1
 ## explicit; go 1.16
 github.com/tidwall/pretty
-# golang.org/x/crypto v0.47.0
-## explicit; go 1.24.0
-golang.org/x/crypto/chacha20
-golang.org/x/crypto/chacha20poly1305
-golang.org/x/crypto/cryptobyte
-golang.org/x/crypto/cryptobyte/asn1
-golang.org/x/crypto/curve25519
-golang.org/x/crypto/hkdf
-golang.org/x/crypto/internal/alias
-golang.org/x/crypto/internal/poly1305
+# github.com/valyala/bytebufferpool v1.0.0
+## explicit
+github.com/valyala/bytebufferpool
+# go.uber.org/multierr v1.11.0
+## explicit; go 1.19
+go.uber.org/multierr
+# go.uber.org/zap v1.27.1
+## explicit; go 1.19
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/internal/pool
+go.uber.org/zap/internal/stacktrace
+go.uber.org/zap/zapcore
+# golang.org/x/sync v0.11.0
+## explicit; go 1.18
+golang.org/x/sync/errgroup
 # golang.org/x/sys v0.40.0
 ## explicit; go 1.24.0
-golang.org/x/sys/cpu
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/time v0.12.0

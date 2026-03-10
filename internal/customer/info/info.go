@@ -18,9 +18,10 @@
 package info
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/configs"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,16 +41,35 @@ type Info struct {
 	rwMutex sync.RWMutex
 	//当前窗口内的请求数
 	limitWindowRequests int32
+	//最后活跃时间
+	lastActiveTime uint32 //2106-02-07 14:28:15之后，本程序不会支持
 }
 
-func NewInfo(uniqId string) *Info {
+func New(uniqId string) *Info {
 	return &Info{
 		uniqId:              uniqId,
 		limitWindowStart:    time.Time{},
 		limitWindowRequests: 0 - configs.Config.Customer.LimitZeroWindowMaxRequests,
 		topics:              nil,
 		rwMutex:             sync.RWMutex{},
+		lastActiveTime:      uint32(time.Now().Unix()),
 	}
+}
+
+func (r *Info) UpdateLastActiveTimeOnSafe() {
+	atomic.StoreUint32(&r.lastActiveTime, uint32(time.Now().Unix()))
+}
+
+func (r *Info) GetLastActiveTimeOnSafe() uint32 {
+	return atomic.LoadUint32(&r.lastActiveTime)
+}
+
+func (r *Info) RLock() {
+	r.rwMutex.RLock()
+}
+
+func (r *Info) RUnlock() {
+	r.rwMutex.RUnlock()
 }
 
 func (r *Info) Lock() {
@@ -78,6 +98,12 @@ func (r *Info) Allow() bool {
 		return true
 	}
 	return false
+}
+
+func (r *Info) GetCustomerIdOnSafe() string {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
+	return r.customerId
 }
 
 func (r *Info) GetCustomerId() string {

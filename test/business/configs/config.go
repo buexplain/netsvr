@@ -38,16 +38,18 @@ type config struct {
 	LogLevel string
 	//worker服务的监听地址
 	WorkerListenAddress string
+	//任务服务的监听地址
+	TaskListenAddress string
 	//customer服务的websocket连接地址
 	ClientListenAddress string
 	//输出客户端界面的http服务的监听地址
 	CustomerWsAddress string
-	//让worker为我开启n条协程来处理我的请求
-	ProcessCmdGoroutineNum int
 	//客户端websocket发送的心跳消息
 	CustomerHeartbeatMessage BytesConfigItem
 	//business进程向网关的worker服务器发送的心跳消息
 	WorkerHeartbeatMessage BytesConfigItem
+	//business进程向网关的task服务器发送的心跳消息
+	TaskHeartbeatMessage BytesConfigItem
 	//伪造登录时，伪造客户业务系统的唯一id的初始值，如果启动多个business进程，则需要区分每个business进程的起始值，最大值为uint32
 	ForgeCustomerIdInitVal uint32
 }
@@ -83,8 +85,5 @@ func init() {
 	if _, err := toml.Decode(string(c), Config); err != nil {
 		slog.Error("Parse business.toml failed", "error", err)
 		os.Exit(1)
-	}
-	if Config.ProcessCmdGoroutineNum <= 0 {
-		Config.ProcessCmdGoroutineNum = 1
 	}
 }

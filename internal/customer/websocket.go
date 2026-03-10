@@ -14,18 +14,20 @@
 * limitations under the License.
  */
 
-// Package customer 客户连接维持模块
-// 负责承载客户的websocket连接、维护客户的订阅、保持客户连接的session数据
 package customer
 
 import (
 	"bytes"
 	"context"
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
-	"github.com/lesismal/llib/std/crypto/tls"
-	"github.com/lesismal/nbio/nbhttp"
-	"github.com/lesismal/nbio/nbhttp/websocket"
+	"errors"
+	gTimer "github.com/antlabs/timer"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/gobwas/ws"
+	"github.com/panjf2000/gnet/v2"
+	"github.com/panjf2000/gnet/v2/pkg/logging"
+	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
 	"github.com/rs/zerolog"
+	"io"
 	"net"
 	"net/http"
 	"netsvr/configs"
@@ -40,401 +42,438 @@ import (
 	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
 	"netsvr/internal/timer"
-	"netsvr/internal/utils"
-	workerManager "netsvr/internal/worker/manager"
+	"netsvr/internal/worker"
+	"netsvr/internal/wsServer"
 	"netsvr/pkg/quit"
 	"os"
 	"strings"
 	"time"
 )
 
-var server *nbhttp.Server
-var upgrade = (func() *websocket.Upgrader {
-	upgrade := websocket.NewUpgrader()
-	upgrade.KeepaliveTime = configs.Config.Customer.ReadDeadline
-	upgrade.HandshakeTimeout = configs.Config.Customer.SendDeadline * 2
-	upgrade.CheckOrigin = checkOrigin
-	upgrade.SetPingHandler(pingMessageHandler)
-	upgrade.OnOpen(nil)
-	upgrade.OnClose(onClose)
-	upgrade.OnMessage(onMessage)
-	//处理websocket子协议
-	upgrade.Subprotocols = nil
-	if configs.Config.Customer.CompressionLevel == 0 {
-		upgrade.EnableCompression(false)
-	} else {
-		upgrade.EnableCompression(true)
-		_ = upgrade.SetCompressionLevel(configs.Config.Customer.CompressionLevel)
-	}
-	return upgrade
-})()
-
-// OpenRateLimit 不能轻易改变这些常量的值，因为websocket客户端代码极有可能判断这些字符串做出下一步处理，改变这些字符会导致这些客户端的代码失效
-const OpenRateLimit = "Open rate limited"
-const MessageRateLimit = "Message rate limited"
-const ConnectionMessageRateLimit = "Connection message rate limited"
-const ServiceShutdown = "Service shutdown"
-const MessageTooLarge = "Message too large"
+var server *wsServer.Server
 
 func Start() {
-	var tlsConfig *tls.Config
-	var connAddr string
-	if configs.Config.Customer.TLSKey != "" || configs.Config.Customer.TLSCert != "" {
-		cert, err := tls.LoadX509KeyPair(configs.Config.Customer.TLSCert, configs.Config.Customer.TLSKey)
-		if err != nil {
-			log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Customer websocket tls.LoadX509KeyPair failed")
-			os.Exit(1)
-		}
-		tlsConfig = &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: true,
-		}
+	server = &wsServer.Server{
+		OnUpgradeCheck: func(req *http.Request) *http.Response {
+			// 检查请求路径
+			if req.RequestURI != configs.Config.Customer.HandlePattern {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					ProtoMajor: 1,
+					ProtoMinor: 1,
+					Body:       io.NopCloser(strings.NewReader(http.StatusText(http.StatusNotFound))),
+				}
+			}
+			// 检查请求源
+			if len(configs.Config.Customer.AllowOrigin) > 0 {
+				origin := req.Header.Get("Origin")
+				ok := false
+				for _, v := range configs.Config.Customer.AllowOrigin {
+					if strings.Contains(origin, v) {
+						ok = true
+						break
+					}
+				}
+				if !ok {
+					return &http.Response{
+						StatusCode: http.StatusForbidden,
+						ProtoMajor: 1,
+						ProtoMinor: 1,
+						Body:       io.NopCloser(strings.NewReader(http.StatusText(http.StatusForbidden))),
+					}
+				}
+			}
+			return nil
+		},
+		OnWebsocketOpen: func(conn gnet.Conn, req *http.Request) (ws.StatusCode, error) {
+			//进程即将关闭，不再受理新的连接
+			select {
+			case <-quit.Ctx.Done():
+				return ws.StatusCode(1012), errors.New("service restart")
+			default:
+			}
+			//检查在线人数
+			if server.OnlineNum() >= configs.Config.Customer.MaxOnlineNum {
+				return ws.StatusCode(1013), errors.New("open rate limited, try again later")
+			}
+			//限流检查
+			if limit.Manager.Allow(netsvrProtocol.Event_OnOpen) == false {
+				//统计连接打开的限流次数
+				metrics.Registry[metrics.ItemOpenRateLimitCount].Meter.Mark(1)
+				//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
+				log.Logger.Error().
+					Str("rawQuery", req.URL.RawQuery).
+					Str("xForwardedFor", req.Header.Get("X-Forwarded-For")).
+					Str("xRealIp", req.Header.Get("X-Real-IP")).
+					Str("remoteAddr", req.RemoteAddr).
+					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+					Msg("open rate limited")
+				return ws.StatusCode(1013), errors.New("open rate limited, try again later")
+			}
+			err := goroutine.DefaultWorkerPool.Submit(func() {
+				//当闭包开始执行的时候，conn可能已经关闭了
+				wsCodec, ok := conn.Context().(*wsServer.Codec)
+				if !ok {
+					return
+				}
+				remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+				uniqId := uniqIdGen.New()
+				co := objPool.ConnOpen.Get()
+				defer objPool.ConnOpen.Put(co)
+				co.UniqId = uniqId
+				co.RawQuery = req.URL.RawQuery
+				co.XForwardedFor = req.Header.Get("X-Forwarded-For")
+				co.XRealIp = req.Header.Get("X-Real-IP")
+				co.RemoteAddr = remoteAddr
+				var connOpenResp *netsvrProtocol.ConnOpenResp
+				var err error
+				if configs.Config.Customer.OnOpenCallbackApi != "" {
+					connOpenResp, err = callback.OnOpen(co)
+					//回调函数回来后，连接可能已经关闭了
+					wsCodec, ok = conn.Context().(*wsServer.Codec)
+					if !ok {
+						return
+					}
+					//回调错误，写入关闭帧
+					if err != nil {
+						WriteClose(conn, ws.StatusInternalServerError, err)
+						return
+					}
+					//不允许连接，写入关闭帧
+					if connOpenResp.Allow == false {
+						if len(connOpenResp.Data) > 0 {
+							WriteMessage(conn, configs.Config.Customer.SendMessageType, connOpenResp.Data)
+						}
+						WriteClose(conn, ws.StatusPolicyViolation, errors.New("unauthorized"))
+						return
+					}
+				}
+				//统计客户连接的打开次数
+				metrics.Registry[metrics.ItemCustomerConnOpenCount].Meter.Mark(1)
+				session := info.New(uniqId)
+				//设置回调返回的数据
+				if connOpenResp != nil {
+					if connOpenResp.NewSession != "" {
+						session.SetSession(connOpenResp.NewSession)
+					}
+					if connOpenResp.NewCustomerId != "" {
+						session.SetCustomerId(connOpenResp.NewCustomerId)
+					}
+					if len(connOpenResp.NewTopics) > 0 {
+						session.SubscribeTopics(connOpenResp.NewTopics)
+					}
+				}
+				//让连接持有session info对象
+				wsCodec.SetSession(session)
+				//添加到连接管理器
+				manager.Manager.Set(uniqId, conn)
+				//构建回调返回的关系，并将数据下发给客户端
+				if connOpenResp != nil {
+					if connOpenResp.NewCustomerId != "" {
+						binder.Binder.Set(connOpenResp.NewCustomerId, uniqId)
+					}
+					if len(connOpenResp.NewTopics) > 0 {
+						topic.Topic.SetBySlice(connOpenResp.NewTopics, uniqId)
+					}
+					if len(connOpenResp.Data) > 0 {
+						WriteMessage(conn, configs.Config.Customer.SendMessageType, connOpenResp.Data)
+					}
+				}
+				//添加心跳检查
+				var tNode gTimer.TimeNoder
+				tNode = timer.Timer.ScheduleFunc(configs.Config.Customer.HeartbeatInterval, func() {
+					wsCodec, ok := conn.Context().(*wsServer.Codec)
+					if !ok || wsCodec.IsClosed() {
+						if tNode != nil {
+							tNode.Stop()
+						}
+						return
+					}
+					session, ok := wsCodec.GetSession().(*info.Info)
+					if !ok {
+						if tNode != nil {
+							tNode.Stop()
+						}
+						return
+					}
+					//检查最后活跃时间
+					lastActiveTime := session.GetLastActiveTimeOnSafe()
+					if uint32(time.Now().Unix())-lastActiveTime > configs.Config.Customer.HeartbeatIntervalSecond {
+						if tNode != nil {
+							tNode.Stop()
+						}
+						WriteClose(conn, ws.StatusGoingAway, errors.New("heartbeat timeout"))
+					}
+				})
+				//需要将客户端连接打开的信息转发给business进程
+				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnOpen); currentWorker != nil {
+					if sendSize := currentWorker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
+						//统计转发到business的次数与字节数
+						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
+						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
+					}
+				}
+			})
+			if err != nil {
+				return ws.StatusInternalServerError, err
+			}
+			return ws.StatusCode(0), nil
+		},
+		OnWebsocketClose: func(conn gnet.Conn) {
+			wsCodec, ok := conn.Context().(*wsServer.Codec)
+			if !ok || wsCodec == nil {
+				return
+			}
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if !ok {
+				return
+			}
+			fn := func() {
+				session.Lock()
+				//清空session
+				uniqId, customerId, customerSession, topics := session.Clear()
+				//释放锁
+				session.UnLock()
+				//统计客户连接的关闭次数
+				metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
+				//从连接管理器中删除
+				manager.Manager.Del(uniqId)
+				//解除uniqId与customerId的关系
+				if customerId != "" {
+					binder.Binder.Del(customerId, uniqId)
+				}
+				//删除订阅关系
+				topic.Topic.DelBySlice(topics, uniqId)
+				cl := objPool.ConnClose.Get()
+				defer objPool.ConnClose.Put(cl)
+				cl.UniqId = uniqId
+				cl.CustomerId = customerId
+				cl.Session = customerSession
+				cl.Topics = topics
+				if configs.Config.Customer.OnCloseCallbackApi != "" {
+					//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
+					callback.OnClose(cl)
+				}
+				//将连接关闭的消息转发给business进程
+				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnClose); currentWorker != nil {
+					if sendSize := currentWorker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
+						//统计客户数据转发到worker的次数与字节数情况
+						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
+						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
+					}
+				}
+			}
+			if err := goroutine.DefaultWorkerPool.Submit(fn); err != nil {
+				//提交异步任务失败，则使用goroutine执行，保证已经关闭的连接能正常清理
+				go fn()
+				log.Logger.Warn().Err(err).Msg("OnWebsocketClose submit to worker pool failed")
+			}
+		},
+		OnWebsocketPing: func(conn gnet.Conn) {
+			wsCodec, ok := conn.Context().(*wsServer.Codec)
+			if !ok {
+				return
+			}
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if !ok {
+				return
+			}
+			//更新最后活跃时间
+			session.UpdateLastActiveTimeOnSafe()
+			metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
+		},
+		OnWebsocketMessage: func(conn gnet.Conn, messageType ws.OpCode, data []byte) {
+			wsCodec, ok := conn.Context().(*wsServer.Codec)
+			if !ok {
+				return
+			}
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if !ok {
+				return
+			}
+			//更新最后活跃时间
+			session.UpdateLastActiveTimeOnSafe()
+			//判断是否是心跳包
+			if bytes.Equal(data, configs.Config.Customer.HeartbeatMessage) {
+				metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
+				return
+			}
+			currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnMessage)
+			if currentWorker == nil {
+				return
+			}
+			//获取session中的数据
+			session.RLock()
+			allow := session.Allow()
+			uniqId := session.GetUniqId()
+			customerSession := session.GetSession()
+			customerId := session.GetCustomerId()
+			topics := session.GetTopics()
+			session.RUnlock()
+			//限制数据包大小，溢出限制大小，直接丢弃该数据
+			if len(data) > configs.Config.Customer.ReceivePackLimit {
+				WriteClose(conn, ws.StatusMessageTooBig, errors.New("message too big"))
+				//打日志，方便客户端排查问题
+				log.Logger.Info().
+					Str("uniqId", uniqId).
+					Str("customerId", customerId).
+					Str("customerSession", customerSession).
+					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+					Msg("message too large")
+				return
+			}
+			//连接限流检查
+			if allow == false {
+				//统计连接消息限流次数
+				metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
+				//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多
+				formatCustomerData(data, log.Logger.Error()).
+					Str("uniqId", uniqId).
+					Str("customerId", customerId).
+					Str("customerSession", customerSession).
+					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+					Msg("connection message rate limited")
+				return
+			}
+			//全局限流检查
+			if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
+				//统计客户消息限流次数
+				metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
+				//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
+				formatCustomerData(data, log.Logger.Error()).
+					Str("uniqId", uniqId).
+					Str("customerId", customerId).
+					Str("customerSession", customerSession).
+					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+					Msg("message rate limited")
+				return
+			}
+			//记录所有请求日志
+			if configs.Config.LogLevel == "debug" {
+				formatCustomerData(data, log.Logger.Debug()).
+					Str("uniqId", uniqId).
+					Str("customerId", customerId).
+					Str("customerSession", customerSession).
+					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+					Send()
+			}
+			fn := func() {
+				//编码数据成business需要的格式
+				tf := objPool.Transfer.Get()
+				tf.UniqId = uniqId
+				tf.CustomerId = customerId
+				tf.Session = customerSession
+				tf.Topics = topics
+				tf.Data = data
+				defer objPool.Transfer.Put(tf)
+				//转发数据到business
+				if sendSize := currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
+					//统计转发到business的次数与字节数
+					metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
+					metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
+				}
+			}
+			err := goroutine.DefaultWorkerPool.Submit(fn)
+			if err != nil {
+				//提交异步任务失败，则使用goroutine执行，保证数据发送成功
+				go fn()
+				log.Logger.Warn().Err(err).Msg("OnWebsocketMessage submit to worker pool failed")
+			}
+		},
 	}
-	config := nbhttp.Config{
-		Network:           "tcp",
-		Name:              "customer",
-		MaxLoad:           configs.Config.Customer.MaxOnlineNum,
-		IOMod:             configs.Config.Customer.IOMod,
-		MaxBlockingOnline: configs.Config.Customer.MaxBlockingOnline,
-	}
-	if tlsConfig == nil {
-		config.Addrs = []string{configs.Config.Customer.ListenAddress}
-		connAddr = "ws://" + configs.Config.Customer.ListenAddress + configs.Config.Customer.HandlePattern
-	} else {
-		config.AddrsTLS = []string{configs.Config.Customer.ListenAddress}
-		config.TLSConfig = tlsConfig
-		connAddr = "wss://" + configs.Config.Customer.ListenAddress + configs.Config.Customer.HandlePattern
-	}
-	mux := &http.ServeMux{}
-	mux.HandleFunc(configs.Config.Customer.HandlePattern, onWebsocket)
-	config.Handler = mux
-	server = nbhttp.NewServer(config)
-	err := server.Start()
+	go func() {
+		time.Sleep(time.Second * 2)
+		log.Logger.Info().Int("pid", os.Getpid()).Msgf(
+			"Customer websocket start ws://%s%s",
+			configs.Config.Customer.ListenAddress,
+			configs.Config.Customer.HandlePattern,
+		)
+	}()
+	err := gnet.Run(
+		server,
+		"tcp://"+configs.Config.Customer.ListenAddress,
+		gnet.WithLogger(log.NewLoggingSubstitute(&log.Logger)),
+		gnet.WithMulticore(true),
+		gnet.WithReusePort(true),
+		gnet.WithReuseAddr(true),
+		gnet.WithLockOSThread(true),
+		gnet.WithLoadBalancing(gnet.LeastConnections),
+		gnet.WithLogLevel(logging.InfoLevel),
+	)
 	if err != nil {
 		log.Logger.Error().Err(err).Int("pid", os.Getpid()).Msg("Customer websocket start failed")
 		time.Sleep(time.Millisecond * 100)
 		os.Exit(1)
-		return
 	}
-	log.Logger.Info().Int("pid", os.Getpid()).Msgf("Customer websocket start %s", connAddr)
+}
+
+func StartAutobahn() {
+	server = &wsServer.Server{
+		OnUpgradeCheck: func(req *http.Request) *http.Response {
+			return nil
+		},
+		OnWebsocketOpen: func(conn gnet.Conn, req *http.Request) (ws.StatusCode, error) {
+			return ws.StatusCode(0), nil
+		},
+		OnWebsocketClose: func(conn gnet.Conn) {
+		},
+		OnWebsocketPing: func(conn gnet.Conn) {
+		},
+		OnWebsocketMessage: func(conn gnet.Conn, messageType ws.OpCode, data []byte) {
+			fn := func() {
+				//两个写入方法都要测试一次
+				NewMessage(messageType, data).WriteTo(conn)
+				//WriteMessage(conn, messageType, data)
+			}
+			err := goroutine.DefaultWorkerPool.Submit(fn)
+			if err != nil {
+				//提交异步任务失败，则使用goroutine执行，保证数据发送成功
+				go fn()
+			}
+		},
+	}
+	go func() {
+		time.Sleep(time.Second * 2)
+		log.Logger.Info().Int("pid", os.Getpid()).Msgf(
+			"Autobahn websocket start ws://%s%s",
+			configs.Config.Customer.ListenAddress,
+			configs.Config.Customer.HandlePattern,
+		)
+	}()
+	err := gnet.Run(
+		server,
+		"tcp://"+configs.Config.Customer.ListenAddress,
+		gnet.WithLogger(log.NewLoggingSubstitute(&log.Logger)),
+		gnet.WithMulticore(true),
+		gnet.WithReusePort(true),
+		gnet.WithReuseAddr(true),
+		gnet.WithLockOSThread(true),
+		gnet.WithLoadBalancing(gnet.LeastConnections),
+		gnet.WithLogLevel(logging.InfoLevel),
+	)
+	if err != nil {
+		log.Logger.Error().Err(err).Int("pid", os.Getpid()).Msg("Autobahn websocket start failed")
+		time.Sleep(time.Millisecond * 100)
+		os.Exit(1)
+	}
 }
 
 func Shutdown() {
 	err := server.Shutdown(context.Background())
 	if err != nil {
-		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Customer websocket grace shutdown failed")
+		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Customer websocket shutdown failed")
 		return
 	}
-	log.Logger.Info().Int("pid", os.Getpid()).Msg("Customer websocket grace shutdown")
-}
-
-func onWebsocket(w http.ResponseWriter, r *http.Request) {
-	select {
-	case <-quit.Ctx.Done():
-		//进程即将关闭，不再受理新的连接
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write(utils.StrToReadOnlyBytes(ServiceShutdown))
-		return
-	default:
-	}
-	//检测是否是websocket连接，如果不是，则视为负载层发送的健康检查请求
-	if r.Header.Get("Upgrade") == "" {
-		http.Error(w, "Hello netsvr", http.StatusOK)
-		return
-	}
-	//获取ws子协议
-	subProtocols := utils.ParseSubProtocols(r)
-	var responseHeader http.Header
-	if subProtocols != nil {
-		//返回任意一个子协议，保证连接升级成功
-		responseHeader = http.Header{}
-		responseHeader["Sec-Websocket-Protocol"] = subProtocols[0:1]
-	}
-	//获取部分header信息
-	xForwardedFor := r.Header.Get("X-Forwarded-For")
-	xRealIp := r.Header.Get("X-Real-IP")
-	remoteAddr, _, _ := net.SplitHostPort(r.RemoteAddr)
-	//限流检查
-	if limit.Manager.Allow(netsvrProtocol.Event_OnOpen) == false {
-		//统计连接打开的限流次数
-		metrics.Registry[metrics.ItemOpenRateLimitCount].Meter.Mark(1)
-		//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
-		log.Logger.Error().
-			Str("rawQuery", r.URL.RawQuery).
-			Strs("subProtocols", subProtocols).
-			Str("xForwardedFor", xForwardedFor).
-			Str("xRealIp", xRealIp).
-			Str("remoteAddr", r.RemoteAddr).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Msg(OpenRateLimit)
-		return
-	}
-	//生成唯一id
-	uniqId := uniqIdGen.New()
-	//开始升级
-	wsConn, err := upgrade.Upgrade(w, r, responseHeader)
-	if err != nil {
-		log.Logger.Error().Err(err).
-			Str("rawQuery", r.URL.RawQuery).
-			Strs("subProtocols", subProtocols).
-			Str("xForwardedFor", xForwardedFor).
-			Str("xRealIp", xRealIp).
-			Str("remoteAddr", r.RemoteAddr).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Msg("Customer websocket upgrade failed")
-		return
-	}
-	co := objPool.ConnOpen.Get()
-	defer objPool.ConnOpen.Put(co)
-	co.UniqId = uniqId
-	co.RawQuery = r.URL.RawQuery
-	co.SubProtocol = subProtocols
-	co.XForwardedFor = xForwardedFor
-	co.XRealIp = xRealIp
-	co.RemoteAddr = remoteAddr
-	//调用回调函数
-	var connOpenResp *netsvrProtocol.ConnOpenResp
-	if configs.Config.Customer.OnOpenCallbackApi != "" {
-		connOpenResp = callback.OnOpen(co)
-		if connOpenResp == nil {
-			_ = wsConn.Close()
-			return
-		}
-		//不允许连接
-		if connOpenResp.Allow == false {
-			if len(connOpenResp.Data) > 0 {
-				timer.Timer.AfterFunc(time.Millisecond*100, func() {
-					_ = wsConn.Close()
-				})
-			} else {
-				_ = wsConn.Close()
-			}
-			return
-		}
-		//先将数据发给客户端，如果发送失败，则关闭连接，否则继续
-		if len(connOpenResp.Data) > 0 {
-			err = wsConn.WriteMessage(configs.Config.Customer.SendMessageType, connOpenResp.Data)
-			if err != nil {
-				_ = wsConn.Close()
-				return
-			}
-		}
-	}
-	//统计客户连接的打开次数
-	metrics.Registry[metrics.ItemCustomerConnOpenCount].Meter.Mark(1)
-	session := info.NewInfo(uniqId)
-	//设置回调返回的数据
-	if connOpenResp != nil {
-		if connOpenResp.NewSession != "" {
-			session.SetSession(connOpenResp.NewSession)
-		}
-		if connOpenResp.NewCustomerId != "" {
-			session.SetCustomerId(connOpenResp.NewCustomerId)
-		}
-		if len(connOpenResp.NewTopics) > 0 {
-			session.SubscribeTopics(connOpenResp.NewTopics)
-		}
-	}
-	//让连接持有session info对象
-	wsConn.SetSession(session)
-	//构建回调返回的关系
-	if connOpenResp != nil {
-		if connOpenResp.NewCustomerId != "" {
-			binder.Binder.Set(uniqId, connOpenResp.NewCustomerId)
-		}
-		if len(connOpenResp.NewTopics) > 0 {
-			topic.Topic.SetBySlice(connOpenResp.NewTopics, uniqId)
-		}
-	}
-	//添加到连接管理器
-	manager.Manager.Set(uniqId, wsConn)
-	//需要将客户端连接打开的信息转发给business进程
-	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnOpen); worker != nil {
-		if sendSize := worker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
-			//统计转发到business的次数与字节数
-			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-		}
-	}
-}
-
-func onClose(conn *websocket.Conn, _ error) {
-	//分配了session才算是真正打开过的连接
-	session, ok := conn.SessionWithLock().(*info.Info)
-	if !ok {
-		return
-	}
-	//解除连接中持有的session
-	conn.SetSession(nil)
-	//开始执行关闭逻辑
-	session.Lock()
-	if session.GetUniqId() == "" {
-		session.UnLock()
-		return
-	}
-	//清空session
-	uniqId, customerId, customerSession, topics := session.Clear()
-	//释放锁
-	session.UnLock()
-	//统计客户连接的关闭次数
-	metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
-	//从连接管理器中删除
-	manager.Manager.Del(uniqId)
-	//解除uniqId与customerId的关系
-	if customerId != "" {
-		//如果客户id为空，则没必要去解除绑定关系，因为解除绑定关系需要获取互斥锁
-		binder.Binder.DelUniqId(uniqId)
-	}
-	//删除订阅关系
-	topic.Topic.DelBySlice(topics, uniqId)
-	cl := objPool.ConnClose.Get()
-	defer objPool.ConnClose.Put(cl)
-	cl.UniqId = uniqId
-	cl.CustomerId = customerId
-	cl.Session = customerSession
-	cl.Topics = topics
-	if configs.Config.Customer.OnCloseCallbackApi != "" {
-		//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
-		callback.OnClose(cl)
-	}
-	//将连接关闭的消息转发给business进程
-	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnClose); worker != nil {
-		if sendSize := worker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
-			//统计客户数据转发到worker的次数与字节数情况
-			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-		}
-	}
-}
-
-func onMessage(conn *websocket.Conn, _ websocket.MessageType, data []byte) {
-	//检查是否为心跳消息
-	if bytes.Equal(data, configs.Config.Customer.HeartbeatMessage) {
-		//统计客户连接的心跳次数
-		metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
-		return
-	}
-	//从连接中拿出session
-	session, ok := conn.SessionWithLock().(*info.Info)
-	if !ok {
-		return
-	}
-	//获取session中的数据
-	session.Lock()
-	allow := session.Allow()
-	uniqId := session.GetUniqId()
-	customerSession := session.GetSession()
-	customerId := session.GetCustomerId()
-	topics := session.GetTopics()
-	session.UnLock()
-	//限制数据包大小，溢出限制大小，直接丢弃该数据
-	if len(data) > configs.Config.Customer.ReceivePackLimit {
-		//关闭发生异常数据包的连接
-		_ = conn.Close()
-		//打日志，方便客户端排查问题
-		log.Logger.Info().
-			Str("uniqId", uniqId).
-			Str("customerId", customerId).
-			Str("customerSession", customerSession).
-			Str("remoteAddr", conn.RemoteAddr().String()).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Msg(MessageTooLarge)
-		return
-	}
-	//连接限流检查
-	if allow == false {
-		//统计连接消息限流次数
-		metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
-		//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多
-		formatCustomerData(data, log.Logger.Error()).
-			Str("uniqId", uniqId).
-			Str("customerId", customerId).
-			Str("customerSession", customerSession).
-			Str("remoteAddr", conn.RemoteAddr().String()).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Msg(ConnectionMessageRateLimit)
-		return
-	}
-	//全局限流检查
-	if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
-		//统计客户消息限流次数
-		metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
-		//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
-		formatCustomerData(data, log.Logger.Error()).
-			Str("uniqId", uniqId).
-			Str("customerId", customerId).
-			Str("customerSession", customerSession).
-			Str("remoteAddr", conn.RemoteAddr().String()).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Msg(MessageRateLimit)
-		return
-	}
-	//记录所有请求日志
-	if configs.Config.LogLevel == "debug" {
-		formatCustomerData(data, log.Logger.Debug()).
-			Str("uniqId", uniqId).
-			Str("customerId", customerId).
-			Str("customerSession", customerSession).
-			Str("remoteAddr", conn.RemoteAddr().String()).
-			Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-			Send()
-	}
-	//获取能处理消息的business
-	if worker := workerManager.Manager.Get(netsvrProtocol.Event_OnMessage); worker != nil {
-		//编码数据成business需要的格式
-		tf := objPool.Transfer.Get()
-		tf.UniqId = uniqId
-		tf.CustomerId = customerId
-		tf.Session = customerSession
-		tf.Topics = topics
-		tf.Data = data
-		//转发数据到business
-		if sendSize := worker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
-			//统计转发到business的次数与字节数
-			metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-		}
-		objPool.Transfer.Put(tf)
-	}
+	log.Logger.Info().Int("pid", os.Getpid()).Msg("Customer websocket shutdown")
 }
 
 func formatCustomerData(customerData []byte, event *zerolog.Event) *zerolog.Event {
-	if configs.Config.Customer.SendMessageType == websocket.TextMessage {
+	if configs.Config.Customer.SendMessageType == ws.OpText {
 		return event.Str("customerData", string(customerData))
 	}
 	return event.Hex("customerDataHex", customerData)
-}
-
-// pong客户端心跳帧
-func pingMessageHandler(conn *websocket.Conn, _ string) {
-	err := conn.SetWriteDeadline(time.Now().Add(configs.Config.Customer.SendDeadline))
-	if err != nil {
-		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
-		_ = conn.Close()
-		return
-	}
-	err = conn.WriteMessage(websocket.PongMessage, configs.Config.Customer.HeartbeatMessage)
-	if err != nil {
-		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
-		_ = conn.Close()
-		return
-	}
-	metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-	metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(configs.Config.Customer.HeartbeatMessage)))
-	metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
-}
-
-func checkOrigin(r *http.Request) bool {
-	if len(configs.Config.Customer.AllowOrigin) == 0 {
-		return true
-	}
-	origin := r.Header.Get("Origin")
-	for _, v := range configs.Config.Customer.AllowOrigin {
-		if strings.Contains(origin, v) {
-			return true
-		}
-	}
-	return false
 }

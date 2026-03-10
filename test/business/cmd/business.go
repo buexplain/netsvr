@@ -20,8 +20,8 @@ package main
 import (
 	_ "embed"
 	"errors"
-	_ "github.com/buexplain/netsvr-business-go"
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	_ "github.com/buexplain/netsvr-business-go/v2"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"html/template"
 	"io"
@@ -30,7 +30,6 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/business/assets"
 	"netsvr/test/business/configs"
-	"netsvr/test/business/internal/cmd"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/mainSocketManager"
 	"netsvr/test/business/internal/netBus"
@@ -42,8 +41,6 @@ import (
 func main() {
 	//启动html客户端的服务器
 	go clientServer()
-	mainSocketManager.Init(cmd.EventHandler)
-	netBus.Init()
 	if mainSocketManager.MainSocketManager.Start() == false {
 		log.Logger.Error().Msg("注册到worker服务器失败")
 		os.Exit(1)

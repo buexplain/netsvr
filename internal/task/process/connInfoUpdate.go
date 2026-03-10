@@ -1,0 +1,88 @@
+/**
+* Copyright 2023 buexplain@qq.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
+package process
+
+import (
+	"google.golang.org/protobuf/proto"
+	"netsvr/configs"
+	"netsvr/internal/customer"
+	"netsvr/internal/customer/binder"
+	"netsvr/internal/customer/info"
+	"netsvr/internal/customer/manager"
+	"netsvr/internal/customer/topic"
+	"netsvr/internal/log"
+	"netsvr/internal/objPool"
+	"netsvr/internal/wsServer"
+)
+
+// connInfoUpdate 更新连接的info信息
+func connInfoUpdate(param []byte) {
+	payload := objPool.ConnInfoUpdate.Get()
+	defer objPool.ConnInfoUpdate.Put(payload)
+	if err := proto.Unmarshal(param, payload); err != nil {
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.connInfoUpdate failed")
+		return
+	}
+	if payload.UniqId == "" {
+		return
+	}
+	conn := manager.Manager.Get(payload.UniqId)
+	if conn == nil {
+		return
+	}
+	wsCodec, _ := conn.Context().(*wsServer.Codec)
+	session, ok := wsCodec.GetSession().(*info.Info)
+	if !ok {
+		return
+	}
+	session.Lock()
+	defer session.UnLock()
+	if session.GetUniqId() == "" {
+		//session已经被销毁了，跳过
+		return
+	}
+	//设置session
+	if payload.NewSession != "" {
+		session.SetSession(payload.NewSession)
+	}
+	//设置customerId
+	if payload.NewCustomerId != "" {
+		oldCustomerId := session.GetCustomerId()
+		if oldCustomerId != "" {
+			//删除旧关系
+			binder.Binder.Del(oldCustomerId, payload.UniqId)
+		}
+		//设置新关系
+		binder.Binder.Set(payload.NewCustomerId, payload.UniqId)
+		session.SetCustomerId(payload.NewCustomerId)
+	}
+	//设置主题
+	if len(payload.NewTopics) > 0 {
+		//清空旧主题
+		topics := session.PullTopics()
+		//删除旧主题的关系
+		topic.Topic.DelByMap(topics, payload.UniqId)
+		//订阅新主题
+		session.SubscribeTopics(payload.NewTopics)
+		//构建新主题的关系
+		topic.Topic.SetBySlice(payload.NewTopics, payload.UniqId)
+	}
+	//有数据，则转发给客户
+	if len(payload.Data) > 0 {
+		customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data)
+	}
+}

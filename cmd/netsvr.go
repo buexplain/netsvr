@@ -22,6 +22,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/log"
+	"netsvr/internal/task"
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"
 	"os"
@@ -31,8 +32,13 @@ import (
 
 func main() {
 	pprof()
+	if configs.Config.Autobahn {
+		go customer.StartAutobahn()
+	} else {
+		go customer.Start()
+	}
 	go worker.Start()
-	go customer.Start()
+	go task.Start()
 	select {
 	case <-quit.ClosedCh:
 		//及时打印关闭进程的日志，避免使用者认为进程无反应，直接强杀进程
@@ -50,6 +56,7 @@ func main() {
 		quit.Wg.Wait()
 		//关闭worker服务器
 		worker.Shutdown()
+		task.Shutdown()
 		//关闭customer服务器
 		customer.Shutdown()
 		log.Logger.Info().Int("pid", os.Getpid()).Str("reason", quit.GetReason()).Msg("Shutdown the netsvr process successfully")

@@ -18,8 +18,10 @@
 package log
 
 import (
+	"errors"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"netsvr/pkg/quit"
 	"os"
 	"runtime/debug"
 	"time"
@@ -33,7 +35,51 @@ func init() {
 	}
 }
 
-func New(lvl zerolog.Level, filename string) zerolog.Logger {
+type AsyncWriter struct {
+	ch chan []byte
+}
+
+func NewAsyncWriter(lj *lumberjack.Logger) *AsyncWriter {
+	w := &AsyncWriter{ch: make(chan []byte, 1024)}
+	quit.Wg.Add(1)
+	go func() {
+		defer func() {
+			_ = recover()
+			quit.Wg.Done()
+		}()
+		for {
+			select {
+			case <-quit.Ctx.Done():
+				//尽量等待所有日志写入完毕
+				for i := 3; i > 0; i-- {
+					lastN := len(w.ch)
+					for i := 0; i < lastN; i++ {
+						buf := <-w.ch
+						_, _ = lj.Write(buf)
+					}
+					time.Sleep(time.Millisecond * time.Duration(10*i))
+				}
+				return
+			case buf := <-w.ch:
+				_, _ = lj.Write(buf)
+			}
+		}
+	}()
+	return w
+}
+
+func (w *AsyncWriter) Write(p []byte) (n int, err error) {
+	buf := make([]byte, len(p))
+	copy(buf, p)
+	select {
+	case w.ch <- buf:
+		return len(p), nil
+	default:
+		return 0, errors.New("log buffer full")
+	}
+}
+
+func New(lvl zerolog.Level, filename string, async bool) zerolog.Logger {
 	var logger zerolog.Logger
 	if filename == "" {
 		w := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339Nano}
@@ -47,7 +93,11 @@ func New(lvl zerolog.Level, filename string) zerolog.Logger {
 			Compress:   false,
 			Filename:   filename,
 		}
-		logger = zerolog.New(w).Level(lvl).With().Timestamp().Logger()
+		if async {
+			logger = zerolog.New(NewAsyncWriter(w)).Level(lvl).With().Timestamp().Logger()
+		} else {
+			logger = zerolog.New(w).Level(lvl).With().Timestamp().Logger()
+		}
 	}
 	return logger
 }

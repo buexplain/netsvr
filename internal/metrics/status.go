@@ -17,7 +17,7 @@
 package metrics
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	gMetrics "github.com/rcrowley/go-metrics"
 )
 

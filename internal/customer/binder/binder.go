@@ -18,163 +18,168 @@
 package binder
 
 import (
+	"slices"
 	"sync"
+	"unsafe"
 )
 
-// binder 客户id与连接id的映射关系
-type binder struct {
-	//一个客户id有多个连接id
-	customerIdToUniqIds map[string]map[string]struct{}
-	//一个连接id只允许有一个客户id
-	uniqIdToCustomerId map[string]string
-	rwMutex            *sync.RWMutex
+// shardCount 分段锁数量，必须是 2 的幂次方以便用位运算取模
+const shardCount = 256
+const shardMask = shardCount - 1 // 255 = 0b11111111
+
+type shard struct {
+	mux  sync.RWMutex
+	data map[string][]string //customerId --> slice(uniqId)
 }
 
-var Binder *binder
+type collect struct {
+	shards [shardCount]shard
+}
 
-func init() {
-	Binder = &binder{
-		customerIdToUniqIds: make(map[string]map[string]struct{}),
-		uniqIdToCustomerId:  make(map[string]string),
-		rwMutex:             &sync.RWMutex{},
+func hashCustomerId(customerId string) int {
+	//算子常数与标准库保持一致 Go/src/hash/fnv/fnv.go
+	data := unsafe.Slice(unsafe.StringData(customerId), len(customerId))
+	var hash uint32 = 2166136261
+	for _, c := range data {
+		hash *= 16777619
+		hash ^= uint32(c)
 	}
+	return int(hash & uint32(shardMask))
 }
 
 // GetCustomerIds 获取所有的customerId
-func (r *binder) GetCustomerIds() (customerIds []string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	customerIds = make([]string, 0, len(r.customerIdToUniqIds))
-	for customerId := range r.customerIdToUniqIds {
-		customerIds = append(customerIds, customerId)
+func (r *collect) GetCustomerIds() (customerIds []string) {
+	// 预估算容量
+	capacity := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		capacity += len(sd.data)
+		sd.mux.RUnlock()
+	}
+	if capacity == 0 {
+		return nil
+	}
+	extra := capacity / 10 // 额外 10% 缓冲
+	if extra < 256 {
+		extra = 256
+	} else if extra > 4096 {
+		extra = 4096
+	}
+	customerIds = make([]string, 0, capacity+extra)
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		for customerId := range sd.data {
+			customerIds = append(customerIds, customerId)
+		}
+		sd.mux.RUnlock()
 	}
 	return customerIds
 }
 
 // GetUniqIdsByCustomerId 根据customerId获取所有的uniqId
-func (r *binder) GetUniqIdsByCustomerId(customerId string) (uniqIds []string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	if uniqIdsMap, ok := r.customerIdToUniqIds[customerId]; ok {
-		uniqIds = make([]string, 0, len(uniqIdsMap))
-		for uniqId := range uniqIdsMap {
-			uniqIds = append(uniqIds, uniqId)
-		}
+func (r *collect) GetUniqIdsByCustomerId(customerId string) (uniqIds []string) {
+	if customerId == "" {
+		return nil
+	}
+	idx := hashCustomerId(customerId)
+	sd := &r.shards[idx]
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
+	if c, ok := sd.data[customerId]; ok {
+		uniqIds = make([]string, 0, len(c))
+		uniqIds = append(uniqIds, c...)
 		return uniqIds
 	}
 	return nil
 }
 
 // GetUniqIdsByCustomerIds 根据customerIds获取所有的uniqId
-func (r *binder) GetUniqIdsByCustomerIds(customerIds []string) (customerIdUniqIds map[string][]string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	customerIdUniqIds = make(map[string][]string, len(customerIds))
+func (r *collect) GetUniqIdsByCustomerIds(customerIds []string) (customerIdUniqIds map[string][]string) {
+	// 按 shard 分组，减少锁切换次数
+	var shardGroups [shardCount][]string
 	for _, customerId := range customerIds {
-		uniqIdsMap, ok := r.customerIdToUniqIds[customerId]
-		if !ok {
+		if customerId == "" {
 			continue
 		}
-		uniqIds := make([]string, 0, len(uniqIdsMap))
-		for uniqId := range uniqIdsMap {
-			uniqIds = append(uniqIds, uniqId)
+		idx := hashCustomerId(customerId)
+		shardGroups[idx] = append(shardGroups[idx], customerId)
+	}
+	customerIdUniqIds = make(map[string][]string, len(customerIds))
+	for idx, cList := range shardGroups {
+		if len(cList) == 0 {
+			continue
 		}
-		customerIdUniqIds[customerId] = uniqIds
+		sd := &r.shards[idx]
+		sd.mux.RLock()
+		for _, customerId := range cList {
+			if c, ok := sd.data[customerId]; ok {
+				uniqIds := make([]string, 0, len(c))
+				uniqIds = append(uniqIds, c...)
+				customerIdUniqIds[customerId] = uniqIds
+			}
+		}
+		sd.mux.RUnlock()
 	}
 	return customerIdUniqIds
 }
 
-// GetCustomerIdsByUniqIds 根据uniqIds获取所有的customerId
-func (r *binder) GetCustomerIdsByUniqIds(uniqIds []string) (customerIds []string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	//去重
-	customerIdsMap := make(map[string]struct{}, len(uniqIds))
-	for _, uniqId := range uniqIds {
-		if customerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
-			customerIdsMap[customerId] = struct{}{}
-		}
+func (r *collect) Len() int {
+	total := 0
+	for i := range r.shards {
+		sd := &r.shards[i]
+		sd.mux.RLock()
+		total += len(sd.data)
+		sd.mux.RUnlock()
 	}
-	//转换
-	customerIds = make([]string, 0, len(customerIdsMap))
-	for customerId := range customerIdsMap {
-		customerIds = append(customerIds, customerId)
-	}
-	return customerIds
+	return total
 }
 
-// GetCustomerIdToUniqIdsList 根据uniqIds获取所有的customerId对应的uniqIds
-func (r *binder) GetCustomerIdToUniqIdsList(uniqIds []string) (customerIdToUniqIdsList map[string][]string) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	//去重
-	customerIdToUniqIdsList = make(map[string][]string, len(uniqIds))
-	for _, uniqId := range uniqIds {
-		if customerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
-			if _, ok := customerIdToUniqIdsList[customerId]; ok {
-				customerIdToUniqIdsList[customerId] = append(customerIdToUniqIdsList[customerId], uniqId)
-			} else {
-				customerIdToUniqIdsList[customerId] = []string{uniqId}
-			}
+func (r *collect) Set(customerId string, uniqId string) {
+	idx := hashCustomerId(customerId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	if c, ok := sd.data[customerId]; ok {
+		if slices.Index(c, uniqId) == -1 {
+			sd.data[customerId] = append(slices.Grow(c, 1), uniqId)
 		}
-	}
-	return customerIdToUniqIdsList
-}
-
-// CountCustomerIdsByUniqIds 根据uniqIds获取所有的customerId数量
-func (r *binder) CountCustomerIdsByUniqIds(uniqIds []string) int {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	//去重
-	customerIdsMap := make(map[string]struct{}, len(uniqIds))
-	for _, uniqId := range uniqIds {
-		if customerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
-			customerIdsMap[customerId] = struct{}{}
-		}
-	}
-	return len(customerIdsMap)
-}
-
-func (r *binder) Len() int {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
-	return len(r.customerIdToUniqIds)
-}
-
-func (r *binder) Set(uniqId string, customerId string) {
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
-	if currentCustomerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
-		//如果当前uniqId已经绑定了customerId，并且新的customerId和旧的customerId相同，则不处理
-		if currentCustomerId == customerId {
-			return
-		}
-		//如果当前uniqId已经绑定了customerId，并且新的customerId和旧的customerId不相同，则删除旧的customerId的uniqId
-		if uniqIdsMap, ok := r.customerIdToUniqIds[currentCustomerId]; ok {
-			delete(uniqIdsMap, uniqId)
-			if len(uniqIdsMap) == 0 {
-				delete(r.customerIdToUniqIds, currentCustomerId)
-			}
-		}
-	}
-	//设置新的
-	r.uniqIdToCustomerId[uniqId] = customerId
-	if uniqIds, ok := r.customerIdToUniqIds[customerId]; ok {
-		uniqIds[uniqId] = struct{}{}
 	} else {
-		r.customerIdToUniqIds[customerId] = map[string]struct{}{uniqId: {}}
+		sd.data[customerId] = []string{uniqId}
 	}
 }
 
-func (r *binder) DelUniqId(uniqId string) {
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
-	if customerId, ok := r.uniqIdToCustomerId[uniqId]; ok {
-		delete(r.uniqIdToCustomerId, uniqId)
-		uniqIdsMap := r.customerIdToUniqIds[customerId]
-		delete(uniqIdsMap, uniqId)
-		if len(uniqIdsMap) == 0 {
-			delete(r.customerIdToUniqIds, customerId)
+func (r *collect) Del(customerId string, uniqId string) {
+	idx := hashCustomerId(customerId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	if c, ok := sd.data[customerId]; ok {
+		index := slices.Index(c, uniqId)
+		if index != -1 {
+			c = slices.Delete(c, index, index+1)
+			if len(c) == 0 {
+				delete(sd.data, customerId)
+			} else {
+				//缩容：如果容量 > 2*长度，重新分配
+				if cap(c) > len(c)*2 {
+					newC := make([]string, len(c))
+					copy(newC, c)
+					c = newC
+				}
+				sd.data[customerId] = c
+			}
 		}
+	}
+}
+
+// Binder 全局实例
+var Binder *collect
+
+func init() {
+	Binder = &collect{}
+	for i := range Binder.shards {
+		Binder.shards[i].data = make(map[string][]string, 128)
 	}
 }

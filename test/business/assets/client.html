@@ -610,7 +610,7 @@
         if (ws) {
             return;
         }
-        ws = new WebSocket(document.getElementById("address").value, ["a-1", "b-2"]);
+        ws = new WebSocket(document.getElementById("address").value);
         ws.onopen = function () {
             heartbeatInterval = setInterval(function () {
                 //每隔30秒，发送一次心跳信息

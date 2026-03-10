@@ -26,7 +26,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"os"
-	"strconv"
 	"sync/atomic"
 	"time"
 )
@@ -34,33 +33,30 @@ import (
 // 自增id
 var incrId = readRandomUint32()
 
-// 预先制作的ip、port模板
-var template [6]byte
+// 预先制作的ip
+var template [4]byte
 
 func init() {
 	//ip、port预先解析成模板
-	host, portStr, _ := net.SplitHostPort(configs.Config.Worker.ListenAddress)
-	port, _ := strconv.Atoi(portStr)
+	host, _, _ := net.SplitHostPort(configs.Config.Worker.ListenAddress)
 	ip := net.ParseIP(host)
-	//网关进程的worker服务监听的ip地址
+	//网关进程的worker、task服务监听的ip地址
 	binary.BigEndian.PutUint32(template[0:4], binary.BigEndian.Uint32(ip[12:16]))
-	//网关进程的worker服务监听的port
-	binary.BigEndian.PutUint16(template[4:6], uint16(port))
 }
 
 // New
 // php解码uniqId示例：
-// $ret =  unpack('Nip/nport/Ntimestamp/NincrId', pack('H*', '7f00000117ad6621e43b8baa1b9a'));
+// $ret =  unpack('Nip/Ntimestamp/NincrId', pack('H*', '7f0000016621e43b8baa1b9a'));
 // $ret['ip'] = long2ip($ret['ip']);
 // var_dump($ret);
 func New() string {
-	b := make([]byte, 14)
+	b := make([]byte, 12)
 	//先写入ip、port
-	copy(b[0:6], template[:])
+	copy(b[0:4], template[:])
 	//再写入时间戳
-	binary.BigEndian.PutUint32(b[6:10], uint32(time.Now().Unix()))
+	binary.BigEndian.PutUint32(b[4:8], uint32(time.Now().Unix()))
 	//最后写入自增id
-	binary.BigEndian.PutUint32(b[10:14], atomic.AddUint32(incrId, 1))
+	binary.BigEndian.PutUint32(b[8:12], atomic.AddUint32(incrId, 1))
 	//转字16进制符串返回
 	return hex.EncodeToString(b)
 }

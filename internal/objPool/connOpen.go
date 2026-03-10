@@ -17,7 +17,7 @@
 package objPool
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v5/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"sync"
 )
 
@@ -34,7 +34,6 @@ func (r *connOpen) Get() *netsvrProtocol.ConnOpen {
 func (r *connOpen) Put(connOpen *netsvrProtocol.ConnOpen) {
 	connOpen.UniqId = ""
 	connOpen.RawQuery = ""
-	connOpen.SubProtocol = nil
 	connOpen.XForwardedFor = ""
 	connOpen.XRealIp = ""
 	connOpen.RemoteAddr = ""

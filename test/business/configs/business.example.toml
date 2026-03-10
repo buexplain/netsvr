@@ -2,15 +2,17 @@
 LogLevel = "info"
 # worker服务的监听地址
 WorkerListenAddress = "127.0.0.1:6061"
+# 任务服务的监听地址
+TaskListenAddress = "127.0.0.1:6062"
 # 输出客户端界面的http服务的监听地址
-ClientListenAddress = "127.0.0.1:6063"
+ClientListenAddress = "127.0.0.1:6064"
 # customer服务的websocket连接地址
 CustomerWsAddress = "ws://127.0.0.1:6060/netsvr"
-# 让worker为我开启n条协程来处理我的请求
-ProcessCmdGoroutineNum = 200
 # 客户端websocket发送的心跳消息
 CustomerHeartbeatMessage = "~6YOt5rW35piO~"
 # business进程向网关的worker服务器发送的心跳消息
 WorkerHeartbeatMessage = "~6YOt5rW35piO~"
+# business进程向网关的task服务器发送的心跳消息
+TaskHeartbeatMessage = "~6YOt5rW35piO~"
 # 伪造登录时，伪造客户业务系统的唯一id的初始值，如果启动多个business进程，则需要区分每个business进程的起始值，最大值为uint32
 ForgeCustomerIdInitVal = 0

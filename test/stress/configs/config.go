@@ -34,6 +34,8 @@ func (r *BytesConfigItem) UnmarshalText(text []byte) error {
 }
 
 type config struct {
+	//是否启动websocket压缩
+	EnableCompression bool
 	//日志级别 debug、info、warn、error
 	LogLevel string
 	//customer服务的websocket连接地址
