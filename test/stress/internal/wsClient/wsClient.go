@@ -25,6 +25,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/pkg/utils"
+	testUtils "netsvr/test/pkg/utils"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/wsMetrics"
@@ -191,10 +192,10 @@ func (r *Client) SetCustomerId(customerId string) {
 }
 
 // InitTopic 伪造主题
-func (r *Client) InitTopic(topicNum int, topicLen int) {
+func (r *Client) InitTopic(prefix string, topicNum int, topicLen int) {
 	topics := make([]string, 0, topicNum)
 	for i := 0; i < topicNum; i++ {
-		topics = append(topics, utils.GetRandStr(topicLen))
+		topics = append(topics, prefix+utils.GetRandStr(topicLen)+testUtils.GlobalId)
 	}
 	r.topics = topics
 }

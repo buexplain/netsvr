@@ -22,11 +22,13 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsflate"
 	"github.com/panjf2000/gnet/v2"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"io"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
+	"netsvr/internal/utils/buffer"
 	"netsvr/internal/wsServer"
 	"time"
 )
@@ -67,24 +69,31 @@ func (r *Message) WriteTo(conn gnet.Conn) bool {
 	if wsCodec.IsCompress() && len(r.data) > compressingValue {
 		//先压缩数据
 		if r.compressed == nil {
-			var err error
-			var buff *bytes.Buffer
-			var frame ws.Frame
-			var data []byte
-			data, err = flateHelper.Compress(r.data)
+			compressBytes := byteslice.Get(len(r.data)) //申请一块用于压缩的内存
+			defer byteslice.Put(compressBytes)          //回收内存
+			buff := buffer.New(compressBytes[:0])       //创建一个buffer容器
+			defer buff.Discard()                        //解除底层的内存引用
+			err := flateHelper.CompressTo(buff, r.data)
 			if err != nil {
 				log.Logger.Error().Err(err).Msg("compress websocket message error")
 				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
 				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(r.data)))
 				return false
 			}
-			frame = ws.NewFrame(r.messageType, true, data)
+			frame := ws.NewFrame(r.messageType, true, buff.Bytes())
 			frame.Header.Rsv = ws.Rsv(true, false, false)
-			buff = bytes.NewBuffer(make([]byte, 0, 4+len(data)))
+			payloadLen := len(frame.Payload)
+			headerSize := 2
+			if payloadLen >= 126 && payloadLen < 65536 {
+				headerSize += 2
+			} else if payloadLen >= 65536 {
+				headerSize += 8
+			}
+			buff.Set(make([]byte, 0, headerSize+payloadLen)) //复用buffer容器
 			err = ws.WriteFrame(buff, frame)
 			if err != nil {
 				metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(r.data)))
+				metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(payloadLen))
 				return false
 			}
 			r.compressed = buff.Bytes()
@@ -104,15 +113,20 @@ func (r *Message) WriteTo(conn gnet.Conn) bool {
 	}
 	//不压缩，先判断是否已经编码成frame
 	if r.uncompressed == nil {
-		var err error
-		var buff *bytes.Buffer
-		var frame ws.Frame
-		frame = ws.NewFrame(r.messageType, true, r.data)
-		buff = bytes.NewBuffer(make([]byte, 0, 4+len(r.data)))
-		err = ws.WriteFrame(buff, frame)
+		payloadLen := len(r.data)
+		headerSize := 2
+		if payloadLen >= 126 && payloadLen < 65536 {
+			headerSize += 2
+		} else if payloadLen >= 65536 {
+			headerSize += 8
+		}
+		buff := buffer.New(make([]byte, 0, headerSize+payloadLen)) //创建一个buffer容器
+		defer buff.Discard()                                       //解除底层的内存引用
+		frame := ws.NewFrame(r.messageType, true, r.data)
+		err := ws.WriteFrame(buff, frame)
 		if err != nil {
 			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(r.data)))
+			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(payloadLen))
 			return false
 		}
 		r.uncompressed = buff.Bytes()
@@ -144,42 +158,78 @@ func WriteMessage(conn gnet.Conn, messageType ws.OpCode, data []byte) bool {
 	if !ok || wsCodec.IsClosed() {
 		return false
 	}
-	var err error
-	var buff *bytes.Buffer
-	var frame ws.Frame
 	//需要压缩，并且数据值得压缩
 	if wsCodec.IsCompress() && len(data) > compressingValue {
-		compressed, err := flateHelper.Compress(data)
+		compressBytes := byteslice.Get(len(data)) //申请一块用于压缩的内存
+		defer byteslice.Put(compressBytes)        //回收内存
+		buff := buffer.New(compressBytes[:0])     //创建一个buffer容器
+		defer buff.Discard()                      //解除底层的内存引用
+		err := flateHelper.CompressTo(buff, data)
 		if err != nil {
+			log.Logger.Error().Err(err).Msg("compress websocket message error")
 			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(data)))
 			return false
 		}
-		frame = ws.NewFrame(messageType, true, compressed)
+		frame := ws.NewFrame(messageType, true, buff.Bytes())
 		frame.Header.Rsv = ws.Rsv(true, false, false)
-	} else {
-		//不压缩
-		frame = ws.NewFrame(messageType, true, data)
-	}
-	//创建frame
-	buff = bytes.NewBuffer(make([]byte, 0, 4+len(data)))
-	err = ws.WriteFrame(buff, frame)
-	if err != nil {
+		payloadLen := len(frame.Payload)
+		headerSize := 2
+		if payloadLen >= 126 && payloadLen < 65536 {
+			headerSize += 2
+		} else if payloadLen >= 65536 {
+			headerSize += 8
+		}
+		buff.Set(make([]byte, 0, headerSize+payloadLen)) //复用buffer容器
+		err = ws.WriteFrame(buff, frame)
+		if err != nil {
+			metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(payloadLen))
+			return false
+		}
+		//再发送数据
+		encodedBytes := buff.Bytes()
+		err = conn.AsyncWrite(encodedBytes, nil)
+		if err == nil {
+			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
+			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
+			return true
+		}
+		//发送失败，则关闭连接
+		log.Logger.Error().Err(err).Msg("write message to websocket conn error")
 		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(data)))
+		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(encodedBytes)))
 		return false
 	}
-	//发送数据
-	err = conn.AsyncWrite(buff.Bytes(), nil)
+	//不压缩
+	payloadLen := len(data)
+	headerSize := 2
+	if payloadLen >= 126 && payloadLen < 65536 {
+		headerSize += 2
+	} else if payloadLen >= 65536 {
+		headerSize += 8
+	}
+	buff := buffer.New(make([]byte, 0, headerSize+payloadLen)) //创建一个buffer容器
+	defer buff.Discard()                                       //解除底层的内存引用
+	frame := ws.NewFrame(messageType, true, data)
+	err := ws.WriteFrame(buff, frame)
+	if err != nil {
+		metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
+		metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(payloadLen))
+		return false
+	}
+	//frame已经编码ok，发送数据
+	encodedBytes := buff.Bytes()
+	err = conn.AsyncWrite(encodedBytes, nil)
 	if err == nil {
 		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
-		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(data)))
+		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
 		return true
 	}
 	//发送失败，则关闭连接
 	log.Logger.Error().Err(err).Msg("write message to websocket conn error")
 	metrics.Registry[metrics.ItemCustomerWriteFailedCount].Meter.Mark(1)
-	metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(data)))
+	metrics.Registry[metrics.ItemCustomerWriteFailedByte].Meter.Mark(int64(len(encodedBytes)))
 	return false
 }
 

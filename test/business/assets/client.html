@@ -675,7 +675,7 @@
                         if (resp.data.data === null) {
                             print(resp.data.message);
                         } else {
-                            document.getElementById("topInfo").innerText = '欢迎”' + resp.data.data.name + '“，您的用户Id是：' + resp.data.data.id + '“，uniqId是：' + resp.data.data.uniqId;
+                            document.getElementById("topInfo").innerText = '欢迎“' + resp.data.data.name + '”，您的用户Id是：“' + resp.data.data.id + '”，uniqId是：' + resp.data.data.uniqId;
                         }
                     }
                     return;

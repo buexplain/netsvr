@@ -426,8 +426,8 @@ func StartAutobahn() {
 		OnWebsocketMessage: func(conn gnet.Conn, messageType ws.OpCode, data []byte) {
 			fn := func() {
 				//两个写入方法都要测试一次
-				NewMessage(messageType, data).WriteTo(conn)
-				//WriteMessage(conn, messageType, data)
+				//NewMessage(messageType, data).WriteTo(conn)
+				WriteMessage(conn, messageType, data)
 			}
 			err := goroutine.DefaultWorkerPool.Submit(fn)
 			if err != nil {

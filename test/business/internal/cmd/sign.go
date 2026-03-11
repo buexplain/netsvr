@@ -19,7 +19,6 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
@@ -28,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 type sign struct{}
@@ -56,10 +56,6 @@ type SignInForForgeParam struct {
 // 伪造登录时，伪造客户业务系统的唯一id的初始值
 var forgeCustomerId uint32
 
-func init() {
-	forgeCustomerId = configs.Config.ForgeCustomerIdInitVal
-}
-
 func (sign) SignInForForge(tf *netsvrProtocol.Transfer, param string) {
 	payload := new(SignInForForgeParam)
 	if err := json.Unmarshal(testUtils.StrToReadOnlyBytes(param), payload); err != nil {
@@ -72,18 +68,19 @@ func (sign) SignInForForge(tf *netsvrProtocol.Transfer, param string) {
 	if payload.TopicNum > 0 && payload.TopicNum <= 10000 {
 		ret.NewTopics = make([]string, 0, payload.TopicNum)
 		for i := 0; i < int(payload.TopicNum); i++ {
-			ret.NewTopics = append(ret.NewTopics, testUtils.GetRandStr(2))
+			//随机的topic尽量长，避免重复
+			ret.NewTopics = append(ret.NewTopics, testUtils.GetRandStr(36)+testUtils.GlobalId)
 		}
 	}
 	//伪造客户id
 	customerId := atomic.AddUint32(&forgeCustomerId, 1)
-	ret.NewCustomerId = strconv.FormatInt(int64(customerId), 10)
+	ret.NewCustomerId = strconv.FormatInt(time.Now().Unix(), 10) + strconv.FormatInt(int64(customerId), 10) + testUtils.GlobalId
 	//伪造的session值
 	if payload.SessionLen > 0 && payload.SessionLen <= 1024*1024 {
 		ret.NewSession = strings.Repeat("s", int(payload.SessionLen))
 	}
 	ret.Data = testUtils.NewResponse(protocol.RouterSignInForForge, map[string]interface{}{"code": 0, "message": "登录成功", "data": userDb.ClientInfo{
-		Id:     customerId,
+		Id:     ret.NewCustomerId,
 		Name:   ret.NewCustomerId,
 		UniqId: tf.UniqId,
 	}})
@@ -124,7 +121,7 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string) {
 	ret := netsvrProtocol.ConnInfoUpdate{}
 	userDb.Collect.SetOnlineInfo(user.Id, tf.UniqId)
 	ret.UniqId = tf.UniqId
-	ret.NewCustomerId = strconv.FormatInt(int64(user.Id), 10)
+	ret.NewCustomerId = user.Id
 	ret.NewSession = user.ToNetSvrInfo()
 	ret.NewTopics = user.Topics
 	ret.Data = testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 0, "message": "登录成功", "data": user.ToClientInfo()})

@@ -22,6 +22,7 @@ import (
 	"golang.org/x/time/rate"
 	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
+	testUtils "netsvr/test/pkg/utils"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/utils"
@@ -61,7 +62,9 @@ func Run(wg *sync.WaitGroup) {
 						//登录成功
 						protocol.RouterSignInForForge: func(payload gjson.Result) {
 							//发起订阅
-							ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": {groupName}})
+							ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": {
+								groupName + testUtils.GlobalId, //加上全局随机id，确保多个压测程序订阅的topic不冲突
+							}})
 						},
 						//订阅成功
 						protocol.RouterTopicSubscribe: func(payload gjson.Result) {

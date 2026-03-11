@@ -54,7 +54,7 @@ func Run(wg *sync.WaitGroup) {
 		metrics := wsMetrics.New("topic", key+1)
 		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
 			ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
-				ws.InitTopic(configs.Config.Topic.AlternateTopicNum, configs.Config.Topic.AlternateTopicLen)
+				ws.InitTopic("stressTopic", configs.Config.Topic.AlternateTopicNum, configs.Config.Topic.AlternateTopicLen)
 				ws.OnMessage = nil
 			})
 			if ws == nil {
