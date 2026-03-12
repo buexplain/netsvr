@@ -28,7 +28,6 @@ import (
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
-	internalMetrics "netsvr/internal/metrics"
 	"time"
 )
 
@@ -206,8 +205,6 @@ func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) int 
 			time.Sleep(time.Millisecond * 10)
 			continue
 		}
-		//写入失败：统计指标
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 		//判断错误类型：超时且未污染连接时可安全丢弃
 		var opErr *net.OpError
 		if errors.As(err, &opErr) && opErr.Timeout() && len(dataRef) == len(data[writeLen:]) {
