@@ -111,6 +111,15 @@ func Start() {
 				return ws.StatusCode(1013), errors.New("open rate limited, try again later")
 			}
 			err := goroutine.DefaultWorkerPool.Submit(func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().Err(nil).
+							Type("recoverType", err).
+							Interface("recover", err).
+							Msg("OnWebsocketOpen failed")
+					}
+				}()
 				//当闭包开始执行的时候，conn可能已经关闭了
 				wsCodec, ok := conn.Context().(*wsServer.Codec)
 				if !ok {
@@ -229,6 +238,15 @@ func Start() {
 				return
 			}
 			fn := func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().Err(nil).
+							Type("recoverType", err).
+							Interface("recover", err).
+							Msg("OnWebsocketClose failed")
+					}
+				}()
 				session.Lock()
 				//清空session
 				uniqId, customerId, customerSession, topics := session.Clear()
@@ -362,6 +380,15 @@ func Start() {
 					Send()
 			}
 			fn := func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().Err(nil).
+							Type("recoverType", err).
+							Interface("recover", err).
+							Msg("OnWebsocketMessage failed")
+					}
+				}()
 				//编码数据成business需要的格式
 				tf := objPool.Transfer.Get()
 				tf.UniqId = uniqId

@@ -140,6 +140,16 @@ func Process(conn net.Conn) {
 		currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
 		if pCallback, ok := postCallback[currentCmd]; ok {
 			fn := func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().Err(nil).
+							Type("recoverType", err).
+							Interface("recover", err).
+							Str("cmd", currentCmd.String()).
+							Msg("Task exec cmd failed")
+					}
+				}()
 				pCallback(data[4:])
 			}
 			if err := goroutine.DefaultWorkerPool.Submit(fn); err != nil {
