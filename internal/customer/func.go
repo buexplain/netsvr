@@ -248,8 +248,8 @@ func WriteCloseFrame(conn gnet.Conn, closeFrame []byte) {
 	err := conn.AsyncWrite(closeFrame, nil)
 	if err == nil {
 		wsCodec.SetClosed()
-		//5秒后强制关闭连接
-		timer.Timer.AfterFunc(time.Second*5, func() {
+		//2秒后强制关闭连接，2秒足以覆盖绝大多数网络波动，足够让TCP层完成正常的状态流转，避免暴力切断
+		timer.Timer.AfterFunc(time.Second*2, func() {
 			_ = conn.Close()
 		})
 	} else {

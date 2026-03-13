@@ -34,10 +34,32 @@ import (
 type GetCallback func(data []byte, taskConn net.Conn)
 type PostCallback func(data []byte)
 
+var postNonBlockingCallback map[netsvrProtocol.Cmd]PostCallback
+var postBlockingCallback map[netsvrProtocol.Cmd]PostCallback
 var getCallback map[netsvrProtocol.Cmd]GetCallback
-var postCallback map[netsvrProtocol.Cmd]PostCallback
 
 func init() {
+	postNonBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
+		netsvrProtocol.Cmd_TopicPublishBulk:           topicPublishBulk,
+		netsvrProtocol.Cmd_SingleCastByCustomerId:     singleCastByCustomerId,
+		netsvrProtocol.Cmd_SingleCastBulk:             singleCastBulk,
+		netsvrProtocol.Cmd_SingleCastBulkByCustomerId: singleCastBulkByCustomerId,
+		netsvrProtocol.Cmd_Broadcast:                  broadcast,
+		netsvrProtocol.Cmd_Multicast:                  multicast,
+		netsvrProtocol.Cmd_TopicPublish:               topicPublish,
+		netsvrProtocol.Cmd_SingleCast:                 singleCast,
+		netsvrProtocol.Cmd_MulticastByCustomerId:      multicastByCustomerId,
+	}
+	postBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
+		netsvrProtocol.Cmd_ConnInfoUpdate:           connInfoUpdate,
+		netsvrProtocol.Cmd_ConnInfoDelete:           connInfoDelete,
+		netsvrProtocol.Cmd_ForceOffline:             forceOffline,
+		netsvrProtocol.Cmd_ForceOfflineByCustomerId: forceOfflineByCustomerId,
+		netsvrProtocol.Cmd_ForceOfflineGuest:        forceOfflineGuest,
+		netsvrProtocol.Cmd_TopicSubscribe:           topicSubscribe,
+		netsvrProtocol.Cmd_TopicUnsubscribe:         topicUnsubscribe,
+		netsvrProtocol.Cmd_TopicDelete:              topicDelete,
+	}
 	getCallback = map[netsvrProtocol.Cmd]GetCallback{
 		netsvrProtocol.Cmd_UniqIdList:                   uniqIdList,
 		netsvrProtocol.Cmd_UniqIdCount:                  uniqIdCount,
@@ -55,25 +77,6 @@ func init() {
 		netsvrProtocol.Cmd_TopicCustomerIdList:          topicCustomerIdList,
 		netsvrProtocol.Cmd_TopicCustomerIdCount:         topicCustomerIdCount,
 		netsvrProtocol.Cmd_TopicCustomerIdToUniqIdsList: topicCustomerIdToUniqIdsList,
-	}
-	postCallback = map[netsvrProtocol.Cmd]PostCallback{
-		netsvrProtocol.Cmd_Broadcast:                  broadcast,
-		netsvrProtocol.Cmd_ConnInfoUpdate:             connInfoUpdate,
-		netsvrProtocol.Cmd_ConnInfoDelete:             connInfoDelete,
-		netsvrProtocol.Cmd_ForceOffline:               forceOffline,
-		netsvrProtocol.Cmd_ForceOfflineByCustomerId:   forceOfflineByCustomerId,
-		netsvrProtocol.Cmd_ForceOfflineGuest:          forceOfflineGuest,
-		netsvrProtocol.Cmd_Multicast:                  multicast,
-		netsvrProtocol.Cmd_MulticastByCustomerId:      multicastByCustomerId,
-		netsvrProtocol.Cmd_TopicPublish:               topicPublish,
-		netsvrProtocol.Cmd_TopicPublishBulk:           topicPublishBulk,
-		netsvrProtocol.Cmd_SingleCast:                 singleCast,
-		netsvrProtocol.Cmd_SingleCastByCustomerId:     singleCastByCustomerId,
-		netsvrProtocol.Cmd_SingleCastBulk:             singleCastBulk,
-		netsvrProtocol.Cmd_SingleCastBulkByCustomerId: singleCastBulkByCustomerId,
-		netsvrProtocol.Cmd_TopicSubscribe:             topicSubscribe,
-		netsvrProtocol.Cmd_TopicUnsubscribe:           topicUnsubscribe,
-		netsvrProtocol.Cmd_TopicDelete:                topicDelete,
 	}
 }
 
@@ -138,7 +141,7 @@ func Process(conn net.Conn) {
 			return
 		}
 		currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
-		if pCallback, ok := postCallback[currentCmd]; ok {
+		if pnbCallback, ok := postNonBlockingCallback[currentCmd]; ok {
 			fn := func() {
 				defer func() {
 					if err := recover(); err != nil {
@@ -150,7 +153,7 @@ func Process(conn net.Conn) {
 							Msg("Task exec cmd failed")
 					}
 				}()
-				pCallback(data[4:])
+				pnbCallback(data[4:])
 			}
 			if err := goroutine.DefaultWorkerPool.Submit(fn); err != nil {
 				//提交异步任务失败，则使用goroutine执行
@@ -159,6 +162,8 @@ func Process(conn net.Conn) {
 					Str("cmd", currentCmd.String()).
 					Msg("Task submit to worker pool failed")
 			}
+		} else if pbCallback, ok := postBlockingCallback[currentCmd]; ok {
+			pbCallback(data[4:])
 		} else if gCallback, ok := getCallback[currentCmd]; ok {
 			gCallback(data[4:], conn)
 		} else {

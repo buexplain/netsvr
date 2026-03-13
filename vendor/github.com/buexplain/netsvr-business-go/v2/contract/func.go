@@ -20,20 +20,24 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"net"
+	"strconv"
 )
 
-// AddrConvertToHex 将网关的worker、task服务器监听的ip地址转为16进制字符串
+// AddrConvertToHex 将网关的task服务器监听的ip地址转为16进制字符串
 func AddrConvertToHex(addr string) string {
-	template := make([]byte, 4)
+	template := make([]byte, 6)
 	//ip、port预先解析成模板
-	host, _, _ := net.SplitHostPort(addr)
+	host, portStr, _ := net.SplitHostPort(addr)
+	port, _ := strconv.Atoi(portStr)
 	ip := net.ParseIP(host)
-	//网关进程的worker、task服务监听的ip地址
-	binary.BigEndian.PutUint32(template, binary.BigEndian.Uint32(ip[12:16]))
+	//网关进程的task服务监听的ip地址
+	binary.BigEndian.PutUint32(template[0:4], binary.BigEndian.Uint32(ip[12:16]))
+	//网关进程的task服务监听的port
+	binary.BigEndian.PutUint16(template[4:6], uint16(port))
 	return hex.EncodeToString(template)
 }
 
-// UniqIdConvertToAddrAsHex 将uniqId转为网关的worker、task服务器监听的ip地址的16进制字符串
+// UniqIdConvertToAddrAsHex 将uniqId转为网关的task服务器监听的ip地址的16进制字符串
 func UniqIdConvertToAddrAsHex(uniqId string) string {
-	return uniqId[0:8]
+	return uniqId[0:12]
 }

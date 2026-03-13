@@ -7,8 +7,8 @@ toolchain go1.24.12
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/antlabs/timer v0.1.4
-	github.com/buexplain/netsvr-business-go/v2 v2.0.0
-	github.com/buexplain/netsvr-protocol-go/v6 v6.0.0
+	github.com/buexplain/netsvr-business-go/v2 v2.0.2
+	github.com/buexplain/netsvr-protocol-go/v6 v6.0.1
 	github.com/gobwas/httphead v0.1.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gorilla/websocket v1.5.3

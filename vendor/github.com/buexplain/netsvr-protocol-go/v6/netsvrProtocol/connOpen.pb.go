@@ -41,9 +41,9 @@ type ConnOpen struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关分配给连接的唯一id，格式是：网关进程的worker、task服务监听的ip地址(4字节)+时间戳(4字节)+自增id(4字节)，共12字节，24个16进制的字符
+	// 网关分配给连接的唯一id，格式是：网关进程的task服务监听的ip地址(4字节)+网关进程的task服务监听的port(2字节)+时间戳(4字节)+自增id(4字节)，共14字节，28个16进制的字符
 	// php解码uniqId示例：
-	// $ret =  unpack('Nip/Ntimestamp/NincrId', pack('H*', '7f0000016621e43b8baa1b9a'));
+	// $ret =  unpack('Nip/nport/Ntimestamp/NincrId', pack('H*', '7f00000117ad6621e43b8baa1b9a'));
 	// $ret['ip'] = long2ip($ret['ip']);
 	// var_dump($ret);
 	UniqId string `protobuf:"bytes,1,opt,name=uniqId,proto3" json:"uniqId,omitempty"`
