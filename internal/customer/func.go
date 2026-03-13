@@ -25,6 +25,7 @@ import (
 	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"io"
 	"netsvr/configs"
+	"netsvr/internal/customer/info"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
@@ -248,8 +249,8 @@ func WriteCloseFrame(conn gnet.Conn, closeFrame []byte) {
 	err := conn.AsyncWrite(closeFrame, nil)
 	if err == nil {
 		wsCodec.SetClosed()
-		//5秒后强制关闭连接
-		timer.Timer.AfterFunc(time.Second*5, func() {
+		//2秒后强制关闭连接，2秒足以覆盖绝大多数网络波动，足够让TCP层完成正常的状态流转，避免暴力切断
+		timer.Timer.AfterFunc(time.Second*2, func() {
 			_ = conn.Close()
 		})
 	} else {
@@ -268,4 +269,28 @@ func BuildCloseFrame(statusCode ws.StatusCode, err error) []byte {
 	frame := ws.NewFrame(ws.OpClose, true, payload)
 	_ = ws.WriteFrame(buff, frame)
 	return buff.Bytes()
+}
+
+// GetSession 安全地从连接中获取 session，避免竞态条件导致的空指针
+func GetSession(conn gnet.Conn) (*info.Info, bool) {
+	if conn == nil {
+		return nil, false
+	}
+	ctx := conn.Context()
+	if ctx == nil {
+		return nil, false
+	}
+	wsCodec, ok := ctx.(*wsServer.Codec)
+	if !ok || wsCodec == nil {
+		return nil, false
+	}
+	sessionAny := wsCodec.GetSession()
+	if sessionAny == nil {
+		return nil, false
+	}
+	session, ok := sessionAny.(*info.Info)
+	if !ok {
+		return nil, false
+	}
+	return session, true
 }

@@ -63,12 +63,12 @@ Step = [
 [SingleCast]
 Enable = true
 # 单播时发送的消息大小
-MessageLen = 1024
+MessageLen = 4096
 # 每个连接间隔多少秒进行一次单播操作
-SendInterval = 5
+SendInterval = 1
 Step = [
-    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
-    { ConnNum = 50, ConnectNum = 100, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 10 },
+    { ConnNum = 100, ConnectNum = 10, Suspend = 10 },
 ]
 
 # 疯狂按customerId单播的连接

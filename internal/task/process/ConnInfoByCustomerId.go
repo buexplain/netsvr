@@ -20,11 +20,10 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/wsServer"
 )
 
 // connInfoByCustomerId 获取customerId的连接信息
@@ -42,11 +41,7 @@ func connInfoByCustomerId(param []byte, taskConn net.Conn) {
 		// 遍历uniqId列表，获取连接信息
 		for _, uniqId := range uniqIds {
 			conn := customerManager.Manager.Get(uniqId)
-			if conn == nil {
-				continue
-			}
-			wsCodec, _ := conn.Context().(*wsServer.Codec)
-			session, ok := wsCodec.GetSession().(*info.Info)
+			session, ok := customer.GetSession(conn)
 			if !ok {
 				continue
 			}

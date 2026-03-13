@@ -34,7 +34,7 @@ import (
 
 type Conn struct {
 	conn      net.Conn
-	sendCh    chan []byte
+	sendCh    chan net.Buffers
 	connId    string
 	closeLock int32
 	events    int32
@@ -44,7 +44,7 @@ func newConn(conn net.Conn) *Conn {
 	tmp := &Conn{
 		conn:   conn,
 		connId: newConnId(conn.RemoteAddr().String()),
-		sendCh: make(chan []byte, configs.Config.Worker.SendChanCap),
+		sendCh: make(chan net.Buffers, configs.Config.Worker.SendChanCap),
 	}
 	go tmp.loopSend()
 	return tmp
@@ -90,54 +90,36 @@ func (r *Conn) loopSend() {
 	}
 }
 
-func (r *Conn) send(data []byte) {
-	//发送出去
-	var err error
-	var writeLen int
-	dataRef := data
-	//写入到连接中
-	for {
-		//设置写超时
-		if err = r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
-			r.Close()
-			log.Logger.Error().
-				Int32("events", r.GetEvents()).
-				Str("connId", r.connId).
-				Msg("Worker SetWriteDeadline failed")
-			return
-		}
-		//写入数据
-		writeLen, err = r.conn.Write(data)
-		//写入成功
-		if err == nil {
-			//完全写入成功
-			if writeLen == len(data) {
-				return
-			}
-			//短写：继续发送剩余字节
-			data = data[writeLen:]
-			time.Sleep(time.Millisecond * 10)
-			continue
-		}
-		//写入失败：统计指标
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-		//判断错误类型：超时且未污染连接时可安全丢弃
-		var opErr *net.OpError
-		if errors.As(err, &opErr) && opErr.Timeout() && len(dataRef) == len(data[writeLen:]) {
-			r.formatSendToBusinessData(dataRef, log.Logger.Error()).
-				Int32("events", r.GetEvents()).
-				Str("connId", r.connId).
-				Msg("Worker send failed and discard message")
-			return
-		}
-		//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
+func (r *Conn) send(buffers net.Buffers) {
+	if err := r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 		r.Close()
-		r.formatSendToBusinessData(dataRef, log.Logger.Error()).
+		log.Logger.Error().
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
-			Msg("Worker send failed and force close conn")
+			Msg("Worker SetWriteDeadline failed")
 		return
 	}
+	writeLen, err := buffers.WriteTo(r.conn)
+	if err == nil {
+		return
+	}
+	//写入失败：统计指标
+	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+	if writeLen == 0 {
+		r.formatSendToBusinessData(buffers[0], buffers[1], log.Logger.Error()).
+			Err(err).
+			Int32("events", r.GetEvents()).
+			Str("connId", r.connId).
+			Msg("Worker send failed and discard message")
+		return
+	}
+	//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
+	r.Close()
+	r.formatSendToBusinessData(buffers[0], buffers[1], log.Logger.Error()).
+		Err(err).
+		Int32("events", r.GetEvents()).
+		Str("connId", r.connId).
+		Msg("Worker send failed and force close conn")
 }
 
 func (r *Conn) GetConnRemoteAddr() string {
@@ -179,37 +161,35 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 				Msg("Worker send sendCh failed")
 		}
 	}()
-	data := make([]byte, 8)
-	//填充 cmd 字段 (大端序)
-	binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
-	// 编码业务数据（如果有）
-	if message != nil {
-		var err error
-		pm := proto.MarshalOptions{}
-		data, err = pm.MarshalAppend(data, message)
-		if err != nil {
-			return 0
-		}
+	// 编码业务数据
+	body, err := proto.Marshal(message)
+	if err != nil {
+		return 0
 	}
-	//回填包长度字段（长度 = 包体字节数，不包含长度字段自身4字节）
-	// message==nil 时: len=8, 8-4=4
-	// message!=nil 时: len=8+body, (8+body)-4 = 4+body
-	binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
+	//填充 cmd 字段 (大端序)
+	header := make([]byte, 8)
+	binary.BigEndian.PutUint32(header[4:8], uint32(cmd))
+	//填充长度字段 (大端序)
+	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
+	nb := net.Buffers{
+		header,
+		body,
+	}
 	//发送出去
 	if len(r.sendCh) < cap(r.sendCh) || configs.Config.Worker.SendChanDeadline == 0 {
-		r.sendCh <- data
-		return len(data)
+		r.sendCh <- nb
+		return 8 + len(body)
 	}
 	timeout := time.NewTimer(configs.Config.Worker.SendChanDeadline)
 	select {
-	case r.sendCh <- data:
+	case r.sendCh <- nb:
 		timeout.Stop()
-		return len(data)
+		return 8 + len(body)
 	case <-timeout.C:
 		timeout.Stop()
 		//统计worker到business的失败次数
 		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-		r.formatSendToBusinessData(data, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
+		r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker send failed and discard message")
@@ -217,11 +197,11 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	}
 }
 
-func (r *Conn) formatSendToBusinessData(data []byte, event *zerolog.Event) *zerolog.Event {
-	cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[4:8]))
+func (r *Conn) formatSendToBusinessData(header []byte, body []byte, event *zerolog.Event) *zerolog.Event {
+	cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(header[4:8]))
 	if cmd == netsvrProtocol.Cmd_Transfer {
 		tf := &netsvrProtocol.Transfer{}
-		if err := proto.Unmarshal(data[8:], tf); err != nil {
+		if err := proto.Unmarshal(body, tf); err != nil {
 			return event
 		}
 		event = event.Str("cmd", cmd.String()).Str("uniqId", tf.UniqId).
@@ -235,7 +215,7 @@ func (r *Conn) formatSendToBusinessData(data []byte, event *zerolog.Event) *zero
 	}
 	if cmd == netsvrProtocol.Cmd_ConnOpen {
 		co := &netsvrProtocol.ConnOpen{}
-		if err := proto.Unmarshal(data[8:], co); err != nil {
+		if err := proto.Unmarshal(body, co); err != nil {
 			return event
 		}
 		co.GetUniqId()
@@ -247,7 +227,7 @@ func (r *Conn) formatSendToBusinessData(data []byte, event *zerolog.Event) *zero
 	}
 	if cmd == netsvrProtocol.Cmd_ConnClose {
 		cc := &netsvrProtocol.ConnClose{}
-		if err := proto.Unmarshal(data[8:], cc); err != nil {
+		if err := proto.Unmarshal(body, cc); err != nil {
 			return event
 		}
 		return event.Str("cmd", cmd.String()).Str("uniqId", cc.UniqId).

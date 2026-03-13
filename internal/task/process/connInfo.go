@@ -20,10 +20,9 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
-	"netsvr/internal/customer/info"
+	"netsvr/internal/customer"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
-	"netsvr/internal/wsServer"
 )
 
 // connInfo 获取uniqId的连接信息
@@ -36,11 +35,7 @@ func connInfo(param []byte, taskConn net.Conn) {
 	ret := &netsvrProtocol.ConnInfoResp{Items: map[string]*netsvrProtocol.ConnInfoRespItem{}}
 	for _, uniqId := range payload.UniqIds {
 		conn := customerManager.Manager.Get(uniqId)
-		if conn == nil {
-			continue
-		}
-		wsCodec, _ := conn.Context().(*wsServer.Codec)
-		session, ok := wsCodec.GetSession().(*info.Info)
+		session, ok := customer.GetSession(conn)
 		if !ok {
 			continue
 		}

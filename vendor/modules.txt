@@ -8,7 +8,7 @@ github.com/antlabs/stl/list
 # github.com/antlabs/timer v0.1.4
 ## explicit; go 1.19
 github.com/antlabs/timer
-# github.com/buexplain/netsvr-business-go/v2 v2.0.0
+# github.com/buexplain/netsvr-business-go/v2 v2.0.3
 ## explicit; go 1.23
 github.com/buexplain/netsvr-business-go/v2
 github.com/buexplain/netsvr-business-go/v2/contract
@@ -17,7 +17,7 @@ github.com/buexplain/netsvr-business-go/v2/mainSocket
 github.com/buexplain/netsvr-business-go/v2/ret
 github.com/buexplain/netsvr-business-go/v2/socket
 github.com/buexplain/netsvr-business-go/v2/taskSocket
-# github.com/buexplain/netsvr-protocol-go/v6 v6.0.0
+# github.com/buexplain/netsvr-protocol-go/v6 v6.0.1
 ## explicit; go 1.23
 github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol
 # github.com/clipperhouse/uax29/v2 v2.2.0

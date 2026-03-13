@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
 	"google.golang.org/protobuf/proto"
@@ -34,10 +33,32 @@ import (
 type GetCallback func(data []byte, taskConn net.Conn)
 type PostCallback func(data []byte)
 
+var postNonBlockingCallback map[netsvrProtocol.Cmd]PostCallback
+var postBlockingCallback map[netsvrProtocol.Cmd]PostCallback
 var getCallback map[netsvrProtocol.Cmd]GetCallback
-var postCallback map[netsvrProtocol.Cmd]PostCallback
 
 func init() {
+	postNonBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
+		netsvrProtocol.Cmd_TopicPublishBulk:           topicPublishBulk,
+		netsvrProtocol.Cmd_SingleCastByCustomerId:     singleCastByCustomerId,
+		netsvrProtocol.Cmd_SingleCastBulk:             singleCastBulk,
+		netsvrProtocol.Cmd_SingleCastBulkByCustomerId: singleCastBulkByCustomerId,
+		netsvrProtocol.Cmd_Broadcast:                  broadcast,
+		netsvrProtocol.Cmd_Multicast:                  multicast,
+		netsvrProtocol.Cmd_TopicPublish:               topicPublish,
+		netsvrProtocol.Cmd_SingleCast:                 singleCast,
+		netsvrProtocol.Cmd_MulticastByCustomerId:      multicastByCustomerId,
+	}
+	postBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
+		netsvrProtocol.Cmd_ConnInfoUpdate:           connInfoUpdate,
+		netsvrProtocol.Cmd_ConnInfoDelete:           connInfoDelete,
+		netsvrProtocol.Cmd_ForceOffline:             forceOffline,
+		netsvrProtocol.Cmd_ForceOfflineByCustomerId: forceOfflineByCustomerId,
+		netsvrProtocol.Cmd_ForceOfflineGuest:        forceOfflineGuest,
+		netsvrProtocol.Cmd_TopicSubscribe:           topicSubscribe,
+		netsvrProtocol.Cmd_TopicUnsubscribe:         topicUnsubscribe,
+		netsvrProtocol.Cmd_TopicDelete:              topicDelete,
+	}
 	getCallback = map[netsvrProtocol.Cmd]GetCallback{
 		netsvrProtocol.Cmd_UniqIdList:                   uniqIdList,
 		netsvrProtocol.Cmd_UniqIdCount:                  uniqIdCount,
@@ -56,25 +77,6 @@ func init() {
 		netsvrProtocol.Cmd_TopicCustomerIdCount:         topicCustomerIdCount,
 		netsvrProtocol.Cmd_TopicCustomerIdToUniqIdsList: topicCustomerIdToUniqIdsList,
 	}
-	postCallback = map[netsvrProtocol.Cmd]PostCallback{
-		netsvrProtocol.Cmd_Broadcast:                  broadcast,
-		netsvrProtocol.Cmd_ConnInfoUpdate:             connInfoUpdate,
-		netsvrProtocol.Cmd_ConnInfoDelete:             connInfoDelete,
-		netsvrProtocol.Cmd_ForceOffline:               forceOffline,
-		netsvrProtocol.Cmd_ForceOfflineByCustomerId:   forceOfflineByCustomerId,
-		netsvrProtocol.Cmd_ForceOfflineGuest:          forceOfflineGuest,
-		netsvrProtocol.Cmd_Multicast:                  multicast,
-		netsvrProtocol.Cmd_MulticastByCustomerId:      multicastByCustomerId,
-		netsvrProtocol.Cmd_TopicPublish:               topicPublish,
-		netsvrProtocol.Cmd_TopicPublishBulk:           topicPublishBulk,
-		netsvrProtocol.Cmd_SingleCast:                 singleCast,
-		netsvrProtocol.Cmd_SingleCastByCustomerId:     singleCastByCustomerId,
-		netsvrProtocol.Cmd_SingleCastBulk:             singleCastBulk,
-		netsvrProtocol.Cmd_SingleCastBulkByCustomerId: singleCastBulkByCustomerId,
-		netsvrProtocol.Cmd_TopicSubscribe:             topicSubscribe,
-		netsvrProtocol.Cmd_TopicUnsubscribe:           topicUnsubscribe,
-		netsvrProtocol.Cmd_TopicDelete:                topicDelete,
-	}
 }
 
 func Process(conn net.Conn) {
@@ -91,6 +93,15 @@ func Process(conn net.Conn) {
 				Msg("Task coroutine is closed")
 		}
 	}()
+
+	// 禁用 Nagle 算法，减少小包延迟
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		if err := tcpConn.SetNoDelay(true); err != nil {
+			log.Logger.Warn().
+				Msg("Task SetNoDelay failed")
+		}
+	}
+
 	dataLenBuf := make([]byte, 4)
 	connReader := bufio.NewReaderSize(conn, configs.Config.Task.ReadBufferSize)
 	for {
@@ -138,7 +149,7 @@ func Process(conn net.Conn) {
 			return
 		}
 		currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
-		if pCallback, ok := postCallback[currentCmd]; ok {
+		if pnbCallback, ok := postNonBlockingCallback[currentCmd]; ok {
 			fn := func() {
 				defer func() {
 					if err := recover(); err != nil {
@@ -150,7 +161,7 @@ func Process(conn net.Conn) {
 							Msg("Task exec cmd failed")
 					}
 				}()
-				pCallback(data[4:])
+				pnbCallback(data[4:])
 			}
 			if err := goroutine.DefaultWorkerPool.Submit(fn); err != nil {
 				//提交异步任务失败，则使用goroutine执行
@@ -159,6 +170,8 @@ func Process(conn net.Conn) {
 					Str("cmd", currentCmd.String()).
 					Msg("Task submit to worker pool failed")
 			}
+		} else if pbCallback, ok := postBlockingCallback[currentCmd]; ok {
+			pbCallback(data[4:])
 		} else if gCallback, ok := getCallback[currentCmd]; ok {
 			gCallback(data[4:], conn)
 		} else {
@@ -171,61 +184,43 @@ func Process(conn net.Conn) {
 	}
 }
 
-func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) int {
-	data := make([]byte, 8)
+func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
+	// 编码业务数据
+	body, err := proto.Marshal(message)
+	if err != nil {
+		return
+	}
 	//填充 cmd 字段 (大端序)
-	binary.BigEndian.PutUint32(data[4:8], uint32(cmd))
-	// 编码业务数据（如果有）
-	if message != nil {
-		var err error
-		pm := proto.MarshalOptions{}
-		data, err = pm.MarshalAppend(data, message)
-		if err != nil {
-			return 0
-		}
+	header := make([]byte, 8)
+	binary.BigEndian.PutUint32(header[4:8], uint32(cmd))
+	//填充长度字段 (大端序)
+	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
+	nb := net.Buffers{
+		header,
+		body,
 	}
-	//回填包长度字段（长度 = 包体字节数，不包含长度字段自身4字节）
-	// message==nil 时: len=8, 8-4=4
-	// message!=nil 时: len=8+body, (8+body)-4 = 4+body
-	binary.BigEndian.PutUint32(data[0:4], uint32(len(data)-4))
-	//发送出去
-	var err error
-	var writeLen int
-	dataRef := data
-	//写入到连接中
-	for {
-		//设置写超时
-		if err = taskConn.SetWriteDeadline(time.Now().Add(configs.Config.Task.SendDeadline)); err != nil {
-			_ = taskConn.Close()
-			log.Logger.Error().
-				Uint32("cmd", uint32(cmd)).
-				Msg("Task SetWriteDeadline failed")
-			return 0
-		}
-		//写入数据
-		writeLen, err = taskConn.Write(data)
-		//写入成功
-		if err == nil {
-			//完全写入成功
-			if writeLen == len(data) {
-				return len(dataRef)
-			}
-			//短写：继续发送剩余字节
-			data = data[writeLen:]
-			time.Sleep(time.Millisecond * 10)
-			continue
-		}
-		//判断错误类型：超时且未污染连接时可安全丢弃
-		var opErr *net.OpError
-		if errors.As(err, &opErr) && opErr.Timeout() && len(dataRef) == len(data[writeLen:]) {
-			log.Logger.Error().Str("cmd", cmd.String()).Err(err).
-				Msg("Task send failed and discard message")
-			return 0
-		}
-		//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
+	//设置写超时
+	if err := taskConn.SetWriteDeadline(time.Now().Add(configs.Config.Task.SendDeadline)); err != nil {
 		_ = taskConn.Close()
-		log.Logger.Error().Str("cmd", cmd.String()).Err(err).
-			Msg("Task send failed and force close conn")
-		return 0
+		log.Logger.Error().
+			Uint32("cmd", uint32(cmd)).
+			Msg("Task SetWriteDeadline failed")
+		return
 	}
+	//发送数据包
+	writeLen, err := nb.WriteTo(taskConn)
+	if err == nil {
+		return
+	}
+	//发送失败
+	if writeLen == 0 {
+		//丢弃数据包
+		log.Logger.Error().Str("cmd", cmd.String()).Err(err).
+			Msg("Task send failed and discard message")
+		return
+	}
+	//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
+	_ = taskConn.Close()
+	log.Logger.Error().Str("cmd", cmd.String()).Err(err).
+		Msg("Task send failed and force close conn")
 }

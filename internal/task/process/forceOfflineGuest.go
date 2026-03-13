@@ -23,11 +23,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
-	"netsvr/internal/wsServer"
 	"time"
 )
 
@@ -44,16 +42,9 @@ func forceOfflineGuest(param []byte) {
 	closeFrame := customer.BuildCloseFrame(ws.StatusPolicyViolation, errors.New("forceOfflineGuest"))
 	fn := func(uniqId string, msg *customer.Message) {
 		conn := customerManager.Manager.Get(uniqId)
-		if conn == nil {
-			return
-		}
-		//跳过登录状态的连接
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if !ok {
-			return
-		}
-		session, ok := wsCodec.GetSession().(*info.Info)
-		if ok && session.IsLogin() {
+		session, ok := customer.GetSession(conn)
+		//跳过无效的 session，或者已经登录的 session
+		if !ok || session.IsLogin() {
 			return
 		}
 		//判断是否转发数据

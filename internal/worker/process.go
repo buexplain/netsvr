@@ -23,6 +23,7 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"io"
+	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"time"
@@ -48,6 +49,17 @@ func process(workerConn *Conn) {
 			_ = workerConn.conn.Close()
 		}
 	}()
+
+	// 禁用 Nagle 算法，减少小包延迟
+	if tcpConn, ok := workerConn.conn.(*net.TCPConn); ok {
+		if err := tcpConn.SetNoDelay(true); err != nil {
+			log.Logger.Warn().
+				Int32("events", workerConn.GetEvents()).
+				Str("connId", workerConn.connId).
+				Msg("Worker SetNoDelay failed")
+		}
+	}
+
 	dataLenBuf := make([]byte, 4)
 	connReader := bufio.NewReaderSize(workerConn.conn, configs.Config.Worker.ReadBufferSize)
 	for {

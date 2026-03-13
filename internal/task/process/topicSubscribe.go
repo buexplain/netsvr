@@ -20,12 +20,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
-	"netsvr/internal/wsServer"
 )
 
 // topicSubscribe 订阅
@@ -40,14 +38,7 @@ func topicSubscribe(param []byte) {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
-	if conn == nil {
-		return
-	}
-	wsCodec, ok := conn.Context().(*wsServer.Codec)
-	if !ok {
-		return
-	}
-	session, ok := wsCodec.GetSession().(*info.Info)
+	session, ok := customer.GetSession(conn)
 	if !ok {
 		return
 	}

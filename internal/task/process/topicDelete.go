@@ -20,12 +20,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
-	"netsvr/internal/wsServer"
 )
 
 // topicDelete 删除主题
@@ -46,14 +44,7 @@ func topicDelete(param []byte) {
 		for topic, uniqIds := range arr {
 			for uniqId := range uniqIds {
 				conn := customerManager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
-				wsCodec, ok := conn.Context().(*wsServer.Codec)
-				if !ok {
-					continue
-				}
-				session, ok := wsCodec.GetSession().(*info.Info)
+				session, ok := customer.GetSession(conn)
 				if ok {
 					_ = session.UnsubscribeTopic(topic)
 				}
@@ -69,14 +60,7 @@ func topicDelete(param []byte) {
 	for topic, uniqIds := range arr {
 		for uniqId := range uniqIds {
 			conn := customerManager.Manager.Get(uniqId)
-			if conn == nil {
-				continue
-			}
-			wsCodec, ok := conn.Context().(*wsServer.Codec)
-			if !ok {
-				continue
-			}
-			session, ok := wsCodec.GetSession().(*info.Info)
+			session, ok := customer.GetSession(conn)
 			if !ok {
 				continue
 			}

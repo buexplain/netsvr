@@ -21,12 +21,10 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
-	"netsvr/internal/wsServer"
 )
 
 // connInfoUpdate 更新连接的info信息
@@ -41,11 +39,7 @@ func connInfoUpdate(param []byte) {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
-	if conn == nil {
-		return
-	}
-	wsCodec, _ := conn.Context().(*wsServer.Codec)
-	session, ok := wsCodec.GetSession().(*info.Info)
+	session, ok := customer.GetSession(conn)
 	if !ok {
 		return
 	}
