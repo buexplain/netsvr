@@ -28,6 +28,7 @@ import (
 	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
 	"github.com/rs/zerolog"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"netsvr/configs"
@@ -46,6 +47,7 @@ import (
 	"netsvr/internal/wsServer"
 	"netsvr/pkg/quit"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -420,11 +422,17 @@ func Start() {
 			configs.Config.Customer.HandlePattern,
 		)
 	}()
+	var numEventLoop int
+	if configs.Config.Customer.Multicore == 0 {
+		numEventLoop = 1
+	} else {
+		numEventLoop = int(math.Ceil(float64(runtime.NumCPU()) * (float64(configs.Config.Customer.Multicore) / 100)))
+	}
 	err := gnet.Run(
 		server,
 		"tcp://"+configs.Config.Customer.ListenAddress,
 		gnet.WithLogger(log.NewLoggingSubstitute(&log.Logger)),
-		gnet.WithMulticore(true),
+		gnet.WithNumEventLoop(numEventLoop),
 		gnet.WithReusePort(true),
 		gnet.WithReuseAddr(true),
 		gnet.WithLockOSThread(true),
@@ -471,11 +479,17 @@ func StartAutobahn() {
 			configs.Config.Customer.HandlePattern,
 		)
 	}()
+	var numEventLoop int
+	if configs.Config.Customer.Multicore == 0 {
+		numEventLoop = 1
+	} else {
+		numEventLoop = int(math.Ceil(float64(runtime.NumCPU()) * (float64(configs.Config.Customer.Multicore) / 100)))
+	}
 	err := gnet.Run(
 		server,
 		"tcp://"+configs.Config.Customer.ListenAddress,
 		gnet.WithLogger(log.NewLoggingSubstitute(&log.Logger)),
-		gnet.WithMulticore(true),
+		gnet.WithNumEventLoop(numEventLoop),
 		gnet.WithReusePort(true),
 		gnet.WithReuseAddr(true),
 		gnet.WithLockOSThread(true),

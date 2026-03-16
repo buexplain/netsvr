@@ -49,7 +49,7 @@ type config struct {
 	LogFile string
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 	ShutdownWaitTime time.Duration
-	//pprof服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
+	//github.com/google/gops/agent服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
 	PprofListenAddress string
 	//测试用，是否开启Autobahn测试
 	Autobahn bool
@@ -62,6 +62,11 @@ type config struct {
 	}
 	//客户端的websocket服务器配置
 	Customer struct {
+		//github.com/panjf2000/gnet的引擎数量，入参是：[0, 100]
+		//0表示关闭，则gnet会默认创建一个引擎，其余数字表示按逻辑CPU的数量百分比创建引擎
+		//计算公式：int(math.Ceil(float64(runtime.NumCPU()) * (float64(Multicore) / 100)))
+		//例如100，则会创建逻辑CPU数量个引擎
+		Multicore int
 		//客户服务器监听的地址，ip:port，这个地址一般是外网地址
 		ListenAddress string
 		//客户服务器的url路由
@@ -208,11 +213,15 @@ func init() {
 	}
 	//解析配置文件到对象
 	Config = new(config)
+	Config.Customer.Multicore = 100
 	if _, err := toml.Decode(string(c), Config); err != nil {
 		slog.Error("Parse netsvr.toml failed", "error", err)
 		os.Exit(1)
 	}
 	//检查各种参数
+	if Config.Customer.Multicore < 0 || Config.Customer.Multicore > 100 {
+		Config.Customer.Multicore = 100
+	}
 	//默认只接收2MiB以内的数据
 	if Config.Customer.ReceivePackLimit <= 0 {
 		Config.Customer.ReceivePackLimit = 2097152

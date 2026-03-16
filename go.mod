@@ -11,6 +11,7 @@ require (
 	github.com/buexplain/netsvr-protocol-go/v6 v6.0.1
 	github.com/gobwas/httphead v0.1.0
 	github.com/gobwas/ws v1.4.0
+	github.com/google/gops v0.3.29
 	github.com/gorilla/websocket v1.5.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/panjf2000/gnet/v2 v2.9.7

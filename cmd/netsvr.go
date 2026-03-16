@@ -17,7 +17,7 @@
 package main
 
 import (
-	"net/http"
+	"github.com/google/gops/agent"
 	_ "net/http/pprof"
 	"netsvr/configs"
 	"netsvr/internal/customer"
@@ -26,7 +26,6 @@ import (
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"
 	"os"
-	"runtime"
 	"time"
 )
 
@@ -66,18 +65,18 @@ func main() {
 
 func pprof() {
 	if configs.Config.PprofListenAddress == "" {
-		runtime.SetMutexProfileFraction(0)
-		runtime.SetCPUProfileRate(0)
-		runtime.SetBlockProfileRate(0)
 		return
 	}
 	go func() {
 		defer func() {
 			_ = recover()
 		}()
-		//在生产环境中，较高的采样频率可能会对性能产生较大影响，因此建议使用较低的采样频率，例如 SetMutexProfileFraction(1000) 或更高，以减少对性能的影响。
-		runtime.SetMutexProfileFraction(1000)
-		log.Logger.Info().Int("pid", os.Getpid()).Msg("Pprof http start http" + "://" + configs.Config.PprofListenAddress + "/debug/pprof")
-		_ = http.ListenAndServe(configs.Config.PprofListenAddress, nil)
+		log.Logger.Info().Int("pid", os.Getpid()).Msgf("gops start, eg: gops memstats %s", configs.Config.PprofListenAddress)
+		if err := agent.Listen(agent.Options{
+			Addr:                   configs.Config.PprofListenAddress,
+			ReuseSocketAddrAndPort: true,
+		}); err != nil {
+			log.Logger.Error().Err(err)
+		}
 	}()
 }
