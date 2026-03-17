@@ -73,7 +73,10 @@ func process(workerConn *Conn) {
 			//读失败了，直接干掉这个连接，让business端重新连接进来，因为缓冲区的tcp流已经脏了，程序无法拆包
 			//关掉重来，是最好的办法
 			if err != io.EOF {
-				log.Logger.Error().Err(err).Msg("Worker receive data length failed")
+				log.Logger.Error().
+					Int32("events", workerConn.GetEvents()).
+					Str("connId", workerConn.connId).
+					Err(err).Msg("Worker receive data length failed")
 			}
 			return
 		}
@@ -82,6 +85,8 @@ func process(workerConn *Conn) {
 		//发送是数据包太大，直接关闭business，如果dataLen非常地大，则有可能导致内存分配失败，从而导致整个进程崩溃
 		if dataLen > configs.Config.Worker.ReceivePackLimit {
 			log.Logger.Error().
+				Int32("events", workerConn.GetEvents()).
+				Str("connId", workerConn.connId).
 				Uint32("dataLen", dataLen).
 				Uint32("receivePackLimit", configs.Config.Worker.ReceivePackLimit).
 				Msg("Worker receive pack size overflow")
@@ -91,7 +96,10 @@ func process(workerConn *Conn) {
 		data := make([]byte, dataLen)
 		if _, err := io.ReadAtLeast(connReader, data, len(data)); err != nil {
 			if err != io.EOF {
-				log.Logger.Error().Err(err).Msg("Worker receive body failed")
+				log.Logger.Error().
+					Int32("events", workerConn.GetEvents()).
+					Str("connId", workerConn.connId).
+					Err(err).Msg("Worker receive body failed")
 			}
 			return
 		}
@@ -102,6 +110,8 @@ func process(workerConn *Conn) {
 		//处理业务
 		if len(data) < 4 {
 			log.Logger.Error().
+				Int32("events", workerConn.GetEvents()).
+				Str("connId", workerConn.connId).
 				Hex("dataHex", data).
 				Msg("Worker unknown netsvrProtocol.Cmd")
 			return
@@ -113,6 +123,8 @@ func process(workerConn *Conn) {
 			unregister(data[4:], workerConn)
 		} else {
 			log.Logger.Error().
+				Int32("events", workerConn.GetEvents()).
+				Str("connId", workerConn.connId).
 				Str("cmd", currentCmd.String()).
 				Hex("dataHex", data).
 				Msg("Worker unknown netsvrProtocol.Cmd")
@@ -125,11 +137,17 @@ func process(workerConn *Conn) {
 func unregister(param []byte, workerConn *Conn) {
 	payload := netsvrProtocol.UnRegisterReq{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.UnRegisterReq failed")
+		log.Logger.Error().
+			Int32("events", workerConn.GetEvents()).
+			Str("connId", workerConn.connId).
+			Err(err).Msg("Proto unmarshal netsvrProtocol.UnRegisterReq failed")
 		return
 	}
 	if Manager.Del(payload.ConnId) {
-		log.Logger.Info().Str("remoteAddr", workerConn.GetConnRemoteAddr()).Str("connId", payload.ConnId).Msg("Unregister a business")
+		log.Logger.Info().
+			Int32("events", workerConn.GetEvents()).
+			Str("connId", workerConn.connId).
+			Str("remoteAddr", workerConn.GetConnRemoteAddr()).Str("connId", payload.ConnId).Msg("Unregister a business")
 	}
 	//必须回复给business，否则business端会认为没有收到数据，从而一直等待
 	workerConn.Send(&netsvrProtocol.UnRegisterResp{}, netsvrProtocol.Cmd_Unregister)
@@ -141,7 +159,10 @@ func register(param []byte, workerConn *Conn) {
 	ret := &netsvrProtocol.RegisterResp{}
 	if err := proto.Unmarshal(param, &payload); err != nil {
 		ret.Code = netsvrProtocol.RegisterRespCode_UnmarshalError
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.RegisterReq failed")
+		log.Logger.Error().
+			Int32("events", workerConn.GetEvents()).
+			Str("connId", workerConn.connId).
+			Err(err).Msg("Proto unmarshal netsvrProtocol.RegisterReq failed")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
 		return
@@ -159,7 +180,9 @@ func register(param []byte, workerConn *Conn) {
 	}
 	if invalidEvent {
 		ret.Code = netsvrProtocol.RegisterRespCode_InvalidEvent
-		log.Logger.Error().Int32("events", payload.Events).Msg("Invalid RegisterReqEvent")
+		log.Logger.Error().
+			Str("connId", workerConn.connId).
+			Int32("events", payload.Events).Msg("Invalid RegisterReqEvent")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
 		return
@@ -167,7 +190,10 @@ func register(param []byte, workerConn *Conn) {
 	//检查当前的business连接是否已经注册，不允许重复注册
 	if workerConn.GetEvents() > 0 {
 		ret.Code = netsvrProtocol.RegisterRespCode_DuplicateRegister
-		log.Logger.Error().Msg("Duplicate register are not allowed")
+		log.Logger.Error().
+			Int32("events", workerConn.GetEvents()).
+			Str("connId", workerConn.connId).
+			Msg("Duplicate register are not allowed")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
 		return
