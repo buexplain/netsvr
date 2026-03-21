@@ -193,15 +193,8 @@ func Start() {
 				//添加心跳检查
 				var tNode gTimer.TimeNoder
 				tNode = timer.Timer.ScheduleFunc(configs.Config.Customer.HeartbeatInterval, func() {
-					wsCodec, ok := conn.Context().(*wsServer.Codec)
-					if !ok || wsCodec.IsClosed() {
-						if tNode != nil {
-							tNode.Stop()
-						}
-						return
-					}
-					session, ok := wsCodec.GetSession().(*info.Info)
-					if !ok {
+					//检测连接是否已经关闭
+					if wsCodec.IsClosed() {
 						if tNode != nil {
 							tNode.Stop()
 						}
