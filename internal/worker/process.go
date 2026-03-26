@@ -53,7 +53,7 @@ func process(workerConn *Conn) {
 	// 禁用 Nagle 算法，减少小包延迟
 	if tcpConn, ok := workerConn.conn.(*net.TCPConn); ok {
 		if err := tcpConn.SetNoDelay(true); err != nil {
-			log.Logger.Warn().
+			log.Logger.Warn().Err(err).
 				Int32("events", workerConn.GetEvents()).
 				Str("connId", workerConn.connId).
 				Msg("Worker SetNoDelay failed")

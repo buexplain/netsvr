@@ -97,7 +97,7 @@ func Process(conn net.Conn) {
 	// 禁用 Nagle 算法，减少小包延迟
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		if err := tcpConn.SetNoDelay(true); err != nil {
-			log.Logger.Warn().
+			log.Logger.Warn().Err(err).
 				Msg("Task SetNoDelay failed")
 		}
 	}
@@ -202,7 +202,7 @@ func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
 	//设置写超时
 	if err := taskConn.SetWriteDeadline(time.Now().Add(configs.Config.Task.SendDeadline)); err != nil {
 		_ = taskConn.Close()
-		log.Logger.Error().
+		log.Logger.Error().Err(err).
 			Uint32("cmd", uint32(cmd)).
 			Msg("Task SetWriteDeadline failed")
 		return

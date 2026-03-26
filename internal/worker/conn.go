@@ -93,7 +93,7 @@ func (r *Conn) loopSend() {
 func (r *Conn) send(buffers net.Buffers) {
 	if err := r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 		r.Close()
-		log.Logger.Error().
+		log.Logger.Error().Err(err).
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker SetWriteDeadline failed")
