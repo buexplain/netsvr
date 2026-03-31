@@ -29,9 +29,12 @@ const cacheLineSize = 128
 var emptyStruct = struct{}{}
 
 // slot 代表环形缓冲区中的一个槽位
+// 注意：sequence 和 data 紧挨着，因为它们总是一起访问
+// 如果 T 很大，考虑在 sequence 和 data 之间添加填充
 type slot[T any] struct {
 	sequence atomic.Uint64 // 序列号，用于同步和判断槽位状态
-	data     T             // 实际存储的数据
+	_        [cacheLineSize - 8]byte
+	data     T // 实际存储的数据
 }
 
 // slotAccess 通过 base + stride 访问 slot 数组
@@ -42,248 +45,252 @@ type slotAccess[T any] struct {
 	base       unsafe.Pointer // 指向数组起始位置的指针
 }
 
-// sequenceAt 返回索引 i 处的 sequence 字段的指针
 func (s *slotAccess[T]) sequenceAt(i uint64) *atomic.Uint64 {
 	return (*atomic.Uint64)(unsafe.Add(s.base, s.stride*uintptr(i)+s.seqOffset))
 }
 
-// dataAt 返回索引 i 处的 data 字段的指针
 func (s *slotAccess[T]) dataAt(i uint64) *T {
 	return (*T)(unsafe.Add(s.base, s.stride*uintptr(i)+s.dataOffset))
 }
 
 // Queue 是一个无锁、有界、多生产者单消费者 (MPSC) 的环形队列。
-// 专门优化用于存储 [2][]byte 类型的数据对。
 //
-// 特性：
-//   - 无锁设计：多生产者通过 CAS 竞争，消费者无竞争
-//   - 批量出队：支持高效批量出队操作
-//   - Cache line padding: 防止伪共享
-//   - CAS 退避：减少竞争开销
-//
-// 使用约束：
-//   - Enqueue: 多线程安全
-//   - Dequeue: 仅限单消费者调用
+// 内存布局优化：
+//   - head: 生产者竞争写入，独立 cache line
+//   - tail: 消费者写入，独立 cache line
+//   - mask, closed, noticer: 控制字段，共享一个 cache line（低频访问）
+//   - slots: 数据区域，通过 stride 确保每个逻辑 slot 独立
 type Queue[T any] struct {
-	head atomic.Uint64       // 队头指针，多个生产者 CAS 竞争
-	_    [cacheLineSize]byte // 填充，防止 head 和 tail 在同一 cache line
+	// 生产者高频竞争区域（128 bytes）
+	head atomic.Uint64
+	_    [cacheLineSize - unsafe.Sizeof(atomic.Uint64{})]byte
 
-	tail atomic.Uint64       // 队尾指针，仅消费者修改
-	_    [cacheLineSize]byte // 填充，防止 tail 和 mask 在同一 cache line
+	// 消费者高频写入区域（128 bytes）
+	tail atomic.Uint64
+	_    [cacheLineSize - unsafe.Sizeof(atomic.Uint64{})]byte
 
-	mask      uint64        // 容量减 1，用于快速计算索引（位运算）
-	closed    atomic.Bool   // 队列关闭标志
-	slots     slotAccess[T] // 槽位访问器，用于快速定位元素
-	noticer   chan struct{} // 用于通知消费者
-	reference []slot[T]     // 实际缓冲区，保持 GC 引用
-	zero      T             // 用于初始化零值
+	// 控制区域（低频访问，共享 128 bytes）
+	mask   uint64
+	closed atomic.Bool
+	_      [cacheLineSize - unsafe.Sizeof(uint64(0)) - unsafe.Sizeof(atomic.Bool{})]byte
+
+	// 通知通道（指针，8 bytes）
+	noticer chan struct{}
+
+	// 数据访问器（32 bytes on 64-bit）
+	slots slotAccess[T]
+
+	// GC 引用（保持内存不被回收）
+	reference []slot[T]
+
+	// 零值（用于重置）
+	zero T
 }
 
 // NewQueue 创建一个队列（padded 布局，消除伪共享）。
 // capacity 会自动向上取整到最近的 2 的幂。
 // 通过 over-allocate 使每个逻辑 slot 占满整条 cache line。
-// 内存开销：capacity × max(cacheLineSize, sizeof(slot))。
 func NewQueue[T any](capacity int) *Queue[T] {
-	if capacity <= 1 { // 处理非法容量值和容量为1时特殊处理
-		capacity = 2 // 默认最小容量为 2
+	if capacity <= 1 {
+		capacity = 2
 	} else if capacity > 65536 {
-		capacity = 65536 // 避免超过 65536
+		capacity = 65536
 	}
 
-	capacity--                 // 减 1，为后续对齐做准备
-	capacity |= capacity >> 1  // 位运算：将容量对齐到 2 的幂
-	capacity |= capacity >> 2  // 传播最高位的 1 到右侧
-	capacity |= capacity >> 4  // 继续传播
-	capacity |= capacity >> 8  // 继续传播
-	capacity |= capacity >> 16 // 继续传播
-	capacity += 1              // 加 1，得到最终的 2 的幂容量
+	// 对齐到 2 的幂
+	capacity--
+	capacity |= capacity >> 1
+	capacity |= capacity >> 2
+	capacity |= capacity >> 4
+	capacity |= capacity >> 8
+	capacity |= capacity >> 16
+	capacity++
 
-	slotSize := unsafe.Sizeof(slot[T]{})                                     // 计算单个槽位的大小
-	stride := (slotSize + cacheLineSize - 1) / cacheLineSize * cacheLineSize // 向上取整到 cache line 倍数
-	slotsPerLogical := stride / slotSize                                     // 计算每个逻辑槽位需要多少个物理槽位
-	if stride%slotSize != 0 {                                                // 如果不能整除
-		slotsPerLogical++                   // 增加一个槽位
-		stride = slotsPerLogical * slotSize // 重新计算实际步长
+	// 计算 slot 大小和 stride
+	slotSize := unsafe.Sizeof(slot[T]{})
+
+	// 确保每个逻辑 slot 至少占满一个 cache line
+	// 如果 slot 本身大于 cacheLineSize，则使用 slotSize
+	stride := slotSize
+	if stride < cacheLineSize {
+		stride = cacheLineSize
 	}
 
-	buf := make([]slot[T], uint64(capacity)*uint64(slotsPerLogical)) // 分配实际缓冲区
+	// 计算每个逻辑 slot 需要多少个物理 slot
+	slotsPerLogical := uintptr(1)
+	if slotSize > 0 {
+		slotsPerLogical = (stride + slotSize - 1) / slotSize
+		if slotsPerLogical*slotSize < cacheLineSize {
+			slotsPerLogical++
+			stride = slotsPerLogical * slotSize
+		}
+	}
+
+	buf := make([]slot[T], uint64(capacity)*uint64(slotsPerLogical))
 	var zero T
 	q := &Queue[T]{
-		mask:      uint64(capacity - 1),   // 设置 mask 为容量减 1
-		noticer:   make(chan struct{}, 1), // 创建通知通道，用于通知消费者，必须是有缓冲的
-		reference: buf,                    // 保存缓冲区引用
+		mask:      uint64(capacity - 1),
+		noticer:   make(chan struct{}, 1),
+		reference: buf,
 		zero:      zero,
 	}
-	q.slots = newSlotAccess(buf, stride)            // 初始化槽位访问器
-	for i := uint64(0); i < uint64(capacity); i++ { // 初始化每个槽位的序列号
-		q.slots.sequenceAt(i).Store(i) // 初始序列号等于索引
+	q.slots = newSlotAccess(buf, stride)
+	for i := uint64(0); i < uint64(capacity); i++ {
+		q.slots.sequenceAt(i).Store(i)
 	}
 	return q
 }
 
-// newSlotAccess 创建一个新的 slotAccess 结构体，用于高效访问字节槽数组。
-// 通过存储基地址、字段偏移量和步长，避免重复计算内存位置。
-// 参数:
-//   - buf: slot 类型的切片，作为访问的数据源
-//   - stride: uintptr 类型，表示相邻元素之间的内存间距
-//
-// 返回:
-//   - slotAccess: 包含访问信息的结构体，可用于快速定位数组中任意元素的字段
 func newSlotAccess[T any](buf []slot[T], stride uintptr) slotAccess[T] {
 	return slotAccess[T]{
-		base:       unsafe.Pointer(&buf[0]),          // 获取数组首地址
-		seqOffset:  unsafe.Offsetof(buf[0].sequence), // 计算 sequence 字段偏移量
-		dataOffset: unsafe.Offsetof(buf[0].data),     // 计算 data 字段偏移量
-		stride:     stride,                           // 设置步长
+		base:       unsafe.Pointer(&buf[0]),
+		seqOffset:  unsafe.Offsetof(buf[0].sequence),
+		dataOffset: unsafe.Offsetof(buf[0].data),
+		stride:     stride,
 	}
 }
 
 // Enqueue 非阻塞入队单个 T。
 // 多生产者竞争时自动重试 CAS，队列满或已关闭时返回 false。
 func (q *Queue[T]) Enqueue(item T) bool {
-	for { // 自旋循环，直到成功或失败
+	for { // 自旋循环，持续尝试直到成功或失败
 		if q.closed.Load() { // 检查队列是否已关闭
-			return false // 已关闭，返回失败
+			return false // 队列已关闭，拒绝新元素入队，返回失败
 		}
 
-		head := q.head.Load()                   // 加载当前队头位置
-		index := head & q.mask                  // 通过位运算计算环形索引
-		seq := q.slots.sequenceAt(index).Load() // 加载该位置的序列号
+		head := q.head.Load()                   // 加载当前队头位置（原子读取）
+		index := head & q.mask                  // 通过位运算计算环形索引（相当于 head % capacity）
+		seq := q.slots.sequenceAt(index).Load() // 加载该位置的序列号（原子读取）
 
-		if seq == head { // 序列号等于队头，说明此位置可写
-			if q.head.CompareAndSwap(head, head+1) { // CAS 尝试占用此位置
-				*q.slots.dataAt(index) = item            // 写入数据
-				q.slots.sequenceAt(index).Store(seq + 1) // 在当前序列号基础上加1，表示数据已就绪
+		if seq == head { // 序列号等于队头，说明此槽位可写（消费者已消费）
+			if q.head.CompareAndSwap(head, head+1) { // CAS 尝试占用此位置（原子操作）
+				*q.slots.dataAt(index) = item            // 写入数据到槽位
+				q.slots.sequenceAt(index).Store(seq + 1) // 序列号加 1，表示数据已就绪，消费者可读取
+
+				// 通知消费者有新数据（非阻塞发送）
 				select {
-				case q.noticer <- emptyStruct: // 通知消费者
-					return true // 入队成功
-				default:
-					return true // 入队成功
+				case q.noticer <- emptyStruct: // 尝试发送通知信号
+					return true // 发送成功，入队完成
+				default: // 通道已满或有其他生产者抢先发送
+					return true // 无需重复发送，入队同样成功
 				}
 			}
-			runtime.Gosched() // CAS 失败，让出 CPU 时间片
-			continue          // 重试
+			runtime.Gosched() // CAS 失败（被其他生产者抢先），让出 CPU 时间片，减少空转
+			continue          // 重新尝试下一轮入队
 		}
 
-		if seq < head { // 序列号小于队头，说明队列已满（生产者跑到了消费者前面）
-			if q.head.Load() == head { // 再次确认队头未变化
-				return false // 队头未变，确实满了，返回 false
+		if seq < head { // 序列号小于队头，说明生产者跑到了消费者前面（队列已满）
+			if q.head.Load() == head { // 二次确认队头未变化（避免假阳性）
+				return false // 队头确实未变，队列已满，返回失败
 			}
-			continue // 队头已变，假阳性，continue 重试
+			continue // 队头已变化，说明是假阳性，重新尝试
 		}
-		// 序列号大于队头，说明队列已空（消费者跑到了生产者前面）
+		// seq > head：序列号大于队头，说明消费者跑到了生产者前面（队列已空）
+		// 理论上不会出现，continue 重试即可
 	}
 }
 
-// TryEnqueue 非阻塞入队（单次尝试）。
-// 队列满或 CAS 竞争失败时立即返回 false，不重试。
+// TryEnqueue 尝试入队单个 T。入队列成功返回 true，失败返回 false。失败的原因有：CAS 失败（多生产者竞争）或队列满
 func (q *Queue[T]) TryEnqueue(item T) bool {
-	if q.closed.Load() { // 检查队列是否已关闭
-		return false // 已关闭，返回失败
+	if q.closed.Load() { // 检查队列是否已关闭（原子操作）
+		return false // 队列已关闭，拒绝新元素入队，返回失败
 	}
 
-	head := q.head.Load()                   // 加载当前队头位置
-	index := head & q.mask                  // 计算环形索引
-	seq := q.slots.sequenceAt(index).Load() // 加载序列号
+	head := q.head.Load()                   // 加载当前队头位置（原子读取）
+	index := head & q.mask                  // 通过位运算计算环形索引（相当于 head % capacity，利用 mask 快速取模）
+	seq := q.slots.sequenceAt(index).Load() // 加载目标索引位置的序列号（原子读取）
 
-	if seq == head { // 可以写入
-		if q.head.CompareAndSwap(head, head+1) { // 单次 CAS 尝试
-			*q.slots.dataAt(index) = item            // 写入数据
-			q.slots.sequenceAt(index).Store(seq + 1) // 在当前序列号基础上加1
+	if seq == head { // 序列号等于队头，说明此槽位空闲可写（消费者已完成消费）
+		if q.head.CompareAndSwap(head, head+1) { // CAS 尝试占用此位置（原子比较并交换）
+			*q.slots.dataAt(index) = item            // 将数据写入槽位的 data 字段
+			q.slots.sequenceAt(index).Store(seq + 1) // 序列号加 1，标记数据已就绪，通知消费者可读取
+
+			// 通知消费者有新数据（非阻塞发送）
 			select {
-			case q.noticer <- emptyStruct: // 通知消费者
-				return true // 成功
-			default:
-				return true // 成功
+			case q.noticer <- emptyStruct: // 尝试向通知通道发送信号
+				return true // 发送成功，入队完成
+			default: // 通道已满或其他生产者已发送通知
+				return true // 无需重复发送，入队同样成功
 			}
 		}
 	}
-	return false // CAS 失败或队列满，直接返回
+	return false // CAS 失败（多生产者竞争）或队列满（seq != head），立即返回失败，不重试
 }
 
-// Dequeue 批量出队（阻塞，两阶段提交）。
-// result 切片长度决定最大批量，返回实际读取的数量；返回0表示队列已经关闭，且队列中没有数据。
+// Dequeue 批量出队 T。返回值表示实际读取的元素数量，返回0的原因是：队列已关闭且无数据
 func (q *Queue[T]) Dequeue(result []T) int {
-	limit := len(result) // 最大可读取数量
-	if limit == 0 {      // 结果数组为空
-		panic("result slice is empty")
+	limit := len(result) // 获取结果切片的长度，决定单次批量出队的最大数量
+	if limit == 0 {      // 检查结果切片是否为空
+		panic("result slice is empty") // 结果切片为空时 panic，避免无意义的调用
 	}
 
-loop:
+loop: // 标签，用于在特定条件下重新开始整个读取流程
+	tail := q.tail.Load() // 加载当前队尾位置（原子读取，消费者独占修改）
+	count := 0            // 已读取元素数量计数器，初始化为 0
 
-	tail := q.tail.Load() // 加载当前队尾位置
-	count := 0 // 已读取数量计数器
+	for count < limit { // 循环读取数据，直到达到结果切片容量上限
+		index := tail & q.mask                  // 通过位运算计算环形索引（相当于 tail % capacity）
+		seq := q.slots.sequenceAt(index).Load() // 加载该位置的序列号（原子读取）
 
-	// 读取数据，不释放槽位
-	for count < limit { // 未达到上限前继续读取
-		index := tail & q.mask                  // 计算环形索引
-		seq := q.slots.sequenceAt(index).Load() // 加载序列号
-
-		if seq != tail+1 { // 序列号不等于 tail+1，说明无数据
-			break // 跳出循环
+		if seq != tail+1 { // 序列号不等于 tail+1，说明此位置无就绪数据
+			break // 跳出 for 循环，进入等待或返回逻辑
 		}
 
-		result[count] = *q.slots.dataAt(index) // 读取数据到结果数组
-		*q.slots.dataAt(index) = q.zero        // 清除原数据（帮助 GC）
-		tail++                                 // 队尾前移
-		count++                                // 计数增加
+		result[count] = *q.slots.dataAt(index) // 读取槽位数据到结果切片
+		*q.slots.dataAt(index) = q.zero        // 清除原数据（帮助 GC 回收，避免内存泄漏）
+		tail++                                 // 队尾指针前移，指向下一个待消费位置
+		count++                                // 已读取计数加 1
 	}
 
-	if count == 0 { // 没有读取到任何数据
+	if count == 0 { // 没有读取到任何数据（队列为空或暂时未就绪）
 		if q.closed.Load() == false { // 队列未关闭
-			<-q.noticer // 等待信号，也许是 生产者写入，也许是 close 退出
+			<-q.noticer // 阻塞等待通知信号（可能是新数据写入，也可能是 close 操作）
 		}
-		if q.closed.Load() == true { // 队列已关闭
-			if q.Len() > 0 { // 队列非空
-				goto loop // 重新开始读取
+		if q.closed.Load() == true { // 队列已关闭（等待期间可能被关闭）
+			if q.Len() > 0 { // 检查队列是否还有剩余数据（双重检查）
+				goto loop // 队列非空，跳转到 loop 标签处重新读取
 			}
-			return 0 // 队列已关闭且已无数据，返回
+			return 0 // 队列已关闭且无数据，返回 0 表示结束
 		}
-		goto loop // 等待到了新的数据，重新开始读取
+		goto loop // 等待到了新数据，跳转到 loop 标签处重新读取
 	}
 
-	// 先推进 tail，再释放所有槽位
-	q.tail.Store(tail) // 更新队尾指针
+	q.tail.Store(tail) // 批量更新队尾指针（原子存储，一次性提交所有消费）
 
-	baseTail := tail - uint64(count)             // 计算起始队尾位置
-	for i := uint64(0); i < uint64(count); i++ { // 遍历所有已消费的槽位
-		releaseTail := baseTail + i   // 计算实际位置（该槽位被消费时的总次数）
+	baseTail := tail - uint64(count)             // 计算起始队尾位置（本次消费前的 tail 值）
+	for i := uint64(0); i < uint64(count); i++ { // 遍历所有已消费的槽位，逐个释放
+		releaseTail := baseTail + i   // 计算该槽位被消费时的总次数（绝对位置）
 		index := releaseTail & q.mask // 计算环形索引
 		// 修复：释放槽位为 (releaseTail + mask + 1)
 		// 这样下一轮入队时，生产者看到的 sequence[index] = releaseTail + mask + 1
 		// 而期望值是 releaseTail + 1，满足 sequence[index] == head 条件
-		q.slots.sequenceAt(index).Store(releaseTail + q.mask + 1) // 释放槽位，供下一轮复用
+		q.slots.sequenceAt(index).Store(releaseTail + q.mask + 1) // 释放槽位，重置序列号供下一轮复用
 	}
 
-	return count // 返回实际读取数量
+	return count // 返回实际读取的元素数量
 }
 
-// Len 返回队列中当前的估计元素数量。
 func (q *Queue[T]) Len() int {
-	t := q.tail.Load() // 加载队尾位置
-	h := q.head.Load() // 加载队头位置
-
-	if h < t { // 队头小于队尾（理论上不应该）
-		return 0 // 返回 0
+	t := q.tail.Load()
+	h := q.head.Load()
+	if h < t {
+		return 0
 	}
-	return int(h - t) // 直接返回差值作为队列长度
+	return int(h - t)
 }
 
-// Cap 返回队列总容量。
 func (q *Queue[T]) Cap() int {
-	return int(q.mask) + 1 // mask+1 即为容量
+	return int(q.mask) + 1
 }
 
-// IsClosed 检查队列是否已关闭。
 func (q *Queue[T]) IsClosed() bool {
-	return q.closed.Load() // 返回关闭标志
+	return q.closed.Load()
 }
 
-// Close 关闭队列。关闭后 Enqueue 返回 false，已入队数据仍可 Dequeue。
 func (q *Queue[T]) Close() {
-	if q.closed.CompareAndSwap(false, true) { // 设置关闭标志
+	if q.closed.CompareAndSwap(false, true) {
 		select {
-		case q.noticer <- emptyStruct: // 通知消费者退出
+		case q.noticer <- emptyStruct:
 		default:
 		}
 	}

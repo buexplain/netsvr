@@ -22,7 +22,146 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 )
+
+// TestPadding 测试缓存行填充
+func TestPadding(t *testing.T) {
+	q := NewQueue[int](4)
+
+	// 检查 head 和 tail 的偏移差
+	headOffset := unsafe.Offsetof(q.head)
+	tailOffset := unsafe.Offsetof(q.tail)
+
+	t.Logf("head offset: %d, tail offset: %d, diff: %d bytes",
+		headOffset, tailOffset, tailOffset-headOffset)
+
+	if tailOffset-headOffset < cacheLineSize {
+		t.Errorf("head and tail too close: %d bytes (should be >= %d)",
+			tailOffset-headOffset, cacheLineSize)
+	}
+
+	// 检查 tail 到 mask 的间距
+	maskOffset := unsafe.Offsetof(q.mask)
+	t.Logf("tail to mask: %d bytes", maskOffset-tailOffset)
+
+	// tail 应该有完整的 cache line 填充
+	expectedMinMaskOffset := tailOffset + cacheLineSize
+	if maskOffset < expectedMinMaskOffset {
+		t.Errorf("mask too close to tail: %d bytes (should be >= %d)",
+			maskOffset-tailOffset, cacheLineSize)
+	}
+
+	// 检查 slot stride
+	slotSize := unsafe.Sizeof(slot[int]{})
+	t.Logf("slot size: %d, stride: %d", slotSize, q.slots.stride)
+
+	if q.slots.stride < cacheLineSize {
+		t.Errorf("stride too small: %d < %d", q.slots.stride, cacheLineSize)
+	}
+
+}
+
+// TestPaddingDifferentTypes 测试不同类型参数的缓存行填充
+func TestPaddingDifferentTypes(t *testing.T) {
+	testCases := []struct {
+		name     string
+		capacity int
+	}{
+		{"int", 4},
+		{"string", 4},
+		{"[]byte", 4},
+		{"[2][]byte", 4}, // 项目实际使用的类型
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stride uintptr
+			var actualSlotSize uintptr
+
+			switch tc.name {
+			case "int":
+				q := NewQueue[int](tc.capacity)
+				stride = q.slots.stride
+				actualSlotSize = unsafe.Sizeof(slot[int]{})
+				t.Logf("int - slot size: %d, stride: %d",
+					actualSlotSize, stride)
+
+			case "string":
+				q := NewQueue[string](tc.capacity)
+				stride = q.slots.stride
+				actualSlotSize = unsafe.Sizeof(slot[string]{})
+				t.Logf("string - slot size: %d, stride: %d",
+					actualSlotSize, stride)
+
+			case "[]byte":
+				q := NewQueue[[]byte](tc.capacity)
+				stride = q.slots.stride
+				actualSlotSize = unsafe.Sizeof(slot[[]byte]{})
+				t.Logf("[]byte - slot size: %d, stride: %d",
+					actualSlotSize, stride)
+
+			case "[2][]byte":
+				q := NewQueue[[2][]byte](tc.capacity)
+				stride = q.slots.stride
+				actualSlotSize = unsafe.Sizeof(slot[[2][]byte]{})
+				t.Logf("[2][]byte - slot size: %d, stride: %d",
+					actualSlotSize, stride)
+			}
+
+			// 验证 stride >= cacheLineSize
+			if stride < cacheLineSize {
+				t.Errorf("%s: stride too small: %d < %d",
+					tc.name, stride, cacheLineSize)
+			}
+
+			// 验证 stride >= 实际 slot 大小
+			if stride < actualSlotSize {
+				t.Errorf("%s: stride smaller than slot: %d < %d",
+					tc.name, stride, actualSlotSize)
+			}
+
+			// 记录内存利用率
+			utilization := float64(actualSlotSize) / float64(stride) * 100
+			t.Logf("%s - memory utilization: %.2f%% (%d/%d bytes)",
+				tc.name, utilization, actualSlotSize, stride)
+		})
+	}
+}
+
+// TestPaddingStructureLayout 测试结构体内存布局
+func TestPaddingStructureLayout(t *testing.T) {
+	type testStruct struct {
+		head   atomic.Uint64
+		_      [cacheLineSize - unsafe.Sizeof(atomic.Uint64{})]byte
+		tail   atomic.Uint64
+		_      [cacheLineSize - unsafe.Sizeof(atomic.Uint64{})]byte
+		mask   uint64
+		closed atomic.Bool
+		_      [cacheLineSize - unsafe.Sizeof(uint64(0)) - unsafe.Sizeof(atomic.Bool{})]byte
+	}
+
+	headOffset := unsafe.Offsetof(testStruct{}.head)
+	tailOffset := unsafe.Offsetof(testStruct{}.tail)
+	maskOffset := unsafe.Offsetof(testStruct{}.mask)
+
+	t.Logf("testStruct layout: head=%d, tail=%d, mask=%d",
+		headOffset, tailOffset, maskOffset)
+
+	// 验证 head 和 tail 间隔
+	if tailOffset-headOffset < cacheLineSize {
+		t.Errorf("head/tail spacing insufficient: %d < %d",
+			tailOffset-headOffset, cacheLineSize)
+	}
+
+	// 验证 tail 和 mask 间隔
+	if maskOffset-tailOffset < cacheLineSize {
+		t.Errorf("tail/mask spacing insufficient: %d < %d",
+			maskOffset-tailOffset, cacheLineSize)
+	}
+
+	t.Logf("total struct size: %d bytes", unsafe.Sizeof(testStruct{}))
+}
 
 // TestBasicEnqueueDequeue 测试基本的入队和出队操作
 func TestBasicEnqueueDequeue(t *testing.T) {
