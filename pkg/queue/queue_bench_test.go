@@ -26,7 +26,7 @@ import (
 // BenchmarkEnqueue 入队性能基准测试
 // 测试单线程入队的吞吐量
 func BenchmarkEnqueue(b *testing.B) {
-	q := NewQueue[int](10240)
+	q := New[int](10240)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -37,7 +37,7 @@ func BenchmarkEnqueue(b *testing.B) {
 // BenchmarkDequeue 批量出队性能基准测试
 // 测试批量出队的吞吐量
 func BenchmarkDequeue(b *testing.B) {
-	q := NewQueue[int](10240)
+	q := New[int](10240)
 	result := make([]int, 100)
 
 	// 预填充
@@ -57,7 +57,7 @@ func BenchmarkDequeue(b *testing.B) {
 }
 
 func concurrentEnqueueDequeue(b *testing.B, batchSize int) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 	wg := &sync.WaitGroup{}
 	numProducers := 4
 	itemsPerProducer := b.N / numProducers
@@ -138,7 +138,7 @@ func BenchmarkConcurrentEnqueueWithChannel(b *testing.B) {
 // BenchmarkFullCycle 完整循环性能基准测试
 // 测试队列在填满和清空循环下的性能
 func BenchmarkFullCycle(b *testing.B) {
-	q := NewQueue[int](64)
+	q := New[int](64)
 	result := make([]int, 64)
 
 	b.ResetTimer()
@@ -175,7 +175,7 @@ func BenchmarkFullCycleWithChannel(b *testing.B) {
 // BenchmarkTryEnqueue TryEnqueue 单次尝试性能基准测试
 // 测试非阻塞入队的吞吐量
 func BenchmarkTryEnqueue(b *testing.B) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 	// 预填充一半，确保不会频繁满
 	for i := 0; i < 512; i++ {
 		q.Enqueue(i)
@@ -191,7 +191,7 @@ func BenchmarkTryEnqueue(b *testing.B) {
 // BenchmarkLen Len 方法性能基准测试
 // 测试获取队列长度的性能
 func BenchmarkLen(b *testing.B) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 	for i := 0; i < 512; i++ {
 		q.Enqueue(i)
 	}
@@ -206,7 +206,7 @@ func BenchmarkLen(b *testing.B) {
 // BenchmarkCap Cap 方法性能基准测试
 // 测试获取队列容量的性能
 func BenchmarkCap(b *testing.B) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 
 	b.ResetTimer()
 

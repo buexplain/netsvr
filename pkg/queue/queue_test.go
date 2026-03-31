@@ -27,7 +27,7 @@ import (
 
 // TestPadding 测试缓存行填充
 func TestPadding(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 
 	// 检查 head 和 tail 的偏移差
 	headOffset := unsafe.Offsetof(q.head)
@@ -81,28 +81,28 @@ func TestPaddingDifferentTypes(t *testing.T) {
 
 			switch tc.name {
 			case "int":
-				q := NewQueue[int](tc.capacity)
+				q := New[int](tc.capacity)
 				stride = q.slots.stride
 				actualSlotSize = unsafe.Sizeof(slot[int]{})
 				t.Logf("int - slot size: %d, stride: %d",
 					actualSlotSize, stride)
 
 			case "string":
-				q := NewQueue[string](tc.capacity)
+				q := New[string](tc.capacity)
 				stride = q.slots.stride
 				actualSlotSize = unsafe.Sizeof(slot[string]{})
 				t.Logf("string - slot size: %d, stride: %d",
 					actualSlotSize, stride)
 
 			case "[]byte":
-				q := NewQueue[[]byte](tc.capacity)
+				q := New[[]byte](tc.capacity)
 				stride = q.slots.stride
 				actualSlotSize = unsafe.Sizeof(slot[[]byte]{})
 				t.Logf("[]byte - slot size: %d, stride: %d",
 					actualSlotSize, stride)
 
 			case "[2][]byte":
-				q := NewQueue[[2][]byte](tc.capacity)
+				q := New[[2][]byte](tc.capacity)
 				stride = q.slots.stride
 				actualSlotSize = unsafe.Sizeof(slot[[2][]byte]{})
 				t.Logf("[2][]byte - slot size: %d, stride: %d",
@@ -165,7 +165,7 @@ func TestPaddingStructureLayout(t *testing.T) {
 
 // TestBasicEnqueueDequeue 测试基本的入队和出队操作
 func TestBasicEnqueueDequeue(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 	result := make([]int, 10)
 
 	// 入队 3 个元素
@@ -192,7 +192,7 @@ func TestBasicEnqueueDequeue(t *testing.T) {
 // TestSequenceCycle 测试序列号循环（核心修复验证）
 // 这是验证修复是否正确的关键测试
 func TestSequenceCycle(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 	result := make([]int, 2)
 
 	// 第一轮：入队 2 个，出队 2 个
@@ -227,7 +227,7 @@ func TestSequenceCycle(t *testing.T) {
 
 // TestFullCycle 测试完整循环（填满队列，全部出队，再填满）
 func TestFullCycle(t *testing.T) {
-	q := NewQueue[int](8)
+	q := New[int](8)
 	result := make([]int, 8)
 
 	// 第一轮：填满队列
@@ -265,7 +265,7 @@ func TestFullCycle(t *testing.T) {
 
 // TestConcurrentEnqueue 测试多生产者并发入队
 func TestConcurrentEnqueue(t *testing.T) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 	wg := &sync.WaitGroup{}
 	total := 1000
 
@@ -293,7 +293,7 @@ func TestConcurrentEnqueue(t *testing.T) {
 
 // TestConcurrentEnqueueDequeue 测试多生产者单消费者并发
 func TestConcurrentEnqueueDequeue(t *testing.T) {
-	q := NewQueue[int](1024)
+	q := New[int](1024)
 	var producerWg = &sync.WaitGroup{}
 	var consumerWg = &sync.WaitGroup{}
 	total := 1000
@@ -357,7 +357,7 @@ func TestConcurrentEnqueueDequeue(t *testing.T) {
 // TestConcurrentFullCycle 测试并发场景下的完整循环（
 // 使用 MPSC 队列：多生产者单消费者
 func TestConcurrentFullCycle(t *testing.T) {
-	q := NewQueue[int](64)
+	q := New[int](64)
 	wg := &sync.WaitGroup{}
 	totalRounds := 10
 	itemsPerRound := 50
@@ -409,7 +409,7 @@ func TestConcurrentFullCycle(t *testing.T) {
 
 // TestEmptyQueue 测试空队列的出队
 func TestEmptyQueue(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 	result := make([]int, 10)
 	go func() {
 		time.Sleep(time.Millisecond * 100)
@@ -423,7 +423,7 @@ func TestEmptyQueue(t *testing.T) {
 
 // TestFullQueue 测试满队列的入队
 func TestFullQueue(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 
 	// 填满队列
 	for i := 0; i < 4; i++ {
@@ -440,7 +440,7 @@ func TestFullQueue(t *testing.T) {
 
 // TestTryEnqueue 测试 TryEnqueue 单次尝试
 func TestTryEnqueue(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 
 	// 成功入队
 	if !q.TryEnqueue(1) {
@@ -469,7 +469,7 @@ func TestTryEnqueue(t *testing.T) {
 func TestTryEnqueueCAS(t *testing.T) {
 	var count int32 = 0
 	countPtr := &count
-	q := NewQueue[int](4)
+	q := New[int](4)
 	wg := &sync.WaitGroup{}
 	startSignal := make(chan struct{})
 	for i := 0; i < 100; i++ {
@@ -492,7 +492,7 @@ func TestTryEnqueueCAS(t *testing.T) {
 
 // TestEnqueueCAS 测试 Enqueue CAS
 func TestEnqueueCAS(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 	wg := &sync.WaitGroup{}
 	startSignal := make(chan struct{})
 	for i := 0; i < 100; i++ {
@@ -510,7 +510,7 @@ func TestEnqueueCAS(t *testing.T) {
 
 // TestCloseQueue 测试关闭队列
 func TestCloseQueue(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 
 	// 正常入队
 	q.Enqueue(1)
@@ -551,7 +551,7 @@ func TestCloseQueue(t *testing.T) {
 
 // TestLenAndCap 测试 Len 和 Cap 方法
 func TestLenAndCap(t *testing.T) {
-	q := NewQueue[int](16)
+	q := New[int](16)
 
 	if q.Cap() != 16 {
 		t.Fatalf("容量期望 16，实际%d", q.Cap())
@@ -572,7 +572,7 @@ func TestLenAndCap(t *testing.T) {
 
 // TestStringType 测试使用字符串类型
 func TestStringType(t *testing.T) {
-	q := NewQueue[string](4)
+	q := New[string](4)
 
 	q.Enqueue("hello")
 	q.Enqueue("world")
@@ -587,7 +587,7 @@ func TestStringType(t *testing.T) {
 
 // TestLargeCapacity 测试大容量队列
 func TestLargeCapacity(t *testing.T) {
-	q := NewQueue[int](10240) // 10K 容量
+	q := New[int](10240) // 10K 容量
 
 	// 填充大部分
 	for i := 0; i < 8000; i++ {
@@ -632,7 +632,7 @@ func TestCapacityAlignment(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		q := NewQueue[int](tc.input)
+		q := New[int](tc.input)
 		if q.Cap() != tc.expected {
 			t.Fatalf("输入%d，期望容量%d，实际%d", tc.input, tc.expected, q.Cap())
 		}
@@ -641,7 +641,7 @@ func TestCapacityAlignment(t *testing.T) {
 
 // TestNegativeCapacity 测试负容量处理
 func TestNegativeCapacity(t *testing.T) {
-	q := NewQueue[int](-10)
+	q := New[int](-10)
 	if q.Cap() != 2 {
 		t.Fatalf("负容量应该默认为 2，实际%d", q.Cap())
 	}
@@ -654,7 +654,7 @@ func TestNegativeCapacity(t *testing.T) {
 
 // TestZeroCapacity 测试零容量处理
 func TestZeroCapacity(t *testing.T) {
-	q := NewQueue[int](0)
+	q := New[int](0)
 	if q.Cap() != 2 {
 		t.Fatalf("零容量应该默认为 2，实际%d", q.Cap())
 	}
@@ -667,7 +667,7 @@ func TestZeroCapacity(t *testing.T) {
 
 // TestSingleElement 测试单个元素的完整周期
 func TestSingleElement(t *testing.T) {
-	q := NewQueue[int](8)
+	q := New[int](8)
 	result := make([]int, 1)
 
 	// 多次入队单个元素并立即出队
@@ -684,7 +684,7 @@ func TestSingleElement(t *testing.T) {
 
 // TestPartialBatchDequeue 测试部分批量出队
 func TestPartialBatchDequeue(t *testing.T) {
-	q := NewQueue[int](8)
+	q := New[int](8)
 
 	// 入队 3 个
 	q.Enqueue(1)
@@ -705,7 +705,7 @@ func TestPartialBatchDequeue(t *testing.T) {
 
 // TestManyRounds 测试多轮完整循环
 func TestManyRounds(t *testing.T) {
-	q := NewQueue[int](16)
+	q := New[int](16)
 	result := make([]int, 16)
 
 	// 进行 100 轮完整循环
@@ -733,7 +733,7 @@ func TestManyRounds(t *testing.T) {
 
 // TestConcurrentFullWrite 测试并发写入直到满
 func TestConcurrentFullWrite(t *testing.T) {
-	q := NewQueue[int](100)
+	q := New[int](100)
 	wg := &sync.WaitGroup{}
 	capacity := q.Cap() // 实际容量（会被对齐到 128）
 
@@ -771,7 +771,7 @@ func TestConcurrentFullWrite(t *testing.T) {
 // TestProducerFasterThanConsumer 测试生产快于消费的场景
 // 模拟：生产者快速写入，填满队列后验证队列满的行为
 func TestProducerFasterThanConsumer(t *testing.T) {
-	q := NewQueue[int](16) // 小容量，容易触发队列满的情况
+	q := New[int](16) // 小容量，容易触发队列满的情况
 
 	// 快速填满队列
 	for i := 0; i < 16; i++ {
@@ -816,7 +816,7 @@ func TestProducerFasterThanConsumer(t *testing.T) {
 // TestConsumerFasterThanProducer 测试消费快于生产的场景
 // 模拟：生产者写入少量数据，消费者频繁读取，验证队列为空时的行为
 func TestConsumerFasterThanProducer(t *testing.T) {
-	q := NewQueue[int](32)
+	q := New[int](32)
 
 	// 先入队少量数据
 	for i := 0; i < 10; i++ {
@@ -860,7 +860,7 @@ func TestConsumerFasterThanProducer(t *testing.T) {
 // TestVariableProducerConsumerSpeeds 测试生产消费速度动态变化的场景
 // 模拟：生产消费速度交替变化，验证队列在满和空状态间切换时仍能正常工作
 func TestVariableProducerConsumerSpeeds(t *testing.T) {
-	q := NewQueue[int](8) // 小容量，快速触发满/空状态
+	q := New[int](8) // 小容量，快速触发满/空状态
 
 	// 多次交替填满和清空队列
 	for round := 0; round < 20; round++ {
@@ -901,7 +901,7 @@ func TestVariableProducerConsumerSpeeds(t *testing.T) {
 // TestBurstProducerConsumer 测试突发生产消费场景
 // 模拟：生产者突然大量写入，消费者突然大量读取，验证队列在高负载下的稳定性
 func TestBurstProducerConsumer(t *testing.T) {
-	q := NewQueue[int](32) // 较小容量，容易触发满/空状态
+	q := New[int](32) // 较小容量，容易触发满/空状态
 	wg := &sync.WaitGroup{}
 	total := 500
 
@@ -991,7 +991,7 @@ func TestBurstProducerConsumer(t *testing.T) {
 
 // TestIsClosed 测试 IsClosed 方法
 func TestIsClosed(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 
 	// 初始状态：未关闭
 	if q.IsClosed() {
@@ -1009,7 +1009,7 @@ func TestIsClosed(t *testing.T) {
 
 // TestDequeueEmptySlice 测试 Dequeue 空切片 panic
 func TestDequeueEmptySlice(t *testing.T) {
-	q := NewQueue[int](4)
+	q := New[int](4)
 	result := make([]int, 0)
 
 	// 应该 panic

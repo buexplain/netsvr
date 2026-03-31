@@ -87,10 +87,10 @@ type Queue[T any] struct {
 	zero T
 }
 
-// NewQueue 创建一个队列（padded 布局，消除伪共享）。
+// New 创建一个队列（padded 布局，消除伪共享）。
 // capacity 会自动向上取整到最近的 2 的幂。
 // 通过 over-allocate 使每个逻辑 slot 占满整条 cache line。
-func NewQueue[T any](capacity int) *Queue[T] {
+func New[T any](capacity int) *Queue[T] {
 	if capacity <= 1 {
 		capacity = 2
 	} else if capacity > 65536 {
