@@ -223,7 +223,7 @@ func (q *Queue[T]) Dequeue(result []T) int {
 	if limit == 0 {      // 检查结果切片是否为空
 		panic("result slice is empty") // 结果切片为空时 panic，避免无意义的调用
 	}
-
+	schedule := 0 // 批量出队调度计数器，初始化为 0
 loop: // 标签，用于在特定条件下重新开始整个读取流程
 	tail := q.tail.Load() // 加载当前队尾位置（原子读取，消费者独占修改）
 	count := 0            // 已读取元素数量计数器，初始化为 0
@@ -244,6 +244,11 @@ loop: // 标签，用于在特定条件下重新开始整个读取流程
 
 	if count == 0 { // 没有读取到任何数据（队列为空或暂时未就绪）
 		if q.closed.Load() == false { // 队列未关闭
+			if schedule < 3 {
+				schedule++
+				runtime.Gosched() // 让出 CPU 时间片，减少空转
+				goto loop         // 高并发下，也许已经有数据了，重新开始读取流程
+			}
 			<-q.noticer // 阻塞等待通知信号（可能是新数据写入，也可能是 close 操作）
 		}
 		if q.closed.Load() == true { // 队列已关闭（等待期间可能被关闭）
