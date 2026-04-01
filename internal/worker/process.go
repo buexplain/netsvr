@@ -147,7 +147,7 @@ func unregister(param []byte, workerConn *Conn) {
 		log.Logger.Info().
 			Int32("events", workerConn.GetEvents()).
 			Str("connId", workerConn.connId).
-			Str("remoteAddr", workerConn.GetConnRemoteAddr()).Str("connId", payload.ConnId).Msg("Unregister a business")
+			Str("remoteAddr", workerConn.GetConnRemoteAddr()).Msg("Unregister a business")
 	}
 	//必须回复给business，否则business端会认为没有收到数据，从而一直等待
 	workerConn.Send(&netsvrProtocol.UnRegisterResp{}, netsvrProtocol.Cmd_Unregister)

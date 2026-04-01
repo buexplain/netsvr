@@ -112,8 +112,6 @@ type config struct {
 		ReadBufferSize int
 		//worker发送给business的缓通道大小
 		SendChanCap int
-		//worker发送给business的缓通道写入超时，默认是100毫秒，超过该时间还没写入，则丢弃消息并统计worker到business的失败次数
-		SendChanDeadline time.Duration
 		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 		HeartbeatMessage BytesConfigItem
 	}

@@ -27,6 +27,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
+	"netsvr/pkg/queue"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -34,7 +35,7 @@ import (
 
 type Conn struct {
 	conn      net.Conn
-	sendCh    chan net.Buffers
+	sendCh    *queue.Queue[pair]
 	connId    string
 	closeLock int32
 	events    int32
@@ -44,7 +45,7 @@ func newConn(conn net.Conn) *Conn {
 	tmp := &Conn{
 		conn:   conn,
 		connId: newConnId(conn.RemoteAddr().String()),
-		sendCh: make(chan net.Buffers, configs.Config.Worker.SendChanCap),
+		sendCh: queue.New[pair](configs.Config.Worker.SendChanCap),
 	}
 	go tmp.loopSend()
 	return tmp
@@ -60,12 +61,8 @@ func (r *Conn) Close() {
 	Manager.Del(r.connId)
 	_ = r.conn.Close()
 	time.AfterFunc(time.Millisecond*100, func() {
-		close(r.sendCh)
+		r.sendCh.Close()
 	})
-	//丢弃所有数据，让所有的Send函数能正常写入数据，而不是报错：send on closed channel
-	for range r.sendCh {
-		continue
-	}
 }
 
 func (r *Conn) loopSend() {
@@ -85,8 +82,36 @@ func (r *Conn) loopSend() {
 				Msg("Worker send coroutine is closed")
 		}
 	}()
-	for data := range r.sendCh {
-		r.send(data)
+	var size int
+	var i int
+	var j int
+	pairs := make([]pair, 16) //假设一个用户消息是2kb，16个消息则会一次性写入32kb数据
+	buffers := make(net.Buffers, 0, 32)
+	for {
+		count := r.sendCh.Dequeue(pairs)
+		if count == 0 {
+			return
+		}
+		size = 0
+		for i = 0; i < count; i++ {
+			size += pairs[i].getSize()
+		}
+		if size > configs.Config.Customer.ReceivePackLimit {
+			//批量发送会超出单个消息的大小，改为循环单个消息发送
+			for i = 0; i < count; i++ {
+				r.send(pairs[i].toNetBuffers())
+			}
+			continue
+		}
+		buffers = buffers[0 : count*2]
+		j = 0
+		for i = 0; i < count; i++ {
+			buffers[j] = pairs[i][0]
+			j++
+			buffers[j] = pairs[i][1]
+			j++
+		}
+		r.send(buffers)
 	}
 }
 
@@ -106,20 +131,26 @@ func (r *Conn) send(buffers net.Buffers) {
 	//写入失败：统计指标
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 	if writeLen == 0 {
-		r.formatSendToBusinessData(buffers[0], buffers[1], log.Logger.Error()).
-			Err(err).
-			Int32("events", r.GetEvents()).
-			Str("connId", r.connId).
-			Msg("Worker send failed and discard message")
+		for i := 0; i < len(buffers); {
+			r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).
+				Err(err).
+				Int32("events", r.GetEvents()).
+				Str("connId", r.connId).
+				Msg("Worker send failed and discard pair")
+			i += 2
+		}
 		return
 	}
 	//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
 	r.Close()
-	r.formatSendToBusinessData(buffers[0], buffers[1], log.Logger.Error()).
-		Err(err).
-		Int32("events", r.GetEvents()).
-		Str("connId", r.connId).
-		Msg("Worker send failed and force close conn")
+	for i := 0; i < len(buffers); {
+		r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).
+			Err(err).
+			Int32("events", r.GetEvents()).
+			Str("connId", r.connId).
+			Msg("Worker send failed and force close conn")
+		i += 2
+	}
 }
 
 func (r *Conn) GetConnRemoteAddr() string {
@@ -171,30 +202,17 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	binary.BigEndian.PutUint32(header[4:8], uint32(cmd))
 	//填充长度字段 (大端序)
 	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
-	nb := net.Buffers{
-		header,
-		body,
-	}
 	//发送出去
-	if len(r.sendCh) < cap(r.sendCh) || configs.Config.Worker.SendChanDeadline == 0 {
-		r.sendCh <- nb
+	if r.sendCh.Enqueue(pair{header, body}) {
 		return 8 + len(body)
 	}
-	timeout := time.NewTimer(configs.Config.Worker.SendChanDeadline)
-	select {
-	case r.sendCh <- nb:
-		timeout.Stop()
-		return 8 + len(body)
-	case <-timeout.C:
-		timeout.Stop()
-		//统计worker到business的失败次数
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-		r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
-			Int32("events", r.GetEvents()).
-			Str("connId", r.connId).
-			Msg("Worker send failed and discard message")
-		return 0
-	}
+	//统计worker到business的失败次数
+	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+	r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
+		Int32("events", r.GetEvents()).
+		Str("connId", r.connId).
+		Msg("Worker send failed and discard pair")
+	return 0
 }
 
 func (r *Conn) formatSendToBusinessData(header []byte, body []byte, event *zerolog.Event) *zerolog.Event {
