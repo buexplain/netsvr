@@ -136,7 +136,7 @@ func (r *Conn) send(buffers net.Buffers) {
 				Err(err).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
-				Msg("Worker send failed and discard pair")
+				Msg("Worker send failed and discard message")
 			i += 2
 		}
 		return
@@ -208,10 +208,10 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	}
 	//统计worker到business的失败次数
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-	r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel timeout")).
+	r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
 		Int32("events", r.GetEvents()).
 		Str("connId", r.connId).
-		Msg("Worker send failed and discard pair")
+		Msg("Worker send failed and discard message")
 	return 0
 }
 
