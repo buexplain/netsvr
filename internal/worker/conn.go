@@ -35,7 +35,7 @@ import (
 
 type Conn struct {
 	conn      net.Conn
-	sendCh    *queue.Queue[pair]
+	sendCh    *queue.Queue[*packet]
 	connId    string
 	closeLock int32
 	events    int32
@@ -45,7 +45,7 @@ func newConn(conn net.Conn) *Conn {
 	tmp := &Conn{
 		conn:   conn,
 		connId: newConnId(conn.RemoteAddr().String()),
-		sendCh: queue.New[pair](configs.Config.Worker.SendChanCap),
+		sendCh: queue.New[*packet](configs.Config.Worker.SendChanCap),
 	}
 	go tmp.loopSend()
 	return tmp
@@ -82,36 +82,59 @@ func (r *Conn) loopSend() {
 				Msg("Worker send coroutine is closed")
 		}
 	}()
+	packLimit := max(configs.Config.Customer.ReceivePackLimit, 65536)
 	var size int
 	var i int
 	var j int
-	pairs := make([]pair, 16) //假设一个用户消息是2kb，16个消息则会一次性写入32kb数据
-	buffers := make(net.Buffers, 0, 32)
+	packets := make([]*packet, 20) //假设一个用户消息是2kb，20个消息则会一次性写入40kb数据
+	buffers := make(net.Buffers, 40)
+	buffer := make(net.Buffers, 2)
 	for {
-		count := r.sendCh.Dequeue(pairs)
+		count := r.sendCh.Dequeue(packets)
 		if count == 0 {
 			return
 		}
 		size = 0
-		for i = 0; i < count; i++ {
-			size += pairs[i].getSize()
+		i = 0
+		j = 0
+		for ; i < count; i++ {
+			//单个消息包
+			pkg := packets[i]
+			//统计大小
+			size += len(pkg.header) + len(pkg.body)
+			//构造成net.Buffers
+			buffers[j] = pkg.header
+			j++
+			buffers[j] = pkg.body
+			j++
+			packets[i] = nil
+			packetObjPool.Put(pkg)
 		}
-		if size > configs.Config.Customer.ReceivePackLimit {
-			//批量发送会超出单个消息的大小，改为循环单个消息发送
-			for i = 0; i < count; i++ {
-				r.send(pairs[i].toNetBuffers())
+		//整批数据小于单个数据包大小的限制，可以直接发送给business
+		if size < packLimit {
+			tmp := buffers[0 : count*2]
+			r.send(tmp)
+			for k := range tmp {
+				buffers[k] = nil
 			}
 			continue
 		}
-		buffers = buffers[0 : count*2]
+		//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给business侧造成压力
+		i = 0
 		j = 0
-		for i = 0; i < count; i++ {
-			buffers[j] = pairs[i][0]
+		for ; i < count; i++ {
+			//构造成net.Buffers
+			buffer[0] = buffers[j]
 			j++
-			buffers[j] = pairs[i][1]
+			buffer[1] = buffers[j]
 			j++
+			r.send(buffer)
 		}
-		r.send(buffers)
+		for k := 0; k < count*2; k++ {
+			buffers[k] = nil
+		}
+		buffer[0] = nil
+		buffer[1] = nil
 	}
 }
 
@@ -203,9 +226,13 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	//填充长度字段 (大端序)
 	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
 	//发送出去
-	if r.sendCh.Enqueue(pair{header, body}) {
+	pkg := packetObjPool.Get()
+	pkg.header = header
+	pkg.body = body
+	if r.sendCh.Enqueue(pkg) {
 		return 8 + len(body)
 	}
+	packetObjPool.Put(pkg)
 	//统计worker到business的失败次数
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 	r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).

@@ -16,14 +16,37 @@
 
 package worker
 
-import "net"
+import (
+	"sync"
+)
 
-type pair [2][]byte
-
-func (r pair) getSize() int {
-	return len(r[0]) + len(r[1])
+type packet struct {
+	header []byte
+	body   []byte
 }
 
-func (r pair) toNetBuffers() net.Buffers {
-	return net.Buffers{r[0], r[1]}
+type packetPool struct {
+	pool *sync.Pool
+}
+
+var packetObjPool *packetPool
+
+func init() {
+	packetObjPool = &packetPool{
+		pool: &sync.Pool{
+			New: func() any {
+				return &packet{}
+			},
+		},
+	}
+}
+
+func (r *packetPool) Get() *packet {
+	return r.pool.Get().(*packet)
+}
+
+func (r *packetPool) Put(packet *packet) {
+	packet.header = nil
+	packet.body = nil
+	r.pool.Put(packet)
 }
