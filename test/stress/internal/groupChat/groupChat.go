@@ -51,7 +51,8 @@ func Run(wg *sync.WaitGroup) {
 		groupName := "groupChat-" + strconv.Itoa(groupId)
 		groupSendLimit := rate.NewLimiter(rate.Limit(configs.Config.GroupChat.SendSpeed), configs.Config.GroupChat.SendSpeed)
 		groupSenderNum := 0
-		groupMessage := map[string]any{"topics": []string{groupName}, "message": message}
+		groupNameTopic := groupName + testUtils.GlobalId //加上全局随机id，确保多个压测程序订阅的topic不冲突
+		groupMessage := map[string]any{"topics": []string{groupNameTopic}, "message": message}
 		for key, step := range configs.Config.GroupChat.Step {
 			metrics := wsMetrics.New(groupName, key+1)
 			utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
@@ -63,7 +64,7 @@ func Run(wg *sync.WaitGroup) {
 						protocol.RouterSignInForForge: func(payload gjson.Result) {
 							//发起订阅
 							ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": {
-								groupName + testUtils.GlobalId, //加上全局随机id，确保多个压测程序订阅的topic不冲突
+								groupNameTopic,
 							}})
 						},
 						//订阅成功
