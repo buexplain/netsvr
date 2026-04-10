@@ -14,8 +14,8 @@
 * limitations under the License.
  */
 
-// Package n 网关唯一id的生成器
-package n
+// Package uniqIdGen 网关唯一id的生成器
+package uniqIdGen
 
 import (
 	"crypto/rand"
