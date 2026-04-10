@@ -27,18 +27,18 @@ import (
 
 // Info 保持客户连接的信息的结构体
 type Info struct {
+	//锁（放在最前面，确保8字节对齐）
+	rwMutex sync.RWMutex
 	//客户在网关中的唯一id
 	uniqId string
 	//客户在业务系统中的唯一id
 	customerId string
 	//客户存储在网关中的数据
 	session string
-	//当前窗口的开始时间
-	limitWindowStart time.Time
+	//当前窗口的开始时间（Unix时间戳，秒）
+	limitWindowStart int64
 	//客户订阅的主题
 	topics map[string]struct{}
-	//锁
-	rwMutex sync.RWMutex
 	//当前窗口内的请求数
 	limitWindowRequests int32
 	//最后活跃时间
@@ -48,7 +48,7 @@ type Info struct {
 func New(uniqId string) *Info {
 	return &Info{
 		uniqId:              uniqId,
-		limitWindowStart:    time.Time{},
+		limitWindowStart:    0, // 初始化为0，第一次调用Allow时会设置
 		limitWindowRequests: 0 - configs.Config.Customer.LimitZeroWindowMaxRequests,
 		topics:              nil,
 		rwMutex:             sync.RWMutex{},
@@ -87,8 +87,8 @@ func (r *Info) Allow() bool {
 		return true
 	}
 	//检查是否进入下一个窗口
-	now := time.Now()
-	if now.Sub(r.limitWindowStart) > configs.Config.Customer.LimitWindowSize {
+	now := time.Now().Unix()
+	if now-r.limitWindowStart > configs.Config.Customer.LimitWindowSizeSeconds {
 		r.limitWindowStart = now
 		r.limitWindowRequests = 0
 	}

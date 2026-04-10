@@ -92,7 +92,8 @@ type config struct {
 		//压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
 		CompressionLevel int
 		//固定窗口限流器的窗口大小
-		LimitWindowSize time.Duration
+		LimitWindowSize        time.Duration
+		LimitWindowSizeSeconds int64 `toml:"-"`
 		//固定窗口限流器的窗口允许的最大请求数
 		LimitWindowMaxRequests int32
 		//固定窗口限流器的第0个窗口允许的最大请求数
@@ -190,9 +191,14 @@ var (
 func init() {
 	var configFile string
 	var version bool
-	flag.BoolVar(&version, "version", false, "Version prints the build information for netsvr binary files.")
-	flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/netsvr.toml"), "Set netsvr.toml file")
-	flag.Parse()
+	if strings.Contains(wd.RootPath, "/internal/") {
+		tmp := strings.SplitN(wd.RootPath, "/internal/", 2)
+		configFile = filepath.Join(tmp[0], "configs/netsvr.toml")
+	} else {
+		flag.BoolVar(&version, "version", false, "Version prints the build information for netsvr binary files.")
+		flag.StringVar(&configFile, "config", filepath.Join(wd.RootPath, "configs/netsvr.toml"), "Set netsvr.toml file")
+		flag.Parse()
+	}
 	//打印构建信息
 	if version {
 		t, err := strconv.ParseInt(BuildTimestamp, 10, 0)
@@ -248,8 +254,9 @@ func init() {
 		os.Exit(1)
 	}
 	if Config.Customer.LimitWindowSize <= 0 {
-		Config.Customer.LimitWindowSize = time.Second * 1
+		Config.Customer.LimitWindowSize = time.Second
 	}
+	Config.Customer.LimitWindowSizeSeconds = int64(Config.Customer.LimitWindowSize.Seconds())
 	if Config.Customer.LimitWindowMaxRequests <= 0 {
 		Config.Customer.LimitWindowMaxRequests = 100
 	}
