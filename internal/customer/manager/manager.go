@@ -169,8 +169,8 @@ func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
 		}
 		sd.mux.RUnlock()
 	}
-	//收集所有连接对应的customerId
-	customerIds = make([]string, 0, len(connList))
+	//收集所有连接对应的customerId（使用 map 去重）
+	customerIdSet := make(map[string]struct{}, len(connList))
 	for _, conn := range connList {
 		if conn == nil {
 			continue
@@ -181,10 +181,18 @@ func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
 			if ok && session != nil {
 				customerId := session.GetCustomerIdOnSafe()
 				if customerId != "" {
-					customerIds = append(customerIds, customerId)
+					customerIdSet[customerId] = struct{}{}
 				}
 			}
 		}
+	}
+	// 转换为 slice
+	if len(customerIdSet) == 0 {
+		return nil
+	}
+	customerIds = make([]string, 0, len(customerIdSet))
+	for id := range customerIdSet {
+		customerIds = append(customerIds, id)
 	}
 	return customerIds
 }
@@ -218,8 +226,8 @@ func (r *collect) CountCustomerIds(uniqIds []string) int32 {
 		}
 		sd.mux.RUnlock()
 	}
-	//收集所有连接对应的customerId
-	var total int32
+	//收集所有连接对应的customerId（使用 map 去重计数）
+	customerIdSet := make(map[string]struct{}, len(connList))
 	for _, conn := range connList {
 		if conn == nil {
 			continue
@@ -230,12 +238,12 @@ func (r *collect) CountCustomerIds(uniqIds []string) int32 {
 			if ok && session != nil {
 				customerId := session.GetCustomerIdOnSafe()
 				if customerId != "" {
-					total++
+					customerIdSet[customerId] = struct{}{}
 				}
 			}
 		}
 	}
-	return total
+	return int32(len(customerIdSet))
 }
 
 func (r *collect) GetUniqIds() (uniqIds []string) {
