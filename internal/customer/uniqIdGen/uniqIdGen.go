@@ -14,8 +14,8 @@
 * limitations under the License.
  */
 
-// Package uniqIdGen 网关唯一id的生成器
-package uniqIdGen
+// Package n 网关唯一id的生成器
+package n
 
 import (
 	"crypto/rand"
@@ -29,23 +29,31 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // 自增id
 var incrId = readRandomUint32()
 
-// 预先制作的ip、port模板
-var template [6]byte
+// 预计算的 template hex 字符串（6字节 -> 12字符）
+var templateHex [12]byte
+
+// hexDigits 用于快速十六进制转换
+const hexDigits = "0123456789abcdef"
 
 func init() {
 	//ip、port预先解析成模板
 	host, portStr, _ := net.SplitHostPort(configs.Config.Task.ListenAddress)
+	//host, portStr, _ := net.SplitHostPort("127.0.0.1:6060")
 	port, _ := strconv.Atoi(portStr)
 	ip := net.ParseIP(host)
+	var template [6]byte
 	//网关进程的worker服务监听的ip地址
 	binary.BigEndian.PutUint32(template[0:4], binary.BigEndian.Uint32(ip[12:16]))
 	//网关进程的worker服务监听的port
 	binary.BigEndian.PutUint16(template[4:6], uint16(port))
+	//预计算 hex 形式
+	hex.Encode(templateHex[:], template[:])
 }
 
 // New
@@ -55,17 +63,35 @@ func init() {
 // $ret['ip'] = long2ip($ret['ip']);
 // var_dump($ret);
 func New() string {
-	b := make([]byte, 14)
-	//先写入ip、port
-	copy(b[0:6], template[:])
-	//再写入时间戳
-	binary.BigEndian.PutUint32(b[6:10], uint32(time.Now().Unix()))
-	//最后写入自增id
-	binary.BigEndian.PutUint32(b[10:14], atomic.AddUint32(incrId, 1))
-	//转字16进制符串返回
-	return hex.EncodeToString(b)
+	b := make([]byte, 28) // 12(templateHex) + 16(timestamp+incrId)
+
+	// 复制预计算的 template hex
+	copy(b[0:12], templateHex[:])
+
+	// 获取当前时间戳和自增ID
+	timestamp := uint32(time.Now().Unix())
+	incr := atomic.AddUint32(incrId, 1)
+
+	// 编码 timestamp (4字节 -> 8字符)
+	encodeUint32ToHex(b[12:20], timestamp)
+	// 编码 incrId (4字节 -> 8字符)
+	encodeUint32ToHex(b[20:28], incr)
+
+	// 返回字符串
+	return unsafe.String(unsafe.SliceData(b), 28)
 }
 
+// encodeUint32ToHex 将 uint32 编码为 8 字符的 hex 字符串（大端序）
+func encodeUint32ToHex(dst []byte, val uint32) {
+	// 从高位到低位逐个字节处理
+	for i := 0; i < 4; i++ {
+		b := byte(val >> (24 - i*8))   // 提取每个字节
+		dst[i*2] = hexDigits[b>>4]     // 高4位
+		dst[i*2+1] = hexDigits[b&0x0f] // 低4位
+	}
+}
+
+// readRandomUint32 读取随机 uint32
 func readRandomUint32() *uint32 {
 	var b [4]byte
 	_, err := io.ReadFull(rand.Reader, b[:])
