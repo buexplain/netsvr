@@ -18,7 +18,7 @@
 package slicePool
 
 import (
-	"github.com/panjf2000/gnet/v2"
+	"netsvr/internal/wsServer"
 	"sync"
 )
 
@@ -40,7 +40,7 @@ func NewWsConn(step int) *WsConn {
 	}
 }
 
-func (r *WsConn) Get(capacity int) *[]gnet.Conn {
+func (r *WsConn) Get(capacity int) *[]*wsServer.Codec {
 	if capacity <= 0 {
 		capacity = 1 // 保证最小容量，避免创建空切片
 	}
@@ -49,13 +49,13 @@ func (r *WsConn) Get(capacity int) *[]gnet.Conn {
 	pool, ok := r.pools[poolIndex]
 	r.mux.RUnlock()
 	if ok {
-		return pool.Get().(*[]gnet.Conn)
+		return pool.Get().(*[]*wsServer.Codec)
 	}
-	s := make([]gnet.Conn, 0, poolIndex*r.step)
+	s := make([]*wsServer.Codec, 0, poolIndex*r.step)
 	return &s
 }
 
-func (r *WsConn) Put(s *[]gnet.Conn) {
+func (r *WsConn) Put(s *[]*wsServer.Codec) {
 	poolIndex := (cap(*s) + r.step - 1) / r.step
 	*s = (*s)[:0]
 	r.mux.RLock()
@@ -74,7 +74,7 @@ func (r *WsConn) Put(s *[]gnet.Conn) {
 	}
 	pool = &sync.Pool{
 		New: func() any {
-			tmp := make([]gnet.Conn, 0, poolIndex*r.step)
+			tmp := make([]*wsServer.Codec, 0, poolIndex*r.step)
 			return &tmp
 		},
 	}

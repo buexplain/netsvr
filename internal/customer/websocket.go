@@ -87,7 +87,7 @@ func Start() {
 			}
 			return nil
 		},
-		OnWebsocketOpen: func(conn gnet.Conn, req *http.Request) (ws.StatusCode, error) {
+		OnWebsocketOpen: func(wsCodec *wsServer.Codec, req *http.Request) (ws.StatusCode, error) {
 			//进程即将关闭，不再受理新的连接
 			select {
 			case <-quit.Ctx.Done():
@@ -123,11 +123,10 @@ func Start() {
 					}
 				}()
 				//当闭包开始执行的时候，conn可能已经关闭了
-				wsCodec, ok := conn.Context().(*wsServer.Codec)
-				if !ok {
+				if wsCodec.IsClosed() {
 					return
 				}
-				remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+				remoteAddr, _, _ := net.SplitHostPort(wsCodec.RemoteAddr().String())
 				uniqId := uniqIdGen.New()
 				co := objPool.ConnOpen.Get()
 				defer objPool.ConnOpen.Put(co)
@@ -141,21 +140,20 @@ func Start() {
 				if configs.Config.Customer.OnOpenCallbackApi != "" {
 					connOpenResp, err = callback.OnOpen(co)
 					//回调函数回来后，连接可能已经关闭了
-					wsCodec, ok = conn.Context().(*wsServer.Codec)
-					if !ok {
+					if wsCodec.IsClosed() {
 						return
 					}
 					//回调错误，写入关闭帧
 					if err != nil {
-						WriteClose(conn, ws.StatusInternalServerError, err)
+						WriteClose(wsCodec, ws.StatusInternalServerError, err)
 						return
 					}
 					//不允许连接，写入关闭帧
 					if connOpenResp.Allow == false {
 						if len(connOpenResp.Data) > 0 {
-							WriteMessage(conn, configs.Config.Customer.SendMessageType, connOpenResp.Data)
+							WriteMessage(wsCodec, configs.Config.Customer.SendMessageType, connOpenResp.Data)
 						}
-						WriteClose(conn, ws.StatusPolicyViolation, errors.New("unauthorized"))
+						WriteClose(wsCodec, ws.StatusPolicyViolation, errors.New("unauthorized"))
 						return
 					}
 				}
@@ -177,17 +175,17 @@ func Start() {
 				//让连接持有session info对象
 				wsCodec.SetSession(session)
 				//添加到连接管理器
-				manager.Manager.Set(uniqId, conn)
+				manager.Manager.Set(uniqId, wsCodec)
 				//构建回调返回的关系，并将数据下发给客户端
 				if connOpenResp != nil {
 					if connOpenResp.NewCustomerId != "" {
-						binder.Binder.SetRelation(connOpenResp.NewCustomerId, conn)
+						binder.Binder.SetRelation(connOpenResp.NewCustomerId, wsCodec)
 					}
 					if len(connOpenResp.NewTopics) > 0 {
-						topic.Topic.SetRelation(connOpenResp.NewTopics, conn)
+						topic.Topic.SetRelation(connOpenResp.NewTopics, wsCodec)
 					}
 					if len(connOpenResp.Data) > 0 {
-						WriteMessage(conn, configs.Config.Customer.SendMessageType, connOpenResp.Data)
+						WriteMessage(wsCodec, configs.Config.Customer.SendMessageType, connOpenResp.Data)
 					}
 				}
 				//添加心跳检查
@@ -206,7 +204,7 @@ func Start() {
 						if tNode != nil {
 							tNode.Stop()
 						}
-						WriteClose(conn, ws.StatusGoingAway, errors.New("heartbeat timeout"))
+						WriteClose(wsCodec, ws.StatusGoingAway, errors.New("heartbeat timeout"))
 					}
 				})
 				//需要将客户端连接打开的信息转发给business进程
@@ -223,13 +221,10 @@ func Start() {
 			}
 			return ws.StatusCode(0), nil
 		},
-		OnWebsocketClose: func(conn gnet.Conn) {
-			wsCodec, ok := conn.Context().(*wsServer.Codec)
-			if !ok || wsCodec == nil {
-				return
-			}
+		OnWebsocketClose: func(wsCodec *wsServer.Codec) {
 			session, ok := wsCodec.GetSession().(*info.Info)
 			if !ok {
+				//open阶段还未设置session，则直接返回
 				return
 			}
 			fn := func() {
@@ -242,21 +237,20 @@ func Start() {
 							Msg("OnWebsocketClose failed")
 					}
 				}()
-				session.Lock()
-				//清空session
-				uniqId, customerId, customerSession, topics := session.Clear()
+				session.RLock()
+				uniqId, customerId, customerSession, topics := session.Snapshot()
 				//释放锁
-				session.UnLock()
+				session.RUnlock()
 				//统计客户连接的关闭次数
 				metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
 				//从连接管理器中删除
 				manager.Manager.Del(uniqId)
 				//解除uniqId与customerId的关系
 				if customerId != "" {
-					binder.Binder.DelRelation(customerId, conn)
+					binder.Binder.DelRelation(customerId, wsCodec)
 				}
 				//删除订阅关系
-				topic.Topic.DelRelationBySlice(topics, conn)
+				topic.Topic.DelRelationBySlice(topics, wsCodec)
 				cl := objPool.ConnClose.Get()
 				defer objPool.ConnClose.Put(cl)
 				cl.UniqId = uniqId
@@ -282,26 +276,20 @@ func Start() {
 				log.Logger.Warn().Err(err).Msg("OnWebsocketClose submit to worker pool failed")
 			}
 		},
-		OnWebsocketPing: func(conn gnet.Conn) {
-			wsCodec, ok := conn.Context().(*wsServer.Codec)
-			if !ok {
-				return
-			}
+		OnWebsocketPing: func(wsCodec *wsServer.Codec) {
 			session, ok := wsCodec.GetSession().(*info.Info)
 			if !ok {
+				//open阶段还未设置session，则直接返回
 				return
 			}
 			//更新最后活跃时间
 			session.UpdateLastActiveTimeOnSafe()
 			metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
 		},
-		OnWebsocketMessage: func(conn gnet.Conn, messageType ws.OpCode, data []byte) {
-			wsCodec, ok := conn.Context().(*wsServer.Codec)
-			if !ok {
-				return
-			}
+		OnWebsocketMessage: func(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) {
 			session, ok := wsCodec.GetSession().(*info.Info)
 			if !ok {
+				//open阶段还未设置session，则直接返回
 				return
 			}
 			//更新最后活跃时间
@@ -318,20 +306,17 @@ func Start() {
 			//获取session中的数据
 			session.RLock()
 			allow := session.Allow()
-			uniqId := session.GetUniqId()
-			customerSession := session.GetSession()
-			customerId := session.GetCustomerId()
-			topics := session.GetTopics()
+			uniqId, customerId, customerSession, topics := session.Snapshot()
 			session.RUnlock()
 			//限制数据包大小，溢出限制大小，直接丢弃该数据
 			if len(data) > configs.Config.Customer.ReceivePackLimit {
-				WriteClose(conn, ws.StatusMessageTooBig, errors.New("message too big"))
+				WriteClose(wsCodec, ws.StatusMessageTooBig, errors.New("message too big"))
 				//打日志，方便客户端排查问题
 				log.Logger.Info().
 					Str("uniqId", uniqId).
 					Str("customerId", customerId).
 					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("remoteAddr", wsCodec.RemoteAddr().String()).
 					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 					Msg("message too large")
 				return
@@ -345,7 +330,7 @@ func Start() {
 					Str("uniqId", uniqId).
 					Str("customerId", customerId).
 					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("remoteAddr", wsCodec.RemoteAddr().String()).
 					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 					Msg("connection message rate limited")
 				return
@@ -359,7 +344,7 @@ func Start() {
 					Str("uniqId", uniqId).
 					Str("customerId", customerId).
 					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("remoteAddr", wsCodec.RemoteAddr().String()).
 					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 					Msg("message rate limited")
 				return
@@ -370,7 +355,7 @@ func Start() {
 					Str("uniqId", uniqId).
 					Str("customerId", customerId).
 					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddr().String()).
+					Str("remoteAddr", wsCodec.RemoteAddr().String()).
 					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 					Send()
 			}
@@ -444,18 +429,18 @@ func StartAutobahn() {
 		OnUpgradeCheck: func(req *http.Request) *http.Response {
 			return nil
 		},
-		OnWebsocketOpen: func(conn gnet.Conn, req *http.Request) (ws.StatusCode, error) {
+		OnWebsocketOpen: func(wsCodec *wsServer.Codec, req *http.Request) (ws.StatusCode, error) {
 			return ws.StatusCode(0), nil
 		},
-		OnWebsocketClose: func(conn gnet.Conn) {
+		OnWebsocketClose: func(wsCodec *wsServer.Codec) {
 		},
-		OnWebsocketPing: func(conn gnet.Conn) {
+		OnWebsocketPing: func(wsCodec *wsServer.Codec) {
 		},
-		OnWebsocketMessage: func(conn gnet.Conn, messageType ws.OpCode, data []byte) {
+		OnWebsocketMessage: func(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) {
 			fn := func() {
 				//两个写入方法都要测试一次
 				//NewMessage(messageType, data).WriteTo(conn)
-				WriteMessage(conn, messageType, data)
+				WriteMessage(wsCodec, messageType, data)
 			}
 			err := goroutine.DefaultWorkerPool.Submit(fn)
 			if err != nil {

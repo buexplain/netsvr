@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
+	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
@@ -38,14 +39,10 @@ func topicSubscribe(param []byte) {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
-	session, ok := customer.GetSession(conn)
-	if !ok {
-		return
-	}
+	session, _ := conn.GetSession().(*info.Info)
 	session.Lock()
 	defer session.UnLock()
-	if session.GetUniqId() == "" {
-		//session已经被销毁了，跳过
+	if conn.IsClosed() {
 		return
 	}
 	session.SubscribeTopics(payload.Topics)

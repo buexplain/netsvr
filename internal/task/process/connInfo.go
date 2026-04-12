@@ -20,7 +20,7 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
-	"netsvr/internal/customer"
+	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 )
@@ -35,10 +35,7 @@ func connInfo(param []byte, taskConn net.Conn) {
 	ret := &netsvrProtocol.ConnInfoResp{Items: map[string]*netsvrProtocol.ConnInfoRespItem{}}
 	for _, uniqId := range payload.UniqIds {
 		conn := customerManager.Manager.Get(uniqId)
-		session, ok := customer.GetSession(conn)
-		if !ok {
-			continue
-		}
+		session, _ := conn.GetSession().(*info.Info)
 		item := &netsvrProtocol.ConnInfoRespItem{}
 		session.GetConnInfoOnSafe(payload, item)
 		ret.Items[uniqId] = item

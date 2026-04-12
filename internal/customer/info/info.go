@@ -100,9 +100,16 @@ func (r *Info) Allow() bool {
 	return false
 }
 
+func (r *Info) Snapshot() (uniqId string, customerId string, session string, topics []string) {
+	topics = r.getTopics()
+	uniqId = r.uniqId
+	session = r.session
+	customerId = r.customerId
+	return
+}
+
 func (r *Info) GetUniqIdOnSafe() string {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
+	//这里无需锁，因为没有地方会修改uniqId
 	return r.uniqId
 }
 
@@ -129,7 +136,7 @@ func (r *Info) GetConnInfoOnSafe(connInfoReq *netsvrProtocol.ConnInfoReq, connIn
 		connInfoRespItem.CustomerId = r.customerId
 	}
 	if connInfoReq.ReqTopic && len(r.topics) > 0 {
-		connInfoRespItem.Topics = r.GetTopics()
+		connInfoRespItem.Topics = r.getTopics()
 	}
 }
 
@@ -143,23 +150,15 @@ func (r *Info) GetConnInfoByCustomerIdOnSafe(connInfoReq *netsvrProtocol.ConnInf
 		connInfoRespItem.UniqId = r.uniqId
 	}
 	if connInfoReq.ReqTopic && len(r.topics) > 0 {
-		connInfoRespItem.Topics = r.GetTopics()
+		connInfoRespItem.Topics = r.getTopics()
 	}
-}
-
-func (r *Info) GetUniqId() string {
-	return r.uniqId
 }
 
 func (r *Info) GetCustomerId() string {
 	return r.customerId
 }
 
-func (r *Info) GetSession() string {
-	return r.session
-}
-
-func (r *Info) GetTopics() []string {
+func (r *Info) getTopics() []string {
 	topics := make([]string, 0, len(r.topics))
 	for topic := range r.topics {
 		topics = append(topics, topic)
@@ -203,8 +202,8 @@ func (r *Info) UnsubscribeTopics(topics []string) {
 	}
 }
 
-// UnsubscribeTopic 取消订阅
-func (r *Info) UnsubscribeTopic(topic string) bool {
+// UnsubscribeTopicOnSafe 取消订阅
+func (r *Info) UnsubscribeTopicOnSafe(topic string) bool {
 	r.rwMutex.Lock()
 	defer r.rwMutex.Unlock()
 	if _, ok := r.topics[topic]; ok {
@@ -212,18 +211,4 @@ func (r *Info) UnsubscribeTopic(topic string) bool {
 		return true
 	}
 	return false
-}
-
-// Clear 清空session
-func (r *Info) Clear() (uniqId string, customerId string, session string, topics []string) {
-	topics = r.GetTopics()
-	uniqId = r.uniqId
-	session = r.session
-	customerId = r.customerId
-	// 清空
-	r.topics = nil
-	r.uniqId = ""
-	r.session = ""
-	r.customerId = ""
-	return
 }

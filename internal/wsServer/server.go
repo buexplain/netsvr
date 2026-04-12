@@ -33,13 +33,13 @@ type Server struct {
 	//握手之前回调，可以返回http.Response，拒绝握手，在这回调中，你可以校验host、校验path等
 	OnUpgradeCheck func(req *http.Request) *http.Response
 	//握手成功后回调
-	OnWebsocketOpen func(conn gnet.Conn, req *http.Request) (ws.StatusCode, error)
+	OnWebsocketOpen func(wsCodec *Codec, req *http.Request) (ws.StatusCode, error)
 	//服务器响应ping后的回调
-	OnWebsocketPing func(conn gnet.Conn)
+	OnWebsocketPing func(wsCodec *Codec)
 	//收到数据帧的回调
-	OnWebsocketMessage func(conn gnet.Conn, messageType ws.OpCode, messagePtr []byte)
+	OnWebsocketMessage func(wsCodec *Codec, messageType ws.OpCode, messagePtr []byte)
 	//服务器回显客户端的状态码和原因后的回调
-	OnWebsocketClose func(conn gnet.Conn)
+	OnWebsocketClose func(wsCodec *Codec)
 }
 
 func (server *Server) OnlineNum() int {
@@ -56,8 +56,7 @@ func (server *Server) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (server *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
-	wsCodec := new(Codec)
-	c.SetContext(wsCodec)
+	wsCodec := NewCodec(c)
 	wsCodec.currMessagePayload = NewMessagePayload(4)
 	wsCodec.preMessageOpCode = 255
 	wsCodec.currMessageOpCode = 255
@@ -65,7 +64,10 @@ func (server *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 }
 
 func (server *Server) OnClose(conn gnet.Conn, _ error) (action gnet.Action) {
-	server.OnWebsocketClose(conn)
+	wsCodec, ok := conn.Context().(*Codec)
+	if ok {
+		server.OnWebsocketClose(wsCodec)
+	}
 	return gnet.None
 }
 
@@ -79,9 +81,9 @@ func (server *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		var req *http.Request
 		req, action = wsCodec.upgrade(server.OnUpgradeCheck, c)
 		if wsCodec.upgraded {
-			if statusCode, err := server.OnWebsocketOpen(c, req); err != nil {
+			if statusCode, err := server.OnWebsocketOpen(wsCodec, req); err != nil {
+				wsCodec.SetClosedFlag() //onopen失败，服务端主动关闭
 				payload := ws.NewCloseFrameBody(statusCode, err.Error())
-				wsCodec.SetClosed()
 				_ = wsutil.WriteServerMessage(c, ws.OpClose, payload)
 				return gnet.Close
 			}
@@ -92,9 +94,9 @@ loop:
 	completeMessagePayload, statusCode, err := wsCodec.decode(c)
 	if err != nil {
 		if !statusCode.Empty() {
-			//数据帧解析错误，立即构造并发送close帧
+			wsCodec.SetClosedFlag() //数据帧解析失败，服务端主动关闭
+			//构造并发送close帧
 			payload := ws.NewCloseFrameBody(statusCode, err.Error())
-			wsCodec.SetClosed()
 			_ = wsutil.WriteServerMessage(c, ws.OpClose, payload)
 			return gnet.Close
 		}
@@ -106,7 +108,7 @@ loop:
 		return gnet.Close
 	}
 	if wsCodec.currMessageOpCode.IsData() {
-		server.OnWebsocketMessage(c, wsCodec.currMessageOpCode, completeMessagePayload)
+		server.OnWebsocketMessage(wsCodec, wsCodec.currMessageOpCode, completeMessagePayload)
 		wsCodec.resetCurrMessage()
 		if c.InboundBuffered() > 0 {
 			//缓冲区还有数据，继续解析
@@ -115,7 +117,7 @@ loop:
 		return gnet.None
 	} else if wsCodec.currMessageOpCode == ws.OpClose {
 		// 是否服务端主动关闭，服务端主动关闭，则不能再回close包，否则客户端会报错：Close received after close
-		if wsCodec.IsClosed() == false {
+		if wsCodec.SetClosedFlag() { //收到客户端的close帧
 			//返回close，回显客户端的状态码和原因
 			_ = wsutil.WriteServerMessage(c, ws.OpClose, completeMessagePayload)
 		}
@@ -126,7 +128,7 @@ loop:
 		if err != nil {
 			return gnet.Close
 		}
-		server.OnWebsocketPing(c)
+		server.OnWebsocketPing(wsCodec)
 		wsCodec.resetCurrMessage()
 		if c.InboundBuffered() > 0 {
 			goto loop
@@ -141,9 +143,8 @@ loop:
 		}
 		return gnet.None
 	} else if wsCodec.currMessageOpCode.IsReserved() {
-		//不支持的数据帧
+		wsCodec.SetClosedFlag() //不支持的数据帧，服务端主动关闭
 		payload := ws.NewCloseFrameBody(ws.StatusUnsupportedData, "unsupported opcode")
-		wsCodec.SetClosed()
 		_ = wsutil.WriteServerMessage(c, ws.OpClose, payload)
 		return gnet.Close
 	}

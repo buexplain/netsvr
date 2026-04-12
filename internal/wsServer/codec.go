@@ -28,6 +28,7 @@ import (
 	"github.com/gobwas/ws/wsflate"
 	"github.com/panjf2000/gnet/v2"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -44,14 +45,38 @@ type Codec struct {
 	preMessageOpCode   ws.OpCode
 	currMessageOpCode  ws.OpCode
 	messageRsv         byte // 0~7 的整数，由于控制帧可以穿插在消息帧的分片中，但是控制帧又没有 rsv，所有只需一个字段即可，当控制帧穿插进来的时候，无需转移保存
+	conn               gnet.Conn
 }
 
-func (codec *Codec) SetClosed() {
-	atomic.StoreUint32(&codec.closed, 1)
+func NewCodec(conn gnet.Conn) *Codec {
+	codec := new(Codec)
+	codec.conn = conn
+	conn.SetContext(codec)
+	return codec
+}
+
+func (codec *Codec) Fd() int {
+	return codec.conn.Fd()
+}
+
+func (codec *Codec) AsyncWrite(buf []byte) error {
+	return codec.conn.AsyncWrite(buf, nil)
+}
+
+func (codec *Codec) RemoteAddr() net.Addr {
+	return codec.conn.RemoteAddr()
+}
+
+func (codec *Codec) SetClosedFlag() bool {
+	return atomic.CompareAndSwapUint32(&codec.closed, 0, 1)
 }
 
 func (codec *Codec) IsClosed() bool {
 	return atomic.LoadUint32(&codec.closed) == 1
+}
+
+func (codec *Codec) Close() {
+	_ = codec.conn.Close()
 }
 
 func (codec *Codec) IsCompress() bool {

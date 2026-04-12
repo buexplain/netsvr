@@ -21,6 +21,7 @@ import (
 	"github.com/panjf2000/gnet/v2"
 	"io"
 	"net"
+	"netsvr/internal/wsServer"
 	"sync"
 	"testing"
 	"time"
@@ -85,14 +86,14 @@ func (m *MockConn) SetWriteDeadline(time.Time) error                           {
 func newTestCollect() *collect {
 	c := &collect{}
 	for i := range c.shards {
-		c.shards[i].data = make(map[string]map[int]gnet.Conn, shardCount)
+		c.shards[i].data = make(map[string]map[int]*wsServer.Codec, shardCount)
 	}
 	return c
 }
 
 // createMockConn 创建带指定 Fd 的 MockConn
-func createMockConn(fd int) *MockConn {
-	return &MockConn{fd: fd}
+func createMockConn(fd int) *wsServer.Codec {
+	return wsServer.NewCodec(&MockConn{fd: fd})
 }
 
 // TestHashCustomerId 测试哈希函数
@@ -674,7 +675,7 @@ func TestLargeScaleCrossShard(t *testing.T) {
 
 	// 添加 500 个 customerId，确保跨多个分片
 	const count = 500
-	var conns []*MockConn
+	var conns []*wsServer.Codec
 	for i := 0; i < count; i++ {
 		customerId := fmt.Sprintf("customer_%d", i)
 		conn := createMockConn(i + 10000)

@@ -21,7 +21,6 @@ import (
 	"compress/flate"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsflate"
-	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"io"
 	"netsvr/configs"
@@ -61,9 +60,8 @@ type Message struct {
 	uncompressed []byte
 }
 
-func (r *Message) WriteTo(conn gnet.Conn) bool {
-	wsCodec, ok := conn.Context().(*wsServer.Codec)
-	if !ok || wsCodec.IsClosed() {
+func (r *Message) WriteTo(wsCodec *wsServer.Codec) bool {
+	if wsCodec.IsClosed() {
 		return false
 	}
 	//需要压缩，并且数据值得压缩
@@ -100,7 +98,7 @@ func (r *Message) WriteTo(conn gnet.Conn) bool {
 			r.compressed = buff.Bytes()
 		}
 		//再发送数据
-		err := conn.AsyncWrite(r.compressed, nil)
+		err := wsCodec.AsyncWrite(r.compressed)
 		if err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(r.compressed)))
@@ -133,7 +131,7 @@ func (r *Message) WriteTo(conn gnet.Conn) bool {
 		r.uncompressed = buff.Bytes()
 	}
 	//frame已经编码ok，发送数据
-	err := conn.AsyncWrite(r.uncompressed, nil)
+	err := wsCodec.AsyncWrite(r.uncompressed)
 	if err == nil {
 		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(r.uncompressed)))
@@ -154,9 +152,8 @@ func NewMessage(messageType ws.OpCode, data []byte) *Message {
 }
 
 // WriteMessage 发送数据
-func WriteMessage(conn gnet.Conn, messageType ws.OpCode, data []byte) bool {
-	wsCodec, ok := conn.Context().(*wsServer.Codec)
-	if !ok || wsCodec.IsClosed() {
+func WriteMessage(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) bool {
+	if wsCodec.IsClosed() {
 		return false
 	}
 	//需要压缩，并且数据值得压缩
@@ -190,7 +187,7 @@ func WriteMessage(conn gnet.Conn, messageType ws.OpCode, data []byte) bool {
 		}
 		//再发送数据
 		encodedBytes := buff.Bytes()
-		err = conn.AsyncWrite(encodedBytes, nil)
+		err = wsCodec.AsyncWrite(encodedBytes)
 		if err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
@@ -221,7 +218,7 @@ func WriteMessage(conn gnet.Conn, messageType ws.OpCode, data []byte) bool {
 	}
 	//frame已经编码ok，发送数据
 	encodedBytes := buff.Bytes()
-	err = conn.AsyncWrite(encodedBytes, nil)
+	err = wsCodec.AsyncWrite(encodedBytes)
 	if err == nil {
 		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
@@ -235,27 +232,25 @@ func WriteMessage(conn gnet.Conn, messageType ws.OpCode, data []byte) bool {
 }
 
 // WriteClose 构建关闭帧，并发送关闭帧
-func WriteClose(conn gnet.Conn, statusCode ws.StatusCode, err error) {
+func WriteClose(conn *wsServer.Codec, statusCode ws.StatusCode, err error) {
 	WriteCloseFrame(conn, BuildCloseFrame(statusCode, err))
 }
 
 // WriteCloseFrame 发送关闭帧
-func WriteCloseFrame(conn gnet.Conn, closeFrame []byte) {
-	wsCodec, ok := conn.Context().(*wsServer.Codec)
-	if !ok || wsCodec.IsClosed() {
-		//连接已经关闭
+func WriteCloseFrame(wsCodec *wsServer.Codec, closeFrame []byte) {
+	if wsCodec.SetClosedFlag() == false {
+		//已经关闭，则直接返回
 		return
 	}
-	err := conn.AsyncWrite(closeFrame, nil)
+	err := wsCodec.AsyncWrite(closeFrame)
 	if err == nil {
-		wsCodec.SetClosed()
 		//2秒后强制关闭连接，2秒足以覆盖绝大多数网络波动，足够让TCP层完成正常的状态流转，避免暴力切断
 		timer.Timer.AfterFunc(time.Second*2, func() {
-			_ = conn.Close()
+			wsCodec.Close()
 		})
 	} else {
 		//发送失败，则强制关闭连接
-		_ = conn.Close()
+		wsCodec.Close()
 	}
 }
 
@@ -271,59 +266,25 @@ func BuildCloseFrame(statusCode ws.StatusCode, err error) []byte {
 	return buff.Bytes()
 }
 
-// GetSession 安全地从连接中获取 session，避免竞态条件导致的空指针
-func GetSession(conn gnet.Conn) (*info.Info, bool) {
-	if conn == nil {
-		return nil, false
-	}
-	ctx := conn.Context()
-	if ctx == nil {
-		return nil, false
-	}
-	wsCodec, ok := ctx.(*wsServer.Codec)
-	if !ok || wsCodec == nil {
-		return nil, false
-	}
-	sessionAny := wsCodec.GetSession()
-	if sessionAny == nil {
-		return nil, false
-	}
-	session, ok := sessionAny.(*info.Info)
-	if !ok {
-		return nil, false
-	}
-	return session, true
-}
-
-func CountCustomerIds(connList []gnet.Conn) int {
+func CountCustomerIds(connList []*wsServer.Codec) int {
 	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, conn := range connList {
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if ok && wsCodec != nil {
-			session, ok := wsCodec.GetSession().(*info.Info)
-			if ok && session != nil {
-				customerId := session.GetCustomerIdOnSafe()
-				if customerId != "" {
-					customerIdSet[customerId] = struct{}{}
-				}
-			}
+	for _, wsCodec := range connList {
+		session, _ := wsCodec.GetSession().(*info.Info)
+		customerId := session.GetCustomerIdOnSafe()
+		if customerId != "" {
+			customerIdSet[customerId] = struct{}{}
 		}
 	}
 	return len(customerIdSet)
 }
 
-func GetCustomerIds(connList []gnet.Conn) (customerIds []string) {
+func GetCustomerIds(connList []*wsServer.Codec) (customerIds []string) {
 	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, conn := range connList {
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if ok && wsCodec != nil {
-			session, ok := wsCodec.GetSession().(*info.Info)
-			if ok && session != nil {
-				customerId := session.GetCustomerIdOnSafe()
-				if customerId != "" {
-					customerIdSet[customerId] = struct{}{}
-				}
-			}
+	for _, wsCodec := range connList {
+		session, _ := wsCodec.GetSession().(*info.Info)
+		customerId := session.GetCustomerIdOnSafe()
+		if customerId != "" {
+			customerIdSet[customerId] = struct{}{}
 		}
 	}
 	// 转换为 slice
@@ -337,19 +298,11 @@ func GetCustomerIds(connList []gnet.Conn) (customerIds []string) {
 	return customerIds
 }
 
-func GetUniqIds(connList []gnet.Conn) (uniqIds []string) {
+func GetUniqIds(connList []*wsServer.Codec) (uniqIds []string) {
 	uniqIds = make([]string, 0, len(connList))
-	for _, conn := range connList {
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if ok && wsCodec != nil {
-			session, ok := wsCodec.GetSession().(*info.Info)
-			if ok && session != nil {
-				uniqId := session.GetUniqIdOnSafe()
-				if uniqId != "" {
-					uniqIds = append(uniqIds, uniqId)
-				}
-			}
-		}
+	for _, wsCodec := range connList {
+		session, _ := wsCodec.GetSession().(*info.Info)
+		uniqIds = append(uniqIds, session.GetUniqIdOnSafe())
 	}
 	return uniqIds
 }

@@ -18,10 +18,10 @@
 package manager
 
 import (
-	"github.com/panjf2000/gnet/v2"
 	"netsvr/internal/customer/info"
 	"netsvr/internal/utils/slicePool"
 	"netsvr/internal/wsServer"
+	"runtime"
 	"sync"
 	"unsafe"
 )
@@ -32,7 +32,7 @@ const shardMask = shardCount - 1 // 255 = 0b11111111
 
 type shard struct {
 	mux  sync.RWMutex
-	data map[string]gnet.Conn //uniqId --> gnet.Conn
+	data map[string]*wsServer.Codec //uniqId --> *wsServer.Codec
 }
 
 type collect struct {
@@ -62,7 +62,7 @@ func (r *collect) Has(uniqId string) bool {
 	return ok
 }
 
-func (r *collect) Get(uniqId string) gnet.Conn {
+func (r *collect) Get(uniqId string) *wsServer.Codec {
 	if uniqId == "" {
 		return nil
 	}
@@ -76,7 +76,7 @@ func (r *collect) Get(uniqId string) gnet.Conn {
 	return nil
 }
 
-func (r *collect) Set(uniqId string, conn gnet.Conn) {
+func (r *collect) Set(uniqId string, conn *wsServer.Codec) {
 	idx := hashUniqId(uniqId)
 	sd := &r.shards[idx]
 	sd.mux.Lock()
@@ -110,7 +110,7 @@ func (r *collect) Len() int {
 // ⚠️ 使用说明：
 //   - 返回 nil 表示无连接，调用方无需调用 sp.Put()
 //   - 返回非 nil 时，调用方使用完后必须调用 sp.Put(connections) 归还
-func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]gnet.Conn) {
+func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]*wsServer.Codec) {
 	// 预估算容量
 	capacity := 0
 	for i := range r.shards {
@@ -154,7 +154,7 @@ func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
 		shardGroups[idx] = append(shardGroups[idx], uniqId)
 	}
 	//再取出所有的连接对象，避免嵌套获取锁
-	connList := make([]gnet.Conn, 0, len(uniqIds))
+	connList := make([]*wsServer.Codec, 0, len(uniqIds))
 	for idx, uList := range shardGroups {
 		if len(uList) == 0 {
 			continue
@@ -172,18 +172,10 @@ func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
 	//收集所有连接对应的customerId（使用 map 去重）
 	customerIdSet := make(map[string]struct{}, len(connList))
 	for _, conn := range connList {
-		if conn == nil {
-			continue
-		}
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if ok && wsCodec != nil {
-			session, ok := wsCodec.GetSession().(*info.Info)
-			if ok && session != nil {
-				customerId := session.GetCustomerIdOnSafe()
-				if customerId != "" {
-					customerIdSet[customerId] = struct{}{}
-				}
-			}
+		session, _ := conn.GetSession().(*info.Info)
+		customerId := session.GetCustomerIdOnSafe()
+		if customerId != "" {
+			customerIdSet[customerId] = struct{}{}
 		}
 	}
 	// 转换为 slice
@@ -211,7 +203,7 @@ func (r *collect) CountCustomerIds(uniqIds []string) int32 {
 		shardGroups[idx] = append(shardGroups[idx], uniqId)
 	}
 	//再取出所有的连接对象，避免嵌套获取锁
-	connList := make([]gnet.Conn, 0, len(uniqIds))
+	connList := make([]*wsServer.Codec, 0, len(uniqIds))
 	for idx, uList := range shardGroups {
 		if len(uList) == 0 {
 			continue
@@ -229,18 +221,10 @@ func (r *collect) CountCustomerIds(uniqIds []string) int32 {
 	//收集所有连接对应的customerId（使用 map 去重计数）
 	customerIdSet := make(map[string]struct{}, len(connList))
 	for _, conn := range connList {
-		if conn == nil {
-			continue
-		}
-		wsCodec, ok := conn.Context().(*wsServer.Codec)
-		if ok && wsCodec != nil {
-			session, ok := wsCodec.GetSession().(*info.Info)
-			if ok && session != nil {
-				customerId := session.GetCustomerIdOnSafe()
-				if customerId != "" {
-					customerIdSet[customerId] = struct{}{}
-				}
-			}
+		session, _ := conn.GetSession().(*info.Info)
+		customerId := session.GetCustomerIdOnSafe()
+		if customerId != "" {
+			customerIdSet[customerId] = struct{}{}
 		}
 	}
 	return int32(len(customerIdSet))
@@ -248,13 +232,7 @@ func (r *collect) CountCustomerIds(uniqIds []string) int32 {
 
 func (r *collect) GetUniqIds() (uniqIds []string) {
 	// 预估算容量
-	capacity := 0
-	for i := range r.shards {
-		sd := &r.shards[i]
-		sd.mux.RLock()
-		capacity += len(sd.data)
-		sd.mux.RUnlock()
-	}
+	capacity := r.Len()
 	if capacity == 0 {
 		return nil
 	}
@@ -282,6 +260,6 @@ var Manager *collect
 func init() {
 	Manager = &collect{}
 	for i := range Manager.shards {
-		Manager.shards[i].data = make(map[string]gnet.Conn, 128)
+		Manager.shards[i].data = make(map[string]*wsServer.Codec, 64*runtime.NumCPU())
 	}
 }

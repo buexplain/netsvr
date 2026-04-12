@@ -18,8 +18,9 @@
 package topic
 
 import (
-	"github.com/panjf2000/gnet/v2"
 	"netsvr/internal/utils/slicePool"
+	"netsvr/internal/wsServer"
+	"runtime"
 	"sync"
 	"unsafe"
 )
@@ -30,7 +31,7 @@ const shardMask = shardCount - 1 // 255 = 0b11111111
 
 type shard struct {
 	mux  sync.RWMutex
-	data map[string]map[int]gnet.Conn // topic → set(gnet.Conn)
+	data map[string]map[int]*wsServer.Codec // topic → set(*wsServer.Codec)
 }
 
 type collect struct {
@@ -49,7 +50,7 @@ func hashTopic(topic string) int {
 }
 
 // SetRelation 设置多个主题与 conn 的对应关系
-func (r *collect) SetRelation(topics []string, conn gnet.Conn) {
+func (r *collect) SetRelation(topics []string, conn *wsServer.Codec) {
 	if len(topics) == 0 || conn == nil {
 		return
 	}
@@ -73,7 +74,7 @@ func (r *collect) SetRelation(topics []string, conn gnet.Conn) {
 			if ok {
 				c[conn.Fd()] = conn
 			} else {
-				c = make(map[int]gnet.Conn, 8) // 预分配小容量
+				c = make(map[int]*wsServer.Codec, 8) // 预分配小容量
 				c[conn.Fd()] = conn
 				sd.data[topic] = c
 			}
@@ -83,7 +84,7 @@ func (r *collect) SetRelation(topics []string, conn gnet.Conn) {
 }
 
 // DelRelationByMap 删除多个主题与 conn 的对应关系
-func (r *collect) DelRelationByMap(topics map[string]struct{}, conn gnet.Conn) {
+func (r *collect) DelRelationByMap(topics map[string]struct{}, conn *wsServer.Codec) {
 	if len(topics) == 0 {
 		return
 	}
@@ -116,7 +117,7 @@ func (r *collect) DelRelationByMap(topics map[string]struct{}, conn gnet.Conn) {
 }
 
 // DelRelationBySlice 删除多个主题与 conn 的对应关系
-func (r *collect) DelRelationBySlice(topics []string, conn gnet.Conn) {
+func (r *collect) DelRelationBySlice(topics []string, conn *wsServer.Codec) {
 	if len(topics) == 0 {
 		return
 	}
@@ -150,14 +151,14 @@ func (r *collect) DelRelationBySlice(topics []string, conn gnet.Conn) {
 
 // Del 删除多个主题，并返回被删除主题包含的 conn
 // ⚠️ 所有权说明：
-//   - 返回的 map[string]map[int]gnet.Conn 是原内部 map 的直接引用
+//   - 返回的 map[string]map[int]*wsServer.Codec 是原内部 map 的直接引用
 //   - 调用方获得独占所有权，可安全修改/遍历/丢弃
 //   - 该 topic 从管理器中完全移除，后续 SetRelation 会创建新 map
-func (r *collect) Del(topics []string) (ret map[string]map[int]gnet.Conn) {
+func (r *collect) Del(topics []string) (ret map[string]map[int]*wsServer.Codec) {
 	if len(topics) == 0 {
 		return nil
 	}
-	ret = make(map[string]map[int]gnet.Conn, len(topics))
+	ret = make(map[string]map[int]*wsServer.Codec, len(topics))
 	// 按 shard 分组
 	var shardGroups [shardCount][]string
 	for _, topic := range topics {
@@ -275,7 +276,7 @@ func (r *collect) CountConnByTopic(topics []string) (ret map[string]int32) {
 
 // GetConnListByTopic 获取某个主题的所有 conn（使用外部 slicePool 复用内存）
 // 调用方使用完后必须调用 sp.Put(connList) 归还到池
-func (r *collect) GetConnListByTopic(topic string, sp *slicePool.WsConn) *[]gnet.Conn {
+func (r *collect) GetConnListByTopic(topic string, sp *slicePool.WsConn) *[]*wsServer.Codec {
 	if topic == "" {
 		return nil
 	}
@@ -296,11 +297,11 @@ func (r *collect) GetConnListByTopic(topic string, sp *slicePool.WsConn) *[]gnet
 }
 
 // GetConnListByTopics 获取多个主题的所有 conn
-func (r *collect) GetConnListByTopics(topics []string) (ret map[string][]gnet.Conn) {
+func (r *collect) GetConnListByTopics(topics []string) (ret map[string][]*wsServer.Codec) {
 	if len(topics) == 0 {
 		return nil
 	}
-	ret = make(map[string][]gnet.Conn, len(topics))
+	ret = make(map[string][]*wsServer.Codec, len(topics))
 	// 按 shard 分组，减少锁切换次数
 	var shardGroups [shardCount][]string
 	for _, topic := range topics {
@@ -319,7 +320,7 @@ func (r *collect) GetConnListByTopics(topics []string) (ret map[string][]gnet.Co
 		for _, topic := range tList {
 			c, ok := sd.data[topic]
 			if ok {
-				connList := make([]gnet.Conn, 0, len(c))
+				connList := make([]*wsServer.Codec, 0, len(c))
 				for _, conn := range c {
 					connList = append(connList, conn)
 				}
@@ -332,14 +333,14 @@ func (r *collect) GetConnListByTopics(topics []string) (ret map[string][]gnet.Co
 }
 
 // GetConnList 获取全部主题的所有 conn
-func (r *collect) GetConnList() (ret map[string][]gnet.Conn) {
-	ret = make(map[string][]gnet.Conn, r.Len())
+func (r *collect) GetConnList() (ret map[string][]*wsServer.Codec) {
+	ret = make(map[string][]*wsServer.Codec, r.Len())
 
 	for i := range r.shards {
 		sd := &r.shards[i]
 		sd.mux.RLock()
 		for topic, c := range sd.data {
-			connList := make([]gnet.Conn, 0, len(c))
+			connList := make([]*wsServer.Codec, 0, len(c))
 			for _, conn := range c {
 				connList = append(connList, conn)
 			}
@@ -356,6 +357,6 @@ var Topic *collect
 func init() {
 	Topic = &collect{}
 	for i := range Topic.shards {
-		Topic.shards[i].data = make(map[string]map[int]gnet.Conn, 64)
+		Topic.shards[i].data = make(map[string]map[int]*wsServer.Codec, 64*runtime.NumCPU())
 	}
 }

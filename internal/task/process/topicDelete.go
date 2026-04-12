@@ -17,13 +17,14 @@
 package process
 
 import (
-	"github.com/panjf2000/gnet/v2"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
+	"netsvr/internal/customer/info"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
+	"netsvr/internal/wsServer"
 )
 
 // topicDelete 删除主题
@@ -42,37 +43,31 @@ func topicDelete(param []byte) {
 	if len(payload.Data) == 0 {
 		for topic, connMap := range arr {
 			for _, conn := range connMap {
-				session, ok := customer.GetSession(conn)
-				if ok {
-					_ = session.UnsubscribeTopic(topic)
-				}
+				session, _ := conn.GetSession().(*info.Info)
+				_ = session.UnsubscribeTopicOnSafe(topic)
 			}
 		}
 		return
 	}
-	//需要发送给客户数据，注意，只能发送一次
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
 	//先统计conn数量
 	connCount := 0
 	for _, connMap := range arr {
 		connCount += len(connMap)
 	}
 	//创建一个map，用于去重
-	unsubscribeConn := make(map[int]gnet.Conn, connCount)
+	unsubscribeConn := make(map[int]*wsServer.Codec, connCount)
 	//遍历所有主题
 	for topic, connMap := range arr {
 		for _, conn := range connMap {
-			session, ok := customer.GetSession(conn)
-			if !ok {
-				continue
-			}
+			session, _ := conn.GetSession().(*info.Info)
 			//取消订阅
-			if session.UnsubscribeTopic(topic) {
+			if session.UnsubscribeTopicOnSafe(topic) {
 				unsubscribeConn[conn.Fd()] = conn
 			}
 		}
 	}
-	//发送取消订阅消息
+	//需要发送取消订阅消息，注意，只能发送一次
+	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
 	for _, conn := range unsubscribeConn {
 		msg.WriteTo(conn)
 	}

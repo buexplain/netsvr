@@ -21,6 +21,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
+	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
@@ -39,14 +40,10 @@ func connInfoUpdate(param []byte) {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
-	session, ok := customer.GetSession(conn)
-	if !ok {
-		return
-	}
+	session, _ := conn.GetSession().(*info.Info)
 	session.Lock()
 	defer session.UnLock()
-	if session.GetUniqId() == "" {
-		//session已经被销毁了，跳过
+	if conn.IsClosed() {
 		return
 	}
 	//设置session
