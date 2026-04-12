@@ -20,6 +20,7 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 )
@@ -32,10 +33,10 @@ func topicUniqIdList(param []byte, taskConn net.Conn) {
 		return
 	}
 	ret := &netsvrProtocol.TopicUniqIdListResp{Items: map[string]*netsvrProtocol.TopicUniqIdListRespItem{}}
-	topicUniqIds := topic.Topic.GetUniqIdsByTopics(payload.Topics)
-	for tpc, uniqIds := range topicUniqIds {
+	topicConnList := topic.Topic.GetConnListByTopics(payload.Topics)
+	for tpc, connList := range topicConnList {
 		item := &netsvrProtocol.TopicUniqIdListRespItem{}
-		item.UniqIds = uniqIds
+		item.UniqIds = customer.GetUniqIds(connList)
 		ret.Items[tpc] = item
 	}
 	send(taskConn, ret, netsvrProtocol.Cmd_TopicUniqIdList)

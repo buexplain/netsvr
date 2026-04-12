@@ -44,7 +44,7 @@ func forceOfflineGuest(param []byte) {
 		conn := customerManager.Manager.Get(uniqId)
 		session, ok := customer.GetSession(conn)
 		//跳过无效的 session，或者已经登录的 session
-		if !ok || session.IsLogin() {
+		if !ok || session.IsLoginOnSafe() {
 			return
 		}
 		//判断是否转发数据

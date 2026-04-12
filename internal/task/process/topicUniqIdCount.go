@@ -33,9 +33,9 @@ func topicUniqIdCount(param []byte, taskConn net.Conn) {
 	}
 	ret := &netsvrProtocol.TopicUniqIdCountResp{}
 	if payload.CountAll == true {
-		ret.Items = topic.Topic.CountAll()
+		ret.Items = topic.Topic.CountConn()
 	} else {
-		ret.Items = topic.Topic.Count(payload.Topics)
+		ret.Items = topic.Topic.CountConnByTopic(payload.Topics)
 	}
 	send(taskConn, ret, netsvrProtocol.Cmd_TopicUniqIdCount)
 }

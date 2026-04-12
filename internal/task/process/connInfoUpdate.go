@@ -58,10 +58,10 @@ func connInfoUpdate(param []byte) {
 		oldCustomerId := session.GetCustomerId()
 		if oldCustomerId != "" {
 			//删除旧关系
-			binder.Binder.Del(oldCustomerId, payload.UniqId)
+			binder.Binder.DelRelation(oldCustomerId, conn)
 		}
 		//设置新关系
-		binder.Binder.Set(payload.NewCustomerId, payload.UniqId)
+		binder.Binder.SetRelation(payload.NewCustomerId, conn)
 		session.SetCustomerId(payload.NewCustomerId)
 	}
 	//设置主题
@@ -69,11 +69,11 @@ func connInfoUpdate(param []byte) {
 		//清空旧主题
 		topics := session.PullTopics()
 		//删除旧主题的关系
-		topic.Topic.DelByMap(topics, payload.UniqId)
+		topic.Topic.DelRelationByMap(topics, conn)
 		//订阅新主题
 		session.SubscribeTopics(payload.NewTopics)
 		//构建新主题的关系
-		topic.Topic.SetBySlice(payload.NewTopics, payload.UniqId)
+		topic.Topic.SetRelation(payload.NewTopics, conn)
 	}
 	//有数据，则转发给客户
 	if len(payload.Data) > 0 {

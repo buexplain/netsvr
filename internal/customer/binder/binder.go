@@ -18,7 +18,7 @@
 package binder
 
 import (
-	"slices"
+	"github.com/panjf2000/gnet/v2"
 	"sync"
 	"unsafe"
 )
@@ -29,7 +29,7 @@ const shardMask = shardCount - 1 // 255 = 0b11111111
 
 type shard struct {
 	mux  sync.RWMutex
-	data map[string][]string //customerId --> slice(uniqId)
+	data map[string]map[int]gnet.Conn //customerId --> set(gnet.Conn)
 }
 
 type collect struct {
@@ -47,16 +47,47 @@ func hashCustomerId(customerId string) int {
 	return int(hash & uint32(shardMask))
 }
 
-// GetCustomerIds 获取所有的customerId
-func (r *collect) GetCustomerIds() (customerIds []string) {
-	// 预估算容量
-	capacity := 0
+func (r *collect) SetRelation(customerId string, conn gnet.Conn) {
+	idx := hashCustomerId(customerId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	c, ok := sd.data[customerId]
+	if !ok {
+		c = make(map[int]gnet.Conn, 1)
+		sd.data[customerId] = c
+	}
+	c[conn.Fd()] = conn
+}
+
+func (r *collect) DelRelation(customerId string, conn gnet.Conn) {
+	idx := hashCustomerId(customerId)
+	sd := &r.shards[idx]
+	sd.mux.Lock()
+	defer sd.mux.Unlock()
+	if c, ok := sd.data[customerId]; ok {
+		delete(c, conn.Fd())
+		if len(c) == 0 {
+			delete(sd.data, customerId)
+		}
+	}
+}
+
+func (r *collect) Len() int {
+	total := 0
 	for i := range r.shards {
 		sd := &r.shards[i]
 		sd.mux.RLock()
-		capacity += len(sd.data)
+		total += len(sd.data)
 		sd.mux.RUnlock()
 	}
+	return total
+}
+
+// GetCustomerIds 获取所有的customerId
+func (r *collect) GetCustomerIds() (customerIds []string) {
+	// 预估算容量
+	capacity := r.Len()
 	if capacity == 0 {
 		return nil
 	}
@@ -78,8 +109,8 @@ func (r *collect) GetCustomerIds() (customerIds []string) {
 	return customerIds
 }
 
-// GetUniqIdsByCustomerId 根据customerId获取所有的uniqId
-func (r *collect) GetUniqIdsByCustomerId(customerId string) (uniqIds []string) {
+// GetConnListByCustomerId 获取某个customerId的conn列表
+func (r *collect) GetConnListByCustomerId(customerId string) (connList []gnet.Conn) {
 	if customerId == "" {
 		return nil
 	}
@@ -88,15 +119,17 @@ func (r *collect) GetUniqIdsByCustomerId(customerId string) (uniqIds []string) {
 	sd.mux.RLock()
 	defer sd.mux.RUnlock()
 	if c, ok := sd.data[customerId]; ok {
-		uniqIds = make([]string, 0, len(c))
-		uniqIds = append(uniqIds, c...)
-		return uniqIds
+		connList = make([]gnet.Conn, 0, len(c))
+		for _, conn := range c {
+			connList = append(connList, conn)
+		}
+		return connList
 	}
 	return nil
 }
 
-// GetUniqIdsByCustomerIds 根据customerIds获取所有的uniqId
-func (r *collect) GetUniqIdsByCustomerIds(customerIds []string) (customerIdUniqIds map[string][]string) {
+// GetConnListByCustomerIds 获取多个customerId的conn列表
+func (r *collect) GetConnListByCustomerIds(customerIds []string) (customerIdConnList map[string][]gnet.Conn) {
 	// 按 shard 分组，减少锁切换次数
 	var shardGroups [shardCount][]string
 	for _, customerId := range customerIds {
@@ -106,7 +139,7 @@ func (r *collect) GetUniqIdsByCustomerIds(customerIds []string) (customerIdUniqI
 		idx := hashCustomerId(customerId)
 		shardGroups[idx] = append(shardGroups[idx], customerId)
 	}
-	customerIdUniqIds = make(map[string][]string, len(customerIds))
+	customerIdConnList = make(map[string][]gnet.Conn, len(customerIds))
 	for idx, cList := range shardGroups {
 		if len(cList) == 0 {
 			continue
@@ -115,63 +148,16 @@ func (r *collect) GetUniqIdsByCustomerIds(customerIds []string) (customerIdUniqI
 		sd.mux.RLock()
 		for _, customerId := range cList {
 			if c, ok := sd.data[customerId]; ok {
-				uniqIds := make([]string, 0, len(c))
-				uniqIds = append(uniqIds, c...)
-				customerIdUniqIds[customerId] = uniqIds
-			}
-		}
-		sd.mux.RUnlock()
-	}
-	return customerIdUniqIds
-}
-
-func (r *collect) Len() int {
-	total := 0
-	for i := range r.shards {
-		sd := &r.shards[i]
-		sd.mux.RLock()
-		total += len(sd.data)
-		sd.mux.RUnlock()
-	}
-	return total
-}
-
-func (r *collect) Set(customerId string, uniqId string) {
-	idx := hashCustomerId(customerId)
-	sd := &r.shards[idx]
-	sd.mux.Lock()
-	defer sd.mux.Unlock()
-	if c, ok := sd.data[customerId]; ok {
-		if slices.Index(c, uniqId) == -1 {
-			sd.data[customerId] = append(slices.Grow(c, 1), uniqId)
-		}
-	} else {
-		sd.data[customerId] = []string{uniqId}
-	}
-}
-
-func (r *collect) Del(customerId string, uniqId string) {
-	idx := hashCustomerId(customerId)
-	sd := &r.shards[idx]
-	sd.mux.Lock()
-	defer sd.mux.Unlock()
-	if c, ok := sd.data[customerId]; ok {
-		index := slices.Index(c, uniqId)
-		if index != -1 {
-			c = slices.Delete(c, index, index+1)
-			if len(c) == 0 {
-				delete(sd.data, customerId)
-			} else {
-				//缩容：如果容量 > 2*长度，重新分配
-				if cap(c) > len(c)*2 {
-					newC := make([]string, len(c))
-					copy(newC, c)
-					c = newC
+				connList := make([]gnet.Conn, 0, len(c))
+				for _, conn := range c {
+					connList = append(connList, conn)
 				}
-				sd.data[customerId] = c
+				customerIdConnList[customerId] = connList
 			}
 		}
+		sd.mux.RUnlock()
 	}
+	return customerIdConnList
 }
 
 // Binder 全局实例
@@ -180,6 +166,6 @@ var Binder *collect
 func init() {
 	Binder = &collect{}
 	for i := range Binder.shards {
-		Binder.shards[i].data = make(map[string][]string, 128)
+		Binder.shards[i].data = make(map[string]map[int]gnet.Conn, 128)
 	}
 }

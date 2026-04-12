@@ -24,7 +24,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 )
 
@@ -36,17 +35,13 @@ func forceOfflineByCustomerId(param []byte) {
 		return
 	}
 	closeFrame := customer.BuildCloseFrame(ws.StatusPolicyViolation, errors.New("forceOfflineByCustomerId"))
-	//获取customerId对应的uniqId列表
-	customerIdUniqIds := binder.Binder.GetUniqIdsByCustomerIds(payload.CustomerIds)
+	//获取customerId对应的conn列表
+	customerIdConnList := binder.Binder.GetConnListByCustomerIds(payload.CustomerIds)
 	//判断是否转发数据
 	if len(payload.Data) == 0 {
 		//无须转发任何数据，直接关闭连接
-		for _, uniqIds := range customerIdUniqIds {
-			for _, uniqId := range uniqIds {
-				conn := customerManager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
+		for _, connList := range customerIdConnList {
+			for _, conn := range connList {
 				customer.WriteCloseFrame(conn, closeFrame)
 			}
 		}
@@ -54,12 +49,8 @@ func forceOfflineByCustomerId(param []byte) {
 	}
 	//写入数据，并在一定倒计时后关闭连接
 	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
-	for _, uniqIds := range customerIdUniqIds {
-		for _, uniqId := range uniqIds {
-			conn := customerManager.Manager.Get(uniqId)
-			if conn == nil {
-				continue
-			}
+	for _, connList := range customerIdConnList {
+		for _, conn := range connList {
 			msg.WriteTo(conn)
 			customer.WriteCloseFrame(conn, closeFrame)
 		}

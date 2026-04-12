@@ -21,7 +21,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
 )
@@ -38,12 +37,8 @@ func singleCastByCustomerId(param []byte) {
 		return
 	}
 	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
-	uniqIds := binder.Binder.GetUniqIdsByCustomerId(payload.CustomerId)
-	for _, uniqId := range uniqIds {
-		conn := manager.Manager.Get(uniqId)
-		if conn == nil {
-			continue
-		}
+	connList := binder.Binder.GetConnListByCustomerId(payload.CustomerId)
+	for _, conn := range connList {
 		msg.WriteTo(conn)
 	}
 }

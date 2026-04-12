@@ -181,10 +181,10 @@ func Start() {
 				//构建回调返回的关系，并将数据下发给客户端
 				if connOpenResp != nil {
 					if connOpenResp.NewCustomerId != "" {
-						binder.Binder.Set(connOpenResp.NewCustomerId, uniqId)
+						binder.Binder.SetRelation(connOpenResp.NewCustomerId, conn)
 					}
 					if len(connOpenResp.NewTopics) > 0 {
-						topic.Topic.SetBySlice(connOpenResp.NewTopics, uniqId)
+						topic.Topic.SetRelation(connOpenResp.NewTopics, conn)
 					}
 					if len(connOpenResp.Data) > 0 {
 						WriteMessage(conn, configs.Config.Customer.SendMessageType, connOpenResp.Data)
@@ -253,10 +253,10 @@ func Start() {
 				manager.Manager.Del(uniqId)
 				//解除uniqId与customerId的关系
 				if customerId != "" {
-					binder.Binder.Del(customerId, uniqId)
+					binder.Binder.DelRelation(customerId, conn)
 				}
 				//删除订阅关系
-				topic.Topic.DelBySlice(topics, uniqId)
+				topic.Topic.DelRelationBySlice(topics, conn)
 				cl := objPool.ConnClose.Get()
 				defer objPool.ConnClose.Put(cl)
 				cl.UniqId = uniqId

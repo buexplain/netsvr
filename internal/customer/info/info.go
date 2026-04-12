@@ -100,45 +100,23 @@ func (r *Info) Allow() bool {
 	return false
 }
 
+func (r *Info) GetUniqIdOnSafe() string {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
+	return r.uniqId
+}
+
 func (r *Info) GetCustomerIdOnSafe() string {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	return r.customerId
 }
 
-func (r *Info) GetCustomerId() string {
-	return r.customerId
-}
-
-func (r *Info) GetUniqId() string {
-	return r.uniqId
-}
-
-func (r *Info) GetSession() string {
-	return r.session
-}
-
-func (r *Info) GetTopics() []string {
-	topics := make([]string, 0, len(r.topics))
-	for topic := range r.topics {
-		topics = append(topics, topic)
-	}
-	return topics
-}
-
-func (r *Info) IsLogin() bool {
+func (r *Info) IsLoginOnSafe() bool {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	//有session或customerId，则视为登录状态的连接
 	return r.session != "" || r.customerId != ""
-}
-
-func (r *Info) SetSession(session string) {
-	r.session = session
-}
-
-func (r *Info) SetCustomerId(customerId string) {
-	r.customerId = customerId
 }
 
 func (r *Info) GetConnInfoOnSafe(connInfoReq *netsvrProtocol.ConnInfoReq, connInfoRespItem *netsvrProtocol.ConnInfoRespItem) {
@@ -169,20 +147,32 @@ func (r *Info) GetConnInfoByCustomerIdOnSafe(connInfoReq *netsvrProtocol.ConnInf
 	}
 }
 
-// Clear 清空session
-func (r *Info) Clear() (uniqId string, customerId string, session string, topics []string) {
-	topics = r.GetTopics()
-	r.topics = nil
-	//删除唯一id
-	uniqId = r.uniqId
-	r.uniqId = ""
-	//删除session
-	session = r.session
-	r.session = ""
-	//删除客户的业务id
-	customerId = r.customerId
-	r.customerId = ""
-	return
+func (r *Info) GetUniqId() string {
+	return r.uniqId
+}
+
+func (r *Info) GetCustomerId() string {
+	return r.customerId
+}
+
+func (r *Info) GetSession() string {
+	return r.session
+}
+
+func (r *Info) GetTopics() []string {
+	topics := make([]string, 0, len(r.topics))
+	for topic := range r.topics {
+		topics = append(topics, topic)
+	}
+	return topics
+}
+
+func (r *Info) SetCustomerId(customerId string) {
+	r.customerId = customerId
+}
+
+func (r *Info) SetSession(session string) {
+	r.session = session
 }
 
 func (r *Info) PullTopics() map[string]struct{} {
@@ -222,4 +212,18 @@ func (r *Info) UnsubscribeTopic(topic string) bool {
 		return true
 	}
 	return false
+}
+
+// Clear 清空session
+func (r *Info) Clear() (uniqId string, customerId string, session string, topics []string) {
+	topics = r.GetTopics()
+	uniqId = r.uniqId
+	session = r.session
+	customerId = r.customerId
+	// 清空
+	r.topics = nil
+	r.uniqId = ""
+	r.session = ""
+	r.customerId = ""
+	return
 }

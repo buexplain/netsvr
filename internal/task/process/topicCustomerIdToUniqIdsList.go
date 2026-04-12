@@ -20,8 +20,8 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 )
@@ -36,19 +36,16 @@ func topicCustomerIdToUniqIdsList(param []byte, taskConn net.Conn) {
 	ret := &netsvrProtocol.TopicCustomerIdToUniqIdsListResp{
 		Items: map[string]*netsvrProtocol.TopicCustomerIdToUniqIdsListRespItem{},
 	}
-	// 获取topic的uniqId
-	topicUniqId := topic.Topic.GetUniqIdsByTopics(payload.Topics)
-	for tpc, uniqIds := range topicUniqId {
-		// 获取topic的uniqId的customerId
-		customerIds := customerManager.Manager.GetCustomerIds(uniqIds)
-		customerIdToUniqIdsList := binder.Binder.GetUniqIdsByCustomerIds(customerIds)
+	topicConnList := topic.Topic.GetConnListByTopics(payload.Topics)
+	for tpc, connList := range topicConnList {
+		customerIdConnList := binder.Binder.GetConnListByCustomerIds(customer.GetCustomerIds(connList))
 		items := &netsvrProtocol.TopicCustomerIdToUniqIdsListRespItem{
-			Items: make(map[string]*netsvrProtocol.CustomerIdToUniqIdsRespItem, len(customerIdToUniqIdsList)),
+			Items: make(map[string]*netsvrProtocol.CustomerIdToUniqIdsRespItem, len(customerIdConnList)),
 		}
 		//转换为返回结果
-		for customerId, uniqIds := range customerIdToUniqIdsList {
+		for customerId, connList2 := range customerIdConnList {
 			items.Items[customerId] = &netsvrProtocol.CustomerIdToUniqIdsRespItem{
-				UniqIds: uniqIds,
+				UniqIds: customer.GetUniqIds(connList2),
 			}
 		}
 		// 添加到返回结果中

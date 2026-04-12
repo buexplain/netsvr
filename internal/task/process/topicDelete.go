@@ -17,10 +17,10 @@
 package process
 
 import (
+	"github.com/panjf2000/gnet/v2"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	customerManager "netsvr/internal/customer/manager"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
@@ -34,16 +34,14 @@ func topicDelete(param []byte) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.topicDelete failed")
 		return
 	}
-	//topic --> []uniqId
-	arr := customerTopic.Topic.PullAndReturnUniqIds(payload.Topics)
+	arr := customerTopic.Topic.Del(payload.Topics)
 	if len(arr) == 0 {
 		return
 	}
 	//只做删除，不需要通知到客户
 	if len(payload.Data) == 0 {
-		for topic, uniqIds := range arr {
-			for uniqId := range uniqIds {
-				conn := customerManager.Manager.Get(uniqId)
+		for topic, connMap := range arr {
+			for _, conn := range connMap {
 				session, ok := customer.GetSession(conn)
 				if ok {
 					_ = session.UnsubscribeTopic(topic)
@@ -53,34 +51,29 @@ func topicDelete(param []byte) {
 		return
 	}
 	//需要发送给客户数据，注意，只能发送一次
-	isSend := false
-	//先清空整个payload.Topics，用于记录已经处理过的topic
-	payload.Topics = payload.Topics[:0]
 	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
-	for topic, uniqIds := range arr {
-		for uniqId := range uniqIds {
-			conn := customerManager.Manager.Get(uniqId)
+	//先统计conn数量
+	connCount := 0
+	for _, connMap := range arr {
+		connCount += len(connMap)
+	}
+	//创建一个map，用于去重
+	unsubscribeConn := make(map[int]gnet.Conn, connCount)
+	//遍历所有主题
+	for topic, connMap := range arr {
+		for _, conn := range connMap {
 			session, ok := customer.GetSession(conn)
 			if !ok {
 				continue
 			}
-			if !session.UnsubscribeTopic(topic) {
-				continue
-			}
-			//取消订阅成功，判断是否已经发送过数据
-			isSend = false
-			for _, topic = range payload.Topics {
-				//迭代每一个已经处理的topic，判断每个已经处理topic是否包含当前循环的uniqId
-				if _, isSend = arr[topic][uniqId]; isSend {
-					break
-				}
-			}
-			//没有发送过数据，则发送数据
-			if !isSend {
-				msg.WriteTo(conn)
+			//取消订阅
+			if session.UnsubscribeTopic(topic) {
+				unsubscribeConn[conn.Fd()] = conn
 			}
 		}
-		//处理完毕的topic，记录起来
-		payload.Topics = append(payload.Topics, topic)
+	}
+	//发送取消订阅消息
+	for _, conn := range unsubscribeConn {
+		msg.WriteTo(conn)
 	}
 }

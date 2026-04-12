@@ -46,12 +46,13 @@ func connInfoDelete(param []byte) {
 	session.Lock()
 	defer session.UnLock()
 	if session.GetUniqId() == "" {
+		//session已经被销毁了，跳过
 		return
 	}
 	//删除主题
 	if payload.DelTopic {
 		topics := session.PullTopics()
-		topic.Topic.DelByMap(topics, payload.UniqId)
+		topic.Topic.DelRelationByMap(topics, conn)
 	}
 	//删除session
 	if payload.DelSession {
@@ -60,7 +61,7 @@ func connInfoDelete(param []byte) {
 	if payload.DelCustomerId {
 		customerId := session.GetCustomerId()
 		if customerId != "" {
-			binder.Binder.Del(customerId, payload.UniqId)
+			binder.Binder.DelRelation(customerId, conn)
 			session.SetCustomerId("")
 		}
 	}

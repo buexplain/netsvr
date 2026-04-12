@@ -21,7 +21,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
 )
@@ -36,18 +35,13 @@ func singleCastBulkByCustomerId(param []byte) {
 	}
 	//当业务进程传递的customerIds的customerId数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个customerId
 	if len(payload.CustomerIds) == 1 && len(payload.Data) > 1 {
-		uniqIds := binder.Binder.GetUniqIdsByCustomerId(payload.CustomerIds[0])
+		connList := binder.Binder.GetConnListByCustomerId(payload.CustomerIds[0])
 		for _, data := range payload.Data {
 			if len(data) == 0 {
 				continue
 			}
 			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, data)
-			for _, uniqId := range uniqIds {
-				//根据uniqId获得对应的连接
-				conn := manager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
+			for _, conn := range connList {
 				msg.WriteTo(conn)
 			}
 		}
@@ -62,13 +56,9 @@ func singleCastBulkByCustomerId(param []byte) {
 				continue
 			}
 			//获得数据对应的index下标的customerId对应的uniqId
-			uniqIds := binder.Binder.GetUniqIdsByCustomerId(payload.CustomerIds[index])
+			connList := binder.Binder.GetConnListByCustomerId(payload.CustomerIds[index])
 			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data[index])
-			for _, uniqId := range uniqIds {
-				conn := manager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
+			for _, conn := range connList {
 				//将数据写入到连接中
 				msg.WriteTo(conn)
 			}

@@ -87,7 +87,7 @@ func (m *MockConn) SetWriteDeadline(time.Time) error                           {
 func newTestCollect() *collect {
 	c := &collect{}
 	for i := range c.shards {
-		c.shards[i].data = make(map[string]gnet.Conn, 128)
+		c.shards[i].data = make(map[string]gnet.Conn, shardCount)
 	}
 	return c
 }
@@ -150,13 +150,13 @@ func TestHas(t *testing.T) {
 	mockConn := &MockConn{}
 	tc.Set("uniq1", mockConn)
 	if !tc.Has("uniq1") {
-		t.Error("Has(uniq1) should return true after Set")
+		t.Error("Has(uniq1) should return true after SetRelation")
 	}
 
 	// 删除后不存在
 	tc.Del("uniq1")
 	if tc.Has("uniq1") {
-		t.Error("Has(uniq1) should return false after Del")
+		t.Error("Has(uniq1) should return false after DelRelation")
 	}
 }
 
@@ -189,7 +189,7 @@ func TestGet(t *testing.T) {
 	// 删除后获取
 	tc.Del("uniq1")
 	if tc.Get("uniq1") != nil {
-		t.Error("Get(uniq1) should return nil after Del")
+		t.Error("Get(uniq1) should return nil after DelRelation")
 	}
 }
 
@@ -201,7 +201,7 @@ func TestSet(t *testing.T) {
 	mockConn1 := &MockConn{}
 	tc.Set("uniq1", mockConn1)
 	if !tc.Has("uniq1") {
-		t.Error("Set should add the connection")
+		t.Error("SetRelation should add the connection")
 	}
 
 	// 覆盖已有连接
@@ -209,7 +209,7 @@ func TestSet(t *testing.T) {
 	tc.Set("uniq1", mockConn2)
 	conn := tc.Get("uniq1")
 	if conn != mockConn2 {
-		t.Error("Set should overwrite existing connection")
+		t.Error("SetRelation should overwrite existing connection")
 	}
 
 	// 添加多个不同的 uniqId
@@ -235,7 +235,7 @@ func TestDel(t *testing.T) {
 	tc.Set("uniq1", mockConn)
 	tc.Del("uniq1")
 	if tc.Has("uniq1") {
-		t.Error("Del should remove the connection")
+		t.Error("DelRelation should remove the connection")
 	}
 	if tc.Len() != 0 {
 		t.Errorf("Len() = %d, want 0", tc.Len())

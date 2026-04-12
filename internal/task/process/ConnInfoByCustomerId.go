@@ -22,7 +22,6 @@ import (
 	"net"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 )
 
@@ -34,13 +33,12 @@ func connInfoByCustomerId(param []byte, taskConn net.Conn) {
 		return
 	}
 	// 获取customerId对应的uniqId列表
-	customerIdUniqIds := binder.Binder.GetUniqIdsByCustomerIds(payload.CustomerIds)
+	customerIdConnList := binder.Binder.GetConnListByCustomerIds(payload.CustomerIds)
 	ret := &netsvrProtocol.ConnInfoByCustomerIdResp{Items: map[string]*netsvrProtocol.ConnInfoByCustomerIdRespItems{}}
-	for customerId, uniqIds := range customerIdUniqIds {
+	for customerId, connList := range customerIdConnList {
 		items := netsvrProtocol.ConnInfoByCustomerIdRespItems{}
-		// 遍历uniqId列表，获取连接信息
-		for _, uniqId := range uniqIds {
-			conn := customerManager.Manager.Get(uniqId)
+		// 遍历连接信息
+		for _, conn := range connList {
 			session, ok := customer.GetSession(conn)
 			if !ok {
 				continue

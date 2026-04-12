@@ -45,10 +45,11 @@ func topicSubscribe(param []byte) {
 	session.Lock()
 	defer session.UnLock()
 	if session.GetUniqId() == "" {
+		//session已经被销毁了，跳过
 		return
 	}
 	session.SubscribeTopics(payload.Topics)
-	topic.Topic.SetBySlice(payload.Topics, payload.UniqId)
+	topic.Topic.SetRelation(payload.Topics, conn)
 	if len(payload.Data) > 0 {
 		customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data)
 	}

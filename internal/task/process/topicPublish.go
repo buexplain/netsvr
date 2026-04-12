@@ -20,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
@@ -42,18 +41,14 @@ func topicPublish(param []byte) {
 		if t == "" {
 			continue
 		}
-		uniqIds := topic.Topic.GetUniqIds(t, objPool.UniqIdSlice)
-		if uniqIds == nil {
+		connList := topic.Topic.GetConnListByTopic(t, objPool.ConnSlice)
+		if connList == nil {
 			continue
 		}
-		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
-		for _, uniqId := range uniqIdsAlias {
-			conn := manager.Manager.Get(uniqId)
-			if conn == nil {
-				continue
-			}
+		connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
+		for _, conn := range connListAlias {
 			msg.WriteTo(conn)
 		}
-		objPool.UniqIdSlice.Put(uniqIds)
+		objPool.ConnSlice.Put(connList)
 	}
 }

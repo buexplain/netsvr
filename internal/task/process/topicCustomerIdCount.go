@@ -18,9 +18,10 @@ package process
 
 import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2"
 	"google.golang.org/protobuf/proto"
 	"net"
-	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 )
@@ -34,15 +35,14 @@ func topicCustomerIdCount(param []byte, taskConn net.Conn) {
 	}
 	ret := &netsvrProtocol.TopicCustomerIdCountResp{}
 	ret.Items = map[string]int32{}
-	//统计全部主题
+	var topicConnList map[string][]gnet.Conn
 	if payload.CountAll == true {
-		payload.Topics = topic.Topic.Get()
+		topicConnList = topic.Topic.GetConnList()
+	} else {
+		topicConnList = topic.Topic.GetConnListByTopics(payload.Topics)
 	}
-	// 获取topic的uniqId
-	topicUniqId := topic.Topic.GetUniqIdsByTopics(payload.Topics)
-	for tpc, uniqIds := range topicUniqId {
-		// 获取topic的uniqId的customerId数量
-		ret.Items[tpc] = customerManager.Manager.CountCustomerIds(uniqIds)
+	for tpc, connList := range topicConnList {
+		ret.Items[tpc] = int32(customer.CountCustomerIds(connList))
 	}
 	send(taskConn, ret, netsvrProtocol.Cmd_TopicCustomerIdCount)
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"net"
-	customerManager "netsvr/internal/customer/manager"
+	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 )
@@ -33,13 +33,10 @@ func topicCustomerIdList(param []byte, taskConn net.Conn) {
 		return
 	}
 	ret := &netsvrProtocol.TopicCustomerIdListResp{Items: map[string]*netsvrProtocol.TopicCustomerIdListRespItem{}}
-	// 获取topic的uniqId
-	topicUniqId := topic.Topic.GetUniqIdsByTopics(payload.Topics)
-	for tpc, uniqIds := range topicUniqId {
-		// 获取topic的uniqId的customerId
-		customerIds := customerManager.Manager.GetCustomerIds(uniqIds)
+	topicConnList := topic.Topic.GetConnListByTopics(payload.Topics)
+	for tpc, connList := range topicConnList {
 		// 添加到返回结果中
-		ret.Items[tpc] = &netsvrProtocol.TopicCustomerIdListRespItem{CustomerIds: customerIds}
+		ret.Items[tpc] = &netsvrProtocol.TopicCustomerIdListRespItem{CustomerIds: customer.GetCustomerIds(connList)}
 	}
 	send(taskConn, ret, netsvrProtocol.Cmd_TopicCustomerIdList)
 }

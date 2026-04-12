@@ -20,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
@@ -36,21 +35,16 @@ func topicPublishBulk(param []byte) {
 	}
 	//当业务进程传递的topics的topic数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个topic
 	if len(payload.Topics) == 1 && len(payload.Data) > 1 {
-		//先根据主题，获得主题下的所有uniqId
-		uniqIds := topic.Topic.GetUniqIds(payload.Topics[0], objPool.UniqIdSlice)
-		if uniqIds == nil {
+		//先根据主题，获得主题下的所有连接
+		connList := topic.Topic.GetConnListByTopic(payload.Topics[0], objPool.ConnSlice)
+		if connList == nil {
 			return
 		}
-		defer objPool.UniqIdSlice.Put(uniqIds)
-		//再迭代所有uniqId
-		uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+		defer objPool.ConnSlice.Put(connList)
+		connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
 		for _, data := range payload.Data {
 			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, data)
-			for _, uniqId := range uniqIdsAlias {
-				conn := manager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
+			for _, conn := range connListAlias {
 				msg.WriteTo(conn)
 			}
 		}
@@ -60,7 +54,6 @@ func topicPublishBulk(param []byte) {
 	if len(payload.Topics) > 0 && len(payload.Topics) == len(payload.Data) {
 		var index int
 		var currentTopic string
-		var uniqId string
 		//迭代所有的主题
 		for index, currentTopic = range payload.Topics {
 			//判断当前迭代的主题对应的数据是否有效
@@ -68,24 +61,18 @@ func topicPublishBulk(param []byte) {
 				continue
 			}
 			//获得当前迭代的主题下的所有uniqId
-			uniqIds := topic.Topic.GetUniqIds(currentTopic, objPool.UniqIdSlice)
-			if uniqIds == nil {
+			connList := topic.Topic.GetConnListByTopic(currentTopic, objPool.ConnSlice)
+			if connList == nil {
 				continue
 			}
-			//迭代所有uniqId
-			uniqIdsAlias := *uniqIds //搞个别名，避免循环中解指针，提高性能
+			connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
 			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data[index])
-			for _, uniqId = range uniqIdsAlias {
-				//根据uniqId获得对应的连接
-				conn := manager.Manager.Get(uniqId)
-				if conn == nil {
-					continue
-				}
+			for _, conn := range connListAlias {
 				//将当前迭代的主题对应的数据写入到该连接
 				msg.WriteTo(conn)
 			}
-			//将uniqIds归还给内存池
-			objPool.UniqIdSlice.Put(uniqIds)
+			//将connList归还给内存池
+			objPool.ConnSlice.Put(connList)
 		}
 	}
 }

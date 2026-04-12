@@ -294,3 +294,62 @@ func GetSession(conn gnet.Conn) (*info.Info, bool) {
 	}
 	return session, true
 }
+
+func CountCustomerIds(connList []gnet.Conn) int {
+	customerIdSet := make(map[string]struct{}, len(connList))
+	for _, conn := range connList {
+		wsCodec, ok := conn.Context().(*wsServer.Codec)
+		if ok && wsCodec != nil {
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if ok && session != nil {
+				customerId := session.GetCustomerIdOnSafe()
+				if customerId != "" {
+					customerIdSet[customerId] = struct{}{}
+				}
+			}
+		}
+	}
+	return len(customerIdSet)
+}
+
+func GetCustomerIds(connList []gnet.Conn) (customerIds []string) {
+	customerIdSet := make(map[string]struct{}, len(connList))
+	for _, conn := range connList {
+		wsCodec, ok := conn.Context().(*wsServer.Codec)
+		if ok && wsCodec != nil {
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if ok && session != nil {
+				customerId := session.GetCustomerIdOnSafe()
+				if customerId != "" {
+					customerIdSet[customerId] = struct{}{}
+				}
+			}
+		}
+	}
+	// 转换为 slice
+	if len(customerIdSet) == 0 {
+		return nil
+	}
+	customerIds = make([]string, 0, len(customerIdSet))
+	for id := range customerIdSet {
+		customerIds = append(customerIds, id)
+	}
+	return customerIds
+}
+
+func GetUniqIds(connList []gnet.Conn) (uniqIds []string) {
+	uniqIds = make([]string, 0, len(connList))
+	for _, conn := range connList {
+		wsCodec, ok := conn.Context().(*wsServer.Codec)
+		if ok && wsCodec != nil {
+			session, ok := wsCodec.GetSession().(*info.Info)
+			if ok && session != nil {
+				uniqId := session.GetUniqIdOnSafe()
+				if uniqId != "" {
+					uniqIds = append(uniqIds, uniqId)
+				}
+			}
+		}
+	}
+	return uniqIds
+}
