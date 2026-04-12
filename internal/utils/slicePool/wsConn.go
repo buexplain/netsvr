@@ -30,6 +30,9 @@ type WsConn struct {
 }
 
 func NewWsConn(step int) *WsConn {
+	if step <= 0 {
+		step = 16 // 默认步长
+	}
 	return &WsConn{
 		pools: map[int]*sync.Pool{},
 		step:  step,
@@ -38,6 +41,9 @@ func NewWsConn(step int) *WsConn {
 }
 
 func (r *WsConn) Get(capacity int) *[]gnet.Conn {
+	if capacity <= 0 {
+		capacity = 1 // 保证最小容量，避免创建空切片
+	}
 	poolIndex := (capacity + r.step - 1) / r.step
 	r.mux.RLock()
 	pool, ok := r.pools[poolIndex]

@@ -27,6 +27,9 @@ type StrSlice struct {
 }
 
 func NewStrSlice(step int) *StrSlice {
+	if step <= 0 {
+		step = 16 // 默认步长
+	}
 	return &StrSlice{
 		pools: map[int]*sync.Pool{},
 		step:  step,
@@ -35,6 +38,9 @@ func NewStrSlice(step int) *StrSlice {
 }
 
 func (r *StrSlice) Get(capacity int) *[]string {
+	if capacity <= 0 {
+		capacity = 1 // 保证最小容量，避免创建空切片
+	}
 	poolIndex := (capacity + r.step - 1) / r.step
 	r.mux.RLock()
 	pool, ok := r.pools[poolIndex]

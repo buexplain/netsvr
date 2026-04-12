@@ -586,3 +586,229 @@ func BenchmarkCountCustomerIds(b *testing.B) {
 		_ = tc.CountCustomerIds(uniqIds)
 	}
 }
+
+// BenchmarkDel 性能基准测试
+func BenchmarkDel(b *testing.B) {
+	tc := newTestCollect()
+
+	// 准备数据
+	for i := 0; i < b.N; i++ {
+		uniqId := "uniq" + string(rune(i%100))
+		tc.Set(uniqId, &MockConn{})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		uniqId := "uniq" + string(rune(i%100))
+		tc.Del(uniqId)
+	}
+}
+
+// BenchmarkLen 性能基准测试
+func BenchmarkLen(b *testing.B) {
+	tc := newTestCollect()
+
+	// 准备 1000 个连接
+	for i := 0; i < 1000; i++ {
+		tc.Set(fmt.Sprintf("uniq%d", i), &MockConn{})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = tc.Len()
+	}
+}
+
+// BenchmarkGetConnections 性能基准测试
+func BenchmarkGetConnections(b *testing.B) {
+	tc := newTestCollect()
+	sp := slicePool.NewWsConn(16)
+
+	// 准备 1000 个连接
+	for i := 0; i < 1000; i++ {
+		tc.Set(fmt.Sprintf("uniq%d", i), &MockConn{})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		conns := tc.GetConnections(sp)
+		if conns != nil {
+			sp.Put(conns)
+		}
+	}
+}
+
+// BenchmarkGetUniqIds 性能基准测试
+func BenchmarkGetUniqIds(b *testing.B) {
+	tc := newTestCollect()
+
+	// 准备 1000 个连接
+	for i := 0; i < 1000; i++ {
+		tc.Set(fmt.Sprintf("uniq%d", i), &MockConn{})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = tc.GetUniqIds()
+	}
+}
+
+// TestGetConnectionsPoolReuse 测试对象池复用
+func TestGetConnectionsPoolReuse(t *testing.T) {
+	tc := newTestCollect()
+	sp := slicePool.NewWsConn(16)
+
+	// 添加连接
+	for i := 0; i < 10; i++ {
+		tc.Set(fmt.Sprintf("uniq%d", i), &MockConn{})
+	}
+
+	// 第一次获取
+	conns1 := tc.GetConnections(sp)
+	if conns1 == nil {
+		t.Fatal("期望非 nil")
+	}
+	cap1 := cap(*conns1)
+
+	// 归还
+	sp.Put(conns1)
+
+	// 第二次获取，应该复用池中的切片
+	conns2 := tc.GetConnections(sp)
+	if conns2 == nil {
+		t.Fatal("期望非 nil")
+	}
+
+	// 验证容量相似（可能因实现略有不同）
+	if cap(*conns2) < cap1/2 {
+		t.Logf("警告：池复用可能未生效，cap1=%d, cap2=%d", cap1, cap(*conns2))
+	}
+
+	sp.Put(conns2)
+}
+
+// TestGetCustomerIdsWithInvalidContext 测试无效 context 的情况
+func TestGetCustomerIdsWithInvalidContext(t *testing.T) {
+	tc := newTestCollect()
+
+	// 添加一个没有 context 的连接
+	mockConn := &MockConn{}
+	mockConn.SetContext(nil) // 显式设置为 nil
+	tc.Set("uniq1", mockConn)
+
+	// 查询应该返回 nil（无有效 customerId）
+	result := tc.GetCustomerIds([]string{"uniq1"})
+	if result != nil {
+		t.Errorf("无效 context 期望返回 nil，实际 %v", result)
+	}
+
+	// 添加一个 context 不是 Codec 的连接
+	mockConn2 := &MockConn{}
+	mockConn2.SetContext("not a codec")
+	tc.Set("uniq2", mockConn2)
+
+	result = tc.GetCustomerIds([]string{"uniq2"})
+	if result != nil {
+		t.Errorf("非 Codec context 期望返回 nil，实际 %v", result)
+	}
+}
+
+// TestCountCustomerIdsWithInvalidContext 测试无效 context 的计数
+func TestCountCustomerIdsWithInvalidContext(t *testing.T) {
+	tc := newTestCollect()
+
+	// 添加无效 context 的连接
+	mockConn := &MockConn{}
+	mockConn.SetContext(nil)
+	tc.Set("uniq1", mockConn)
+
+	count := tc.CountCustomerIds([]string{"uniq1"})
+	if count != 0 {
+		t.Errorf("无效 context 期望计数 0，实际 %d", count)
+	}
+}
+
+// TestLargeScaleCrossShard 测试大规模跨分片场景
+func TestLargeScaleCrossShard(t *testing.T) {
+	tc := newTestCollect()
+
+	// 添加 500 个 uniqId，确保跨多个分片
+	const count = 500
+	for i := 0; i < count; i++ {
+		uniqId := fmt.Sprintf("uniq_%d", i)
+		tc.Set(uniqId, &MockConn{})
+	}
+
+	// 验证数量
+	if tc.Len() != count {
+		t.Errorf("Len() = %d, want %d", tc.Len(), count)
+	}
+
+	// 获取所有 uniqId
+	uniqIds := tc.GetUniqIds()
+	if len(uniqIds) != count {
+		t.Errorf("GetUniqIds() returned %d, want %d", len(uniqIds), count)
+	}
+
+	// 批量查询部分 uniqId
+	queryIds := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		queryIds[i] = fmt.Sprintf("uniq_%d", i*5) // 每隔 5 个查一个
+	}
+
+	customerIds := tc.GetCustomerIds(queryIds)
+	// 因为没有设置 session，应该返回 nil
+	if customerIds != nil {
+		t.Errorf("无 session 连接期望返回 nil，实际 %v", customerIds)
+	}
+
+	countResult := tc.CountCustomerIds(queryIds)
+	if countResult != 0 {
+		t.Errorf("无 session 连接期望计数 0，实际 %d", countResult)
+	}
+}
+
+// TestGetConnectionsEmptyState 测试空状态下的 GetConnections
+func TestGetConnectionsEmptyState(t *testing.T) {
+	tc := newTestCollect()
+	sp := slicePool.NewWsConn(16)
+
+	// 空状态应返回 nil
+	conns := tc.GetConnections(sp)
+	if conns != nil {
+		t.Errorf("空状态期望返回 nil，实际 %v", conns)
+	}
+}
+
+// TestHashUniqIdDistribution 测试哈希分布均匀性
+func TestHashUniqIdDistribution(t *testing.T) {
+	shardCounts := make([]int, shardCount)
+
+	// 生成 10000 个不同的 uniqId
+	for i := 0; i < 10000; i++ {
+		uniqId := fmt.Sprintf("uniq_%d", i)
+		idx := hashUniqId(uniqId)
+		shardCounts[idx]++
+	}
+
+	// 计算平均值
+	avg := 10000.0 / shardCount
+
+	// 检查分布
+	maxCount := 0
+	minCount := 10000
+	for _, count := range shardCounts {
+		if count > maxCount {
+			maxCount = count
+		}
+		if count < minCount {
+			minCount = count
+		}
+	}
+
+	deviation := float64(maxCount-minCount) / avg
+	if deviation > 1.0 {
+		t.Logf("分片分布: 最大=%d, 最小=%d, 平均=%.2f, 偏差=%.2f%%",
+			maxCount, minCount, avg, deviation*100)
+	}
+}

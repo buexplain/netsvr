@@ -63,5 +63,12 @@ func singleCastBulkByCustomerId(param []byte) {
 				msg.WriteTo(conn)
 			}
 		}
+		return
+	}
+	if len(payload.CustomerIds) > 0 && len(payload.CustomerIds) != len(payload.Data) {
+		log.Logger.Warn().
+			Int("customerIdsLen", len(payload.CustomerIds)).
+			Int("dataLen", len(payload.Data)).
+			Msg("singleCastBulkByCustomerId: length mismatch, message dropped")
 	}
 }

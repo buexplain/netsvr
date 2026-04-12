@@ -34,9 +34,8 @@ func process(workerConn *Conn) {
 		workerConn.Close()
 		if err := recover(); err != nil {
 			log.Logger.Error().
-				Stack().Err(nil).
-				Type("recoverType", err).
-				Interface("recover", err).
+				Stack().
+				Any("panic", err).
 				Int32("events", workerConn.GetEvents()).
 				Str("connId", workerConn.connId).
 				Msg("Worker receive coroutine is closed")

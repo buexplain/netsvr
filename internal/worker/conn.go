@@ -69,9 +69,8 @@ func (r *Conn) loopSend() {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Logger.Error().
-				Stack().Err(nil).
-				Type("recoverType", err).
-				Interface("recover", err).
+				Stack().
+				Any("panic", err).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send coroutine is closed")
@@ -207,9 +206,8 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 				logEvent = log.Logger.Error()
 			}
 			logEvent.
-				Stack().Err(nil).
-				Type("recoverType", panicErr).
-				Interface("recover", panicErr).
+				Stack().
+				Any("panic", panicErr).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send sendCh failed")

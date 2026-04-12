@@ -84,9 +84,8 @@ func Process(conn net.Conn) {
 		_ = conn.Close()
 		if err := recover(); err != nil {
 			log.Logger.Error().
-				Stack().Err(nil).
-				Type("recoverType", err).
-				Interface("recover", err).
+				Stack().
+				Any("panic", err).
 				Msg("Task coroutine is closed")
 		} else {
 			log.Logger.Debug().
@@ -154,9 +153,8 @@ func Process(conn net.Conn) {
 				defer func() {
 					if err := recover(); err != nil {
 						log.Logger.Error().
-							Stack().Err(nil).
-							Type("recoverType", err).
-							Interface("recover", err).
+							Stack().
+							Any("panic", err).
 							Str("cmd", currentCmd.String()).
 							Msg("Task exec cmd failed")
 					}
@@ -188,6 +186,9 @@ func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
 	// 编码业务数据
 	body, err := proto.Marshal(message)
 	if err != nil {
+		log.Logger.Error().Err(err).
+			Str("cmd", cmd.String()).
+			Msg("Task proto marshal failed")
 		return
 	}
 	//填充 cmd 字段 (大端序)

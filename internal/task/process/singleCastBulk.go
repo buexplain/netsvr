@@ -73,5 +73,12 @@ func singleCastBulk(param []byte) {
 			//将数据写入到连接中
 			customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data[index])
 		}
+		return
+	}
+	if len(payload.UniqIds) > 0 && len(payload.UniqIds) != len(payload.Data) {
+		log.Logger.Warn().
+			Int("uniqIdsLen", len(payload.UniqIds)).
+			Int("dataLen", len(payload.Data)).
+			Msg("singleCastBulk: length mismatch, message dropped")
 	}
 }
