@@ -169,9 +169,31 @@ func Process(conn net.Conn) {
 					Msg("Task submit to worker pool failed")
 			}
 		} else if pbCallback, ok := postBlockingCallback[currentCmd]; ok {
-			pbCallback(data[4:])
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().
+							Any("panic", err).
+							Str("cmd", currentCmd.String()).
+							Msg("Task exec cmd failed")
+					}
+				}()
+				pbCallback(data[4:])
+			}()
 		} else if gCallback, ok := getCallback[currentCmd]; ok {
-			gCallback(data[4:], conn)
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().
+							Any("panic", err).
+							Str("cmd", currentCmd.String()).
+							Msg("Task exec cmd failed")
+					}
+				}()
+				gCallback(data[4:], conn)
+			}()
 		} else {
 			log.Logger.Error().
 				Str("cmd", currentCmd.String()).

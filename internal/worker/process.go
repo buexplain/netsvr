@@ -117,9 +117,31 @@ func process(workerConn *Conn) {
 		}
 		currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
 		if currentCmd == netsvrProtocol.Cmd_Register {
-			register(data[4:], workerConn)
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().
+							Any("panic", err).
+							Str("cmd", currentCmd.String()).
+							Msg("Worker exec cmd failed")
+					}
+				}()
+				register(data[4:], workerConn)
+			}()
 		} else if currentCmd == netsvrProtocol.Cmd_Unregister {
-			unregister(data[4:], workerConn)
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						log.Logger.Error().
+							Stack().
+							Any("panic", err).
+							Str("cmd", currentCmd.String()).
+							Msg("Worker exec cmd failed")
+					}
+				}()
+				unregister(data[4:], workerConn)
+			}()
 		} else {
 			log.Logger.Error().
 				Int32("events", workerConn.GetEvents()).
