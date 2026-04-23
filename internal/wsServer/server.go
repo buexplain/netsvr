@@ -74,10 +74,10 @@ func (server *Server) OnTick() (delay time.Duration, action gnet.Action) {
 
 func (server *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 	wsCodec, _ := c.Context().(*Conn)
-	if wsCodec.upgraded == false {
+	if wsCodec.isUpgraded() == false {
 		var req *http.Request
 		req, action = wsCodec.upgrade(server.OnUpgradeCheck, c)
-		if wsCodec.upgraded {
+		if wsCodec.isUpgraded() {
 			if statusCode, err := server.OnWebsocketOpen(wsCodec, req); err != nil {
 				wsCodec.SetClosedFlagOnSafe() //onopen失败，服务端主动关闭
 				payload := ws.NewCloseFrameBody(statusCode, err.Error())

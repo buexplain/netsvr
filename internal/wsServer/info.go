@@ -29,22 +29,22 @@ import (
 type info struct {
 	//锁（放在最前面，确保8字节对齐）
 	rwMutex sync.RWMutex
+	//在进程内的唯一id
+	id uint64
+	//当前窗口的开始时间（Unix时间戳，秒）
+	limitWindowStart int64
 	//客户在网关中的唯一id
 	uniqId string
 	//客户在业务系统中的唯一id
 	customerId string
 	//客户存储在网关中的数据
 	session string
-	//当前窗口的开始时间（Unix时间戳，秒）
-	limitWindowStart int64
 	//客户订阅的主题
 	topics map[string]struct{}
 	//当前窗口内的请求数
 	limitWindowRequests int32
 	//最后活跃时间
 	lastActiveTime uint32 //2106-02-07 14:28:15之后，本程序不会支持
-	//在进程内的唯一id
-	id uint64
 }
 
 func newInfo() info {

@@ -37,12 +37,12 @@ import (
 type codec struct {
 	preMessagePayload  *messagePayload // 上一个帧的数据
 	currMessagePayload *messagePayload // 当前帧的数据
-	closed             uint32          // 是否服务端主动关闭
-	upgraded           bool
-	compression        bool
-	preMessageOpCode   ws.OpCode
-	currMessageOpCode  ws.OpCode
-	messageRsv         byte // 0~7 的整数，由于控制帧可以穿插在消息帧的分片中，但是控制帧又没有 rsv，所有只需一个字段即可，当控制帧穿插进来的时候，无需转移保存
+	closed             uint32          // 是否服务端主动关闭（4字节）
+	// flags字段的位定义：bit0=upgraded, bit1=compression
+	flags             byte      // 标志位：bit0表示是否已升级协议，bit1表示是否启用压缩
+	preMessageOpCode  ws.OpCode // 上一个消息的操作码（byte类型）
+	currMessageOpCode ws.OpCode // 当前消息的操作码（byte类型）
+	messageRsv        byte      // 0~7 的整数，由于控制帧可以穿插在消息帧的分片中，但是控制帧又没有 rsv，所有只需一个字段即可，当控制帧穿插进来的时候，无需转移保存
 }
 
 func newCodec() codec {
@@ -61,8 +61,32 @@ func (r *codec) IsClosedOnSafe() bool {
 	return atomic.LoadUint32(&r.closed) == 1
 }
 
+// setUpgraded 设置upgraded标志位（bit0）
+func (r *codec) setUpgraded(upgraded bool) {
+	if upgraded {
+		r.flags |= 0x01 // 设置bit0为1
+	} else {
+		r.flags &^= 0x01 // 清除bit0
+	}
+}
+
+// isUpgraded 获取upgraded标志位
+func (r *codec) isUpgraded() bool {
+	return r.flags&0x01 != 0
+}
+
+// setCompression 设置compression标志位（bit1）
+func (r *codec) setCompression(compression bool) {
+	if compression {
+		r.flags |= 0x02 // 设置bit1为1
+	} else {
+		r.flags &^= 0x02 // 清除bit1
+	}
+}
+
+// IsCompressOnSafe 获取compression标志位
 func (r *codec) IsCompressOnSafe() bool {
-	return r.compression
+	return r.flags&0x02 != 0
 }
 
 func (r *codec) resetCurrMessage() {
@@ -188,7 +212,7 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 		}
 		for _, option := range options {
 			if bytes.Equal(option.Name, wsflate.ExtensionNameBytes) {
-				r.compression = true
+				r.setCompression(true)
 				break
 			}
 		}
@@ -226,7 +250,7 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 	}
 
 	//添加压缩扩展
-	if r.compression {
+	if r.IsCompressOnSafe() {
 		//两个参数直接决定了系统的内存开销和压缩率，除非你的并发连接数非常少，且对压缩率有极致要求，否则永远选择 no_context_takeover。
 		//这是一个典型的用少量性能损失换取巨大可伸缩性和稳定性的架构决策。
 		// server_no_context_takeover //告诉客户端，服务器不会为客户端的不同消息复用同一个 LZ77 滑动窗口（即压缩上下文），每次压缩都是独立的。
@@ -247,7 +271,7 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 	}
 
 	//升级成功
-	r.upgraded = true
+	r.setUpgraded(true)
 
 	return req, gnet.None
 }
@@ -281,7 +305,7 @@ func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 		}
 		if head.Rsv != 0 {
 			//未协商开启压缩扩展，RSV1 bits MUST be 0
-			if r.compression == false {
+			if r.IsCompressOnSafe() == false {
 				return nil, ws.StatusProtocolError, errors.New("RSV1 bits must be 0 without extensions")
 			} else if head.OpCode.IsControl() {
 				//控制帧的 RSV1 不对
@@ -307,7 +331,7 @@ func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 					return nil, ws.StatusProtocolError, errors.New("non-first fragment must be continuation")
 				}
 				//协商已开启压缩扩展，连续帧的 RSV1 不对
-				if r.compression && head.Rsv != 0 {
+				if r.IsCompressOnSafe() && head.Rsv != 0 {
 					return nil, ws.StatusProtocolError, errors.New("RSV1 must be 0")
 				}
 			}
@@ -355,7 +379,7 @@ func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 		copy(head.Mask[:], peek[:4])
 		//即将得到一个完整的消息帧，此刻可以记住首帧的opcode、RSV
 		if r.currMessageOpCode == 255 {
-			if r.compression && head.Rsv != 4 && head.Rsv != 0 {
+			if r.IsCompressOnSafe() && head.Rsv != 4 && head.Rsv != 0 {
 				//协商启用了压缩扩展，首帧的 RSV1 不对
 				return nil, ws.StatusProtocolError, errors.New("RSV1 must be 0 or 4")
 			}
@@ -376,7 +400,7 @@ func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 			//当前 header 已经是一个完整消息
 			if r.currMessageOpCode == ws.OpText {
 				//解压缩数据
-				if r.compression && r.messageRsv == 4 {
+				if r.IsCompressOnSafe() && r.messageRsv == 4 {
 					completeMessagePayload, err = wsflate.DefaultHelper.Decompress(completeMessagePayload)
 					if err != nil {
 						return nil, ws.StatusInvalidFramePayloadData, errors.New("invalid deflate stream")
@@ -388,7 +412,7 @@ func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 				}
 			} else if r.currMessageOpCode == ws.OpBinary {
 				//解压缩数据
-				if r.compression && r.messageRsv == 4 {
+				if r.IsCompressOnSafe() && r.messageRsv == 4 {
 					completeMessagePayload, err = wsflate.DefaultHelper.Decompress(completeMessagePayload)
 					if err != nil {
 						return nil, ws.StatusInvalidFramePayloadData, errors.New("invalid deflate stream")
