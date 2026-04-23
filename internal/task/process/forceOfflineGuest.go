@@ -23,7 +23,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
@@ -43,9 +42,11 @@ func forceOfflineGuest(param []byte) {
 	closeFrame := customer.BuildCloseFrame(ws.StatusPolicyViolation, errors.New("forceOfflineGuest"))
 	fn := func(uniqId string, msg *customer.Message) {
 		conn := customerManager.Manager.Get(uniqId)
-		session, _ := conn.GetSession().(*info.Info)
+		if conn == nil {
+			return
+		}
 		//跳过已经登录的 session
-		if session.IsLoginOnSafe() {
+		if conn.IsLoginOnSafe() {
 			return
 		}
 		//判断是否转发数据

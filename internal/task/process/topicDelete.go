@@ -20,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
@@ -43,8 +42,7 @@ func topicDelete(param []byte) {
 	if len(payload.Data) == 0 {
 		for topic, connMap := range arr {
 			for _, conn := range connMap {
-				session, _ := conn.GetSession().(*info.Info)
-				_ = session.UnsubscribeTopicOnSafe(topic)
+				_ = conn.UnsubscribeTopicOnSafe(topic)
 			}
 		}
 		return
@@ -55,14 +53,13 @@ func topicDelete(param []byte) {
 		connCount += len(connMap)
 	}
 	//创建一个map，用于去重
-	unsubscribeConn := make(map[int]*wsServer.Codec, connCount)
+	unsubscribeConn := make(map[uint64]*wsServer.Conn, connCount)
 	//遍历所有主题
 	for topic, connMap := range arr {
 		for _, conn := range connMap {
-			session, _ := conn.GetSession().(*info.Info)
 			//取消订阅
-			if session.UnsubscribeTopicOnSafe(topic) {
-				unsubscribeConn[conn.Fd()] = conn
+			if conn.UnsubscribeTopicOnSafe(topic) {
+				unsubscribeConn[conn.GetIdOnSafe()] = conn
 			}
 		}
 	}

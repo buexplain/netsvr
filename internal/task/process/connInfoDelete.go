@@ -21,7 +21,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
@@ -40,26 +39,28 @@ func connInfoDelete(param []byte) {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
-	session, _ := conn.GetSession().(*info.Info)
-	session.Lock()
-	defer session.UnLock()
-	if conn.IsClosed() {
+	if conn == nil {
+		return
+	}
+	conn.Lock()
+	defer conn.UnLock()
+	if conn.IsClosedOnSafe() {
 		return
 	}
 	//删除主题
 	if payload.DelTopic {
-		topics := session.PullTopics()
+		topics := conn.PullTopics()
 		topic.Topic.DelRelationByMap(topics, conn)
 	}
 	//删除session
 	if payload.DelSession {
-		session.SetSession("")
+		conn.SetSession("")
 	}
 	if payload.DelCustomerId {
-		customerId := session.GetCustomerId()
+		customerId := conn.GetCustomerId()
 		if customerId != "" {
 			binder.Binder.DelRelation(customerId, conn)
-			session.SetCustomerId("")
+			conn.SetCustomerId("")
 		}
 	}
 	//有数据，则转发给客户

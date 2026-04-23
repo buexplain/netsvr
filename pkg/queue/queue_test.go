@@ -989,7 +989,7 @@ func TestBurstProducerConsumer(t *testing.T) {
 	}
 }
 
-// TestIsClosed 测试 IsClosed 方法
+// TestIsClosed 测试 IsClosedOnSafe 方法
 func TestIsClosed(t *testing.T) {
 	q := New[int](4)
 

@@ -40,7 +40,7 @@ func NewWsConn(step int) *WsConn {
 	}
 }
 
-func (r *WsConn) Get(capacity int) *[]*wsServer.Codec {
+func (r *WsConn) Get(capacity int) *[]*wsServer.Conn {
 	if capacity <= 0 {
 		capacity = 1 // 保证最小容量，避免创建空切片
 	}
@@ -49,13 +49,13 @@ func (r *WsConn) Get(capacity int) *[]*wsServer.Codec {
 	pool, ok := r.pools[poolIndex]
 	r.mux.RUnlock()
 	if ok {
-		return pool.Get().(*[]*wsServer.Codec)
+		return pool.Get().(*[]*wsServer.Conn)
 	}
-	s := make([]*wsServer.Codec, 0, poolIndex*r.step)
+	s := make([]*wsServer.Conn, 0, poolIndex*r.step)
 	return &s
 }
 
-func (r *WsConn) Put(s *[]*wsServer.Codec) {
+func (r *WsConn) Put(s *[]*wsServer.Conn) {
 	poolIndex := (cap(*s) + r.step - 1) / r.step
 	*s = (*s)[:0]
 	r.mux.RLock()
@@ -74,7 +74,7 @@ func (r *WsConn) Put(s *[]*wsServer.Codec) {
 	}
 	pool = &sync.Pool{
 		New: func() any {
-			tmp := make([]*wsServer.Codec, 0, poolIndex*r.step)
+			tmp := make([]*wsServer.Conn, 0, poolIndex*r.step)
 			return &tmp
 		},
 	}

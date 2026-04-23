@@ -21,7 +21,6 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/info"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
@@ -40,35 +39,37 @@ func connInfoUpdate(param []byte) {
 		return
 	}
 	conn := manager.Manager.Get(payload.UniqId)
-	session, _ := conn.GetSession().(*info.Info)
-	session.Lock()
-	defer session.UnLock()
-	if conn.IsClosed() {
+	if conn == nil {
+		return
+	}
+	conn.Lock()
+	defer conn.UnLock()
+	if conn.IsClosedOnSafe() {
 		return
 	}
 	//设置session
 	if payload.NewSession != "" {
-		session.SetSession(payload.NewSession)
+		conn.SetSession(payload.NewSession)
 	}
 	//设置customerId
 	if payload.NewCustomerId != "" {
-		oldCustomerId := session.GetCustomerId()
+		oldCustomerId := conn.GetCustomerId()
 		if oldCustomerId != "" {
 			//删除旧关系
 			binder.Binder.DelRelation(oldCustomerId, conn)
 		}
 		//设置新关系
 		binder.Binder.SetRelation(payload.NewCustomerId, conn)
-		session.SetCustomerId(payload.NewCustomerId)
+		conn.SetCustomerId(payload.NewCustomerId)
 	}
 	//设置主题
 	if len(payload.NewTopics) > 0 {
 		//清空旧主题
-		topics := session.PullTopics()
+		topics := conn.PullTopics()
 		//删除旧主题的关系
 		topic.Topic.DelRelationByMap(topics, conn)
 		//订阅新主题
-		session.SubscribeTopics(payload.NewTopics)
+		conn.SubscribeTopics(payload.NewTopics)
 		//构建新主题的关系
 		topic.Topic.SetRelation(payload.NewTopics, conn)
 	}

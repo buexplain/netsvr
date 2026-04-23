@@ -14,19 +14,19 @@
 * limitations under the License.
  */
 
-// Package info 保持客户连接的session数据模块
-package info
+package wsServer
 
 import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/configs"
+	"netsvr/internal/wsServer/uniqIdGen"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Info 保持客户连接的信息的结构体
-type Info struct {
+// info 保持客户连接的信息的结构体
+type info struct {
 	//锁（放在最前面，确保8字节对齐）
 	rwMutex sync.RWMutex
 	//客户在网关中的唯一id
@@ -43,11 +43,15 @@ type Info struct {
 	limitWindowRequests int32
 	//最后活跃时间
 	lastActiveTime uint32 //2106-02-07 14:28:15之后，本程序不会支持
+	//在进程内的唯一id
+	id uint64
 }
 
-func New(uniqId string) *Info {
-	return &Info{
+func newInfo() info {
+	uniqId, id := uniqIdGen.New()
+	return info{
 		uniqId:              uniqId,
+		id:                  id,
 		limitWindowStart:    0, // 初始化为0，第一次调用Allow时会设置
 		limitWindowRequests: 0 - configs.Config.Customer.LimitZeroWindowMaxRequests,
 		topics:              nil,
@@ -56,31 +60,31 @@ func New(uniqId string) *Info {
 	}
 }
 
-func (r *Info) UpdateLastActiveTimeOnSafe() {
+func (r *info) UpdateLastActiveTimeOnSafe() {
 	atomic.StoreUint32(&r.lastActiveTime, uint32(time.Now().Unix()))
 }
 
-func (r *Info) GetLastActiveTimeOnSafe() uint32 {
+func (r *info) GetLastActiveTimeOnSafe() uint32 {
 	return atomic.LoadUint32(&r.lastActiveTime)
 }
 
-func (r *Info) RLock() {
+func (r *info) RLock() {
 	r.rwMutex.RLock()
 }
 
-func (r *Info) RUnlock() {
+func (r *info) RUnlock() {
 	r.rwMutex.RUnlock()
 }
 
-func (r *Info) Lock() {
+func (r *info) Lock() {
 	r.rwMutex.Lock()
 }
 
-func (r *Info) UnLock() {
+func (r *info) UnLock() {
 	r.rwMutex.Unlock()
 }
 
-func (r *Info) Allow() bool {
+func (r *info) Allow() bool {
 	//先消耗初始的固定请求数
 	if r.limitWindowRequests < 0 {
 		r.limitWindowRequests++
@@ -100,7 +104,7 @@ func (r *Info) Allow() bool {
 	return false
 }
 
-func (r *Info) Snapshot() (uniqId string, customerId string, session string, topics []string) {
+func (r *info) Snapshot() (uniqId string, customerId string, session string, topics []string) {
 	topics = r.getTopics()
 	uniqId = r.uniqId
 	session = r.session
@@ -108,25 +112,29 @@ func (r *Info) Snapshot() (uniqId string, customerId string, session string, top
 	return
 }
 
-func (r *Info) GetUniqIdOnSafe() string {
+func (r *info) GetUniqIdOnSafe() string {
 	//这里无需锁，因为没有地方会修改uniqId
 	return r.uniqId
 }
+func (r *info) GetIdOnSafe() uint64 {
+	//这里无需锁，因为没有地方会修改uniqId
+	return r.id
+}
 
-func (r *Info) GetCustomerIdOnSafe() string {
+func (r *info) GetCustomerIdOnSafe() string {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	return r.customerId
 }
 
-func (r *Info) IsLoginOnSafe() bool {
+func (r *info) IsLoginOnSafe() bool {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	//有session或customerId，则视为登录状态的连接
 	return r.session != "" || r.customerId != ""
 }
 
-func (r *Info) GetConnInfoOnSafe(connInfoReq *netsvrProtocol.ConnInfoReq, connInfoRespItem *netsvrProtocol.ConnInfoRespItem) {
+func (r *info) GetConnInfoOnSafe(connInfoReq *netsvrProtocol.ConnInfoReq, connInfoRespItem *netsvrProtocol.ConnInfoRespItem) {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	if connInfoReq.ReqSession {
@@ -140,7 +148,7 @@ func (r *Info) GetConnInfoOnSafe(connInfoReq *netsvrProtocol.ConnInfoReq, connIn
 	}
 }
 
-func (r *Info) GetConnInfoByCustomerIdOnSafe(connInfoReq *netsvrProtocol.ConnInfoByCustomerIdReq, connInfoRespItem *netsvrProtocol.ConnInfoByCustomerIdRespItem) {
+func (r *info) GetConnInfoByCustomerIdOnSafe(connInfoReq *netsvrProtocol.ConnInfoByCustomerIdReq, connInfoRespItem *netsvrProtocol.ConnInfoByCustomerIdRespItem) {
 	r.rwMutex.RLock()
 	defer r.rwMutex.RUnlock()
 	if connInfoReq.ReqSession {
@@ -154,11 +162,11 @@ func (r *Info) GetConnInfoByCustomerIdOnSafe(connInfoReq *netsvrProtocol.ConnInf
 	}
 }
 
-func (r *Info) GetCustomerId() string {
+func (r *info) GetCustomerId() string {
 	return r.customerId
 }
 
-func (r *Info) getTopics() []string {
+func (r *info) getTopics() []string {
 	topics := make([]string, 0, len(r.topics))
 	for topic := range r.topics {
 		topics = append(topics, topic)
@@ -166,22 +174,22 @@ func (r *Info) getTopics() []string {
 	return topics
 }
 
-func (r *Info) SetCustomerId(customerId string) {
+func (r *info) SetCustomerId(customerId string) {
 	r.customerId = customerId
 }
 
-func (r *Info) SetSession(session string) {
+func (r *info) SetSession(session string) {
 	r.session = session
 }
 
-func (r *Info) PullTopics() map[string]struct{} {
+func (r *info) PullTopics() map[string]struct{} {
 	ret := r.topics
 	r.topics = nil
 	return ret
 }
 
 // SubscribeTopics 订阅，并返回当前的uniqId
-func (r *Info) SubscribeTopics(topics []string) {
+func (r *info) SubscribeTopics(topics []string) {
 	if r.topics == nil {
 		r.topics = make(map[string]struct{}, len(topics))
 	}
@@ -196,14 +204,14 @@ func (r *Info) SubscribeTopics(topics []string) {
 }
 
 // UnsubscribeTopics 取消订阅，并返回当前的uniqId
-func (r *Info) UnsubscribeTopics(topics []string) {
+func (r *info) UnsubscribeTopics(topics []string) {
 	for _, topic := range topics {
 		delete(r.topics, topic)
 	}
 }
 
 // UnsubscribeTopicOnSafe 取消订阅
-func (r *Info) UnsubscribeTopicOnSafe(topic string) bool {
+func (r *info) UnsubscribeTopicOnSafe(topic string) bool {
 	r.rwMutex.Lock()
 	defer r.rwMutex.Unlock()
 	if _, ok := r.topics[topic]; ok {

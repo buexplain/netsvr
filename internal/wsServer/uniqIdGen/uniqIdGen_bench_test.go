@@ -24,7 +24,7 @@ func BenchmarkNew(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = New()
+		_, _ = New()
 	}
 }
 
@@ -35,7 +35,7 @@ func BenchmarkNewParallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = New()
+			_, _ = New()
 		}
 	})
 }

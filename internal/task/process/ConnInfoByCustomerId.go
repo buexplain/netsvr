@@ -21,7 +21,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/info"
 	"netsvr/internal/log"
 )
 
@@ -39,9 +38,8 @@ func connInfoByCustomerId(param []byte, taskConn net.Conn) {
 		items := netsvrProtocol.ConnInfoByCustomerIdRespItems{}
 		// 遍历连接信息
 		for _, conn := range connList {
-			session, _ := conn.GetSession().(*info.Info)
 			item := &netsvrProtocol.ConnInfoByCustomerIdRespItem{}
-			session.GetConnInfoByCustomerIdOnSafe(payload, item)
+			conn.GetConnInfoByCustomerIdOnSafe(payload, item)
 			items.Items = append(items.Items, item)
 		}
 		// 如果items不为空，则添加到返回值中

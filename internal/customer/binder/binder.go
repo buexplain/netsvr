@@ -30,7 +30,7 @@ const shardMask = shardCount - 1 // 255 = 0b11111111
 
 type shard struct {
 	mux  sync.RWMutex
-	data map[string]map[int]*wsServer.Codec //customerId --> set(*wsServer.Codec)
+	data map[string]map[uint64]*wsServer.Conn //customerId --> set(*wsServer.Conn)
 }
 
 type collect struct {
@@ -48,26 +48,26 @@ func hashCustomerId(customerId string) int {
 	return int(hash & uint32(shardMask))
 }
 
-func (r *collect) SetRelation(customerId string, wsCodec *wsServer.Codec) {
+func (r *collect) SetRelation(customerId string, wsCodec *wsServer.Conn) {
 	idx := hashCustomerId(customerId)
 	sd := &r.shards[idx]
 	sd.mux.Lock()
 	defer sd.mux.Unlock()
 	c, ok := sd.data[customerId]
 	if !ok {
-		c = make(map[int]*wsServer.Codec, 1)
+		c = make(map[uint64]*wsServer.Conn, 1)
 		sd.data[customerId] = c
 	}
-	c[wsCodec.Fd()] = wsCodec
+	c[wsCodec.GetIdOnSafe()] = wsCodec
 }
 
-func (r *collect) DelRelation(customerId string, wsCodec *wsServer.Codec) {
+func (r *collect) DelRelation(customerId string, wsCodec *wsServer.Conn) {
 	idx := hashCustomerId(customerId)
 	sd := &r.shards[idx]
 	sd.mux.Lock()
 	defer sd.mux.Unlock()
 	if c, ok := sd.data[customerId]; ok {
-		delete(c, wsCodec.Fd())
+		delete(c, wsCodec.GetIdOnSafe())
 		if len(c) == 0 {
 			delete(sd.data, customerId)
 		}
@@ -111,7 +111,7 @@ func (r *collect) GetCustomerIds() (customerIds []string) {
 }
 
 // GetConnListByCustomerId 获取某个customerId的conn列表
-func (r *collect) GetConnListByCustomerId(customerId string) (connList []*wsServer.Codec) {
+func (r *collect) GetConnListByCustomerId(customerId string) (connList []*wsServer.Conn) {
 	if customerId == "" {
 		return nil
 	}
@@ -120,7 +120,7 @@ func (r *collect) GetConnListByCustomerId(customerId string) (connList []*wsServ
 	sd.mux.RLock()
 	defer sd.mux.RUnlock()
 	if c, ok := sd.data[customerId]; ok {
-		connList = make([]*wsServer.Codec, 0, len(c))
+		connList = make([]*wsServer.Conn, 0, len(c))
 		for _, conn := range c {
 			connList = append(connList, conn)
 		}
@@ -130,7 +130,7 @@ func (r *collect) GetConnListByCustomerId(customerId string) (connList []*wsServ
 }
 
 // GetConnListByCustomerIds 获取多个customerId的conn列表
-func (r *collect) GetConnListByCustomerIds(customerIds []string) (customerIdConnList map[string][]*wsServer.Codec) {
+func (r *collect) GetConnListByCustomerIds(customerIds []string) (customerIdConnList map[string][]*wsServer.Conn) {
 	// 按 shard 分组，减少锁切换次数
 	var shardGroups [shardCount][]string
 	for _, customerId := range customerIds {
@@ -140,7 +140,7 @@ func (r *collect) GetConnListByCustomerIds(customerIds []string) (customerIdConn
 		idx := hashCustomerId(customerId)
 		shardGroups[idx] = append(shardGroups[idx], customerId)
 	}
-	customerIdConnList = make(map[string][]*wsServer.Codec, len(customerIds))
+	customerIdConnList = make(map[string][]*wsServer.Conn, len(customerIds))
 	for idx, cList := range shardGroups {
 		if len(cList) == 0 {
 			continue
@@ -149,7 +149,7 @@ func (r *collect) GetConnListByCustomerIds(customerIds []string) (customerIdConn
 		sd.mux.RLock()
 		for _, customerId := range cList {
 			if c, ok := sd.data[customerId]; ok {
-				connList := make([]*wsServer.Codec, 0, len(c))
+				connList := make([]*wsServer.Conn, 0, len(c))
 				for _, conn := range c {
 					connList = append(connList, conn)
 				}
@@ -167,6 +167,6 @@ var Binder *collect
 func init() {
 	Binder = &collect{}
 	for i := range Binder.shards {
-		Binder.shards[i].data = make(map[string]map[int]*wsServer.Codec, 64*runtime.NumCPU())
+		Binder.shards[i].data = make(map[string]map[uint64]*wsServer.Conn, 64*runtime.NumCPU())
 	}
 }

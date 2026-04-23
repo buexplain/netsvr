@@ -24,7 +24,6 @@ import (
 	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"io"
 	"netsvr/configs"
-	"netsvr/internal/customer/info"
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/timer"
@@ -60,12 +59,12 @@ type Message struct {
 	uncompressed []byte
 }
 
-func (r *Message) WriteTo(wsCodec *wsServer.Codec) bool {
-	if wsCodec.IsClosed() {
+func (r *Message) WriteTo(conn *wsServer.Conn) bool {
+	if conn.IsClosedOnSafe() {
 		return false
 	}
 	//需要压缩，并且数据值得压缩
-	if wsCodec.IsCompress() && len(r.data) > compressingValue {
+	if conn.IsCompressOnSafe() && len(r.data) > compressingValue {
 		//先压缩数据
 		if r.compressed == nil {
 			compressBytes := byteslice.Get(len(r.data)) //申请一块用于压缩的内存
@@ -98,7 +97,7 @@ func (r *Message) WriteTo(wsCodec *wsServer.Codec) bool {
 			r.compressed = buff.Bytes()
 		}
 		//再发送数据
-		err := wsCodec.AsyncWrite(r.compressed)
+		err := conn.AsyncWriteOnSafe(r.compressed)
 		if err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(r.compressed)))
@@ -131,7 +130,7 @@ func (r *Message) WriteTo(wsCodec *wsServer.Codec) bool {
 		r.uncompressed = buff.Bytes()
 	}
 	//frame已经编码ok，发送数据
-	err := wsCodec.AsyncWrite(r.uncompressed)
+	err := conn.AsyncWriteOnSafe(r.uncompressed)
 	if err == nil {
 		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(r.uncompressed)))
@@ -152,12 +151,12 @@ func NewMessage(messageType ws.OpCode, data []byte) *Message {
 }
 
 // WriteMessage 发送数据
-func WriteMessage(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) bool {
-	if wsCodec.IsClosed() {
+func WriteMessage(conn *wsServer.Conn, messageType ws.OpCode, data []byte) bool {
+	if conn.IsClosedOnSafe() {
 		return false
 	}
 	//需要压缩，并且数据值得压缩
-	if wsCodec.IsCompress() && len(data) > compressingValue {
+	if conn.IsCompressOnSafe() && len(data) > compressingValue {
 		compressBytes := byteslice.Get(len(data)) //申请一块用于压缩的内存
 		defer byteslice.Put(compressBytes)        //回收内存
 		buff := buffer.New(compressBytes[:0])     //创建一个buffer容器
@@ -187,7 +186,7 @@ func WriteMessage(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) b
 		}
 		//再发送数据
 		encodedBytes := buff.Bytes()
-		err = wsCodec.AsyncWrite(encodedBytes)
+		err = conn.AsyncWriteOnSafe(encodedBytes)
 		if err == nil {
 			metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 			metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
@@ -218,7 +217,7 @@ func WriteMessage(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) b
 	}
 	//frame已经编码ok，发送数据
 	encodedBytes := buff.Bytes()
-	err = wsCodec.AsyncWrite(encodedBytes)
+	err = conn.AsyncWriteOnSafe(encodedBytes)
 	if err == nil {
 		metrics.Registry[metrics.ItemCustomerWriteCount].Meter.Mark(1)
 		metrics.Registry[metrics.ItemCustomerWriteByte].Meter.Mark(int64(len(encodedBytes)))
@@ -232,25 +231,25 @@ func WriteMessage(wsCodec *wsServer.Codec, messageType ws.OpCode, data []byte) b
 }
 
 // WriteClose 构建关闭帧，并发送关闭帧
-func WriteClose(conn *wsServer.Codec, statusCode ws.StatusCode, err error) {
+func WriteClose(conn *wsServer.Conn, statusCode ws.StatusCode, err error) {
 	WriteCloseFrame(conn, BuildCloseFrame(statusCode, err))
 }
 
 // WriteCloseFrame 发送关闭帧
-func WriteCloseFrame(wsCodec *wsServer.Codec, closeFrame []byte) {
-	if wsCodec.SetClosedFlag() == false {
+func WriteCloseFrame(conn *wsServer.Conn, closeFrame []byte) {
+	if conn.SetClosedFlagOnSafe() == false {
 		//已经关闭，则直接返回
 		return
 	}
-	err := wsCodec.AsyncWrite(closeFrame)
+	err := conn.AsyncWriteOnSafe(closeFrame)
 	if err == nil {
 		//2秒后强制关闭连接，2秒足以覆盖绝大多数网络波动，足够让TCP层完成正常的状态流转，避免暴力切断
 		timer.Timer.AfterFunc(time.Second*2, func() {
-			wsCodec.Close()
+			conn.CloseOnSafe()
 		})
 	} else {
 		//发送失败，则强制关闭连接
-		wsCodec.Close()
+		conn.CloseOnSafe()
 	}
 }
 
@@ -266,11 +265,10 @@ func BuildCloseFrame(statusCode ws.StatusCode, err error) []byte {
 	return buff.Bytes()
 }
 
-func CountCustomerIds(connList []*wsServer.Codec) int {
+func CountCustomerIds(connList []*wsServer.Conn) int {
 	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, wsCodec := range connList {
-		session, _ := wsCodec.GetSession().(*info.Info)
-		customerId := session.GetCustomerIdOnSafe()
+	for _, conn := range connList {
+		customerId := conn.GetCustomerIdOnSafe()
 		if customerId != "" {
 			customerIdSet[customerId] = struct{}{}
 		}
@@ -278,11 +276,10 @@ func CountCustomerIds(connList []*wsServer.Codec) int {
 	return len(customerIdSet)
 }
 
-func GetCustomerIds(connList []*wsServer.Codec) (customerIds []string) {
+func GetCustomerIds(connList []*wsServer.Conn) (customerIds []string) {
 	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, wsCodec := range connList {
-		session, _ := wsCodec.GetSession().(*info.Info)
-		customerId := session.GetCustomerIdOnSafe()
+	for _, conn := range connList {
+		customerId := conn.GetCustomerIdOnSafe()
 		if customerId != "" {
 			customerIdSet[customerId] = struct{}{}
 		}
@@ -298,11 +295,10 @@ func GetCustomerIds(connList []*wsServer.Codec) (customerIds []string) {
 	return customerIds
 }
 
-func GetUniqIds(connList []*wsServer.Codec) (uniqIds []string) {
+func GetUniqIds(connList []*wsServer.Conn) (uniqIds []string) {
 	uniqIds = make([]string, 0, len(connList))
-	for _, wsCodec := range connList {
-		session, _ := wsCodec.GetSession().(*info.Info)
-		uniqIds = append(uniqIds, session.GetUniqIdOnSafe())
+	for _, conn := range connList {
+		uniqIds = append(uniqIds, conn.GetUniqIdOnSafe())
 	}
 	return uniqIds
 }

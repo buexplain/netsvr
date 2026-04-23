@@ -35,7 +35,7 @@ func topicCustomerIdCount(param []byte, taskConn net.Conn) {
 	}
 	ret := &netsvrProtocol.TopicCustomerIdCountResp{}
 	ret.Items = map[string]int32{}
-	var topicConnList map[string][]*wsServer.Codec
+	var topicConnList map[string][]*wsServer.Conn
 	if payload.CountAll == true {
 		topicConnList = topic.Topic.GetConnList()
 	} else {

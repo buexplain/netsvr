@@ -62,23 +62,23 @@ func init() {
 // $ret =  unpack('Nip/nport/Ntimestamp/NincrId', pack('H*', '7f00000117ad6621e43b8baa1b9a'));
 // $ret['ip'] = long2ip($ret['ip']);
 // var_dump($ret);
-func New() string {
+func New() (string, uint64) {
 	b := make([]byte, 28) // 12(templateHex) + 16(timestamp+incrId)
 
 	// 复制预计算的 template hex
 	copy(b[0:12], templateHex[:])
 
 	// 获取当前时间戳和自增ID
-	timestamp := uint32(time.Now().Unix())
+	timestamp := time.Now().Unix()
 	incr := atomic.AddUint32(incrId, 1)
 
 	// 编码 timestamp (4字节 -> 8字符)
-	encodeUint32ToHex(b[12:20], timestamp)
+	encodeUint32ToHex(b[12:20], uint32(timestamp))
 	// 编码 incrId (4字节 -> 8字符)
 	encodeUint32ToHex(b[20:28], incr)
 
 	// 返回字符串
-	return unsafe.String(unsafe.SliceData(b), 28)
+	return unsafe.String(unsafe.SliceData(b), 28), uint64(timestamp)<<32 | uint64(incr)
 }
 
 // encodeUint32ToHex 将 uint32 编码为 8 字符的 hex 字符串（大端序）

@@ -18,7 +18,6 @@
 package manager
 
 import (
-	"netsvr/internal/customer/info"
 	"netsvr/internal/utils/slicePool"
 	"netsvr/internal/wsServer"
 	"runtime"
@@ -32,7 +31,7 @@ const shardMask = shardCount - 1 // 255 = 0b11111111
 
 type shard struct {
 	mux  sync.RWMutex
-	data map[string]*wsServer.Codec //uniqId --> *wsServer.Codec
+	data map[string]*wsServer.Conn //uniqId --> *wsServer.Conn
 }
 
 type collect struct {
@@ -62,7 +61,7 @@ func (r *collect) Has(uniqId string) bool {
 	return ok
 }
 
-func (r *collect) Get(uniqId string) *wsServer.Codec {
+func (r *collect) Get(uniqId string) *wsServer.Conn {
 	if uniqId == "" {
 		return nil
 	}
@@ -76,7 +75,7 @@ func (r *collect) Get(uniqId string) *wsServer.Codec {
 	return nil
 }
 
-func (r *collect) Set(uniqId string, conn *wsServer.Codec) {
+func (r *collect) Set(uniqId string, conn *wsServer.Conn) {
 	idx := hashUniqId(uniqId)
 	sd := &r.shards[idx]
 	sd.mux.Lock()
@@ -110,15 +109,9 @@ func (r *collect) Len() int {
 // ⚠️ 使用说明：
 //   - 返回 nil 表示无连接，调用方无需调用 sp.Put()
 //   - 返回非 nil 时，调用方使用完后必须调用 sp.Put(connections) 归还
-func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]*wsServer.Codec) {
+func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]*wsServer.Conn) {
 	// 预估算容量
-	capacity := 0
-	for i := range r.shards {
-		sd := &r.shards[i]
-		sd.mux.RLock()
-		capacity += len(sd.data)
-		sd.mux.RUnlock()
-	}
+	capacity := r.Len()
 	if capacity == 0 {
 		return nil
 	}
@@ -138,96 +131,6 @@ func (r *collect) GetConnections(sp *slicePool.WsConn) (connections *[]*wsServer
 		sd.mux.RUnlock()
 	}
 	return connections
-}
-
-func (r *collect) GetCustomerIds(uniqIds []string) (customerIds []string) {
-	if len(uniqIds) == 0 {
-		return nil
-	}
-	// 按 shard 分组，减少锁切换次数
-	var shardGroups [shardCount][]string
-	for _, uniqId := range uniqIds {
-		if uniqId == "" {
-			continue
-		}
-		idx := hashUniqId(uniqId)
-		shardGroups[idx] = append(shardGroups[idx], uniqId)
-	}
-	//再取出所有的连接对象，避免嵌套获取锁
-	connList := make([]*wsServer.Codec, 0, len(uniqIds))
-	for idx, uList := range shardGroups {
-		if len(uList) == 0 {
-			continue
-		}
-		sd := &r.shards[idx]
-		sd.mux.RLock()
-		for _, uniqId := range uList {
-			conn, ok := sd.data[uniqId]
-			if ok {
-				connList = append(connList, conn)
-			}
-		}
-		sd.mux.RUnlock()
-	}
-	//收集所有连接对应的customerId（使用 map 去重）
-	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, conn := range connList {
-		session, _ := conn.GetSession().(*info.Info)
-		customerId := session.GetCustomerIdOnSafe()
-		if customerId != "" {
-			customerIdSet[customerId] = struct{}{}
-		}
-	}
-	// 转换为 slice
-	if len(customerIdSet) == 0 {
-		return nil
-	}
-	customerIds = make([]string, 0, len(customerIdSet))
-	for id := range customerIdSet {
-		customerIds = append(customerIds, id)
-	}
-	return customerIds
-}
-
-func (r *collect) CountCustomerIds(uniqIds []string) int32 {
-	if len(uniqIds) == 0 {
-		return 0
-	}
-	// 按 shard 分组，减少锁切换次数
-	var shardGroups [shardCount][]string
-	for _, uniqId := range uniqIds {
-		if uniqId == "" {
-			continue
-		}
-		idx := hashUniqId(uniqId)
-		shardGroups[idx] = append(shardGroups[idx], uniqId)
-	}
-	//再取出所有的连接对象，避免嵌套获取锁
-	connList := make([]*wsServer.Codec, 0, len(uniqIds))
-	for idx, uList := range shardGroups {
-		if len(uList) == 0 {
-			continue
-		}
-		sd := &r.shards[idx]
-		sd.mux.RLock()
-		for _, uniqId := range uList {
-			conn, ok := sd.data[uniqId]
-			if ok {
-				connList = append(connList, conn)
-			}
-		}
-		sd.mux.RUnlock()
-	}
-	//收集所有连接对应的customerId（使用 map 去重计数）
-	customerIdSet := make(map[string]struct{}, len(connList))
-	for _, conn := range connList {
-		session, _ := conn.GetSession().(*info.Info)
-		customerId := session.GetCustomerIdOnSafe()
-		if customerId != "" {
-			customerIdSet[customerId] = struct{}{}
-		}
-	}
-	return int32(len(customerIdSet))
 }
 
 func (r *collect) GetUniqIds() (uniqIds []string) {
@@ -260,6 +163,6 @@ var Manager *collect
 func init() {
 	Manager = &collect{}
 	for i := range Manager.shards {
-		Manager.shards[i].data = make(map[string]*wsServer.Codec, 64*runtime.NumCPU())
+		Manager.shards[i].data = make(map[string]*wsServer.Conn, 64*runtime.NumCPU())
 	}
 }

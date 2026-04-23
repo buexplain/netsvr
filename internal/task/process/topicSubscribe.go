@@ -20,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
-	"netsvr/internal/customer/info"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
@@ -39,13 +38,15 @@ func topicSubscribe(param []byte) {
 		return
 	}
 	conn := customerManager.Manager.Get(payload.UniqId)
-	session, _ := conn.GetSession().(*info.Info)
-	session.Lock()
-	defer session.UnLock()
-	if conn.IsClosed() {
+	if conn == nil {
 		return
 	}
-	session.SubscribeTopics(payload.Topics)
+	conn.Lock()
+	defer conn.UnLock()
+	if conn.IsClosedOnSafe() {
+		return
+	}
+	conn.SubscribeTopics(payload.Topics)
 	topic.Topic.SetRelation(payload.Topics, conn)
 	if len(payload.Data) > 0 {
 		customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data)

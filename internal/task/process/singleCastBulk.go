@@ -58,7 +58,7 @@ func singleCastBulk(param []byte) {
 	//当业务进程传递的uniqIds的uniqId数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的uniqId
 	if len(payload.UniqIds) > 0 && len(payload.UniqIds) == len(payload.Data) {
 		//迭代所有数据
-		var conn *wsServer.Codec
+		var conn *wsServer.Conn
 		var index int
 		for index = range payload.Data {
 			//判断数据是否有效
@@ -67,6 +67,9 @@ func singleCastBulk(param []byte) {
 			}
 			//获得数据对应的index下标的uniqId对应的连接
 			conn = manager.Manager.Get(payload.UniqIds[index])
+			if conn == nil {
+				continue
+			}
 			//将数据写入到连接中
 			customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data[index])
 		}

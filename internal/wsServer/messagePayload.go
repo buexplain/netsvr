@@ -21,17 +21,17 @@ import (
 	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 )
 
-func NewMessagePayload(len int) *MessagePayload {
-	return &MessagePayload{
+func newMessagePayload(len int) *messagePayload {
+	return &messagePayload{
 		fragments: make([][]byte, 0, len),
 	}
 }
 
-type MessagePayload struct {
+type messagePayload struct {
 	fragments [][]byte
 }
 
-func (r *MessagePayload) reset() {
+func (r *messagePayload) reset() {
 	// 解除分片引用，避免内存滞留
 	for i, frag := range r.fragments {
 		if i > 0 {
@@ -46,7 +46,7 @@ func (r *MessagePayload) reset() {
 	}
 }
 
-func (r *MessagePayload) append(fragment []byte, mask [4]byte) {
+func (r *messagePayload) append(fragment []byte, mask [4]byte) {
 	var tmp []byte
 	if len(r.fragments) == 0 {
 		tmp = make([]byte, len(fragment))
@@ -58,7 +58,7 @@ func (r *MessagePayload) append(fragment []byte, mask [4]byte) {
 	r.fragments = append(r.fragments, tmp)
 }
 
-func (r *MessagePayload) merge() []byte {
+func (r *messagePayload) merge() []byte {
 	n := len(r.fragments)
 	if n == 0 {
 		return nil

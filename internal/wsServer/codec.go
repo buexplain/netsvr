@@ -28,83 +28,57 @@ import (
 	"github.com/gobwas/ws/wsflate"
 	"github.com/panjf2000/gnet/v2"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"unicode/utf8"
 )
 
-type Codec struct {
-	session            any
-	preMessagePayload  *MessagePayload // 上一个帧的数据
-	currMessagePayload *MessagePayload // 当前帧的数据
+type codec struct {
+	preMessagePayload  *messagePayload // 上一个帧的数据
+	currMessagePayload *messagePayload // 当前帧的数据
 	closed             uint32          // 是否服务端主动关闭
 	upgraded           bool
 	compression        bool
 	preMessageOpCode   ws.OpCode
 	currMessageOpCode  ws.OpCode
 	messageRsv         byte // 0~7 的整数，由于控制帧可以穿插在消息帧的分片中，但是控制帧又没有 rsv，所有只需一个字段即可，当控制帧穿插进来的时候，无需转移保存
-	conn               gnet.Conn
 }
 
-func NewCodec(conn gnet.Conn) *Codec {
-	codec := new(Codec)
-	codec.conn = conn
-	conn.SetContext(codec)
-	return codec
+func newCodec() codec {
+	c := codec{}
+	c.currMessagePayload = newMessagePayload(4)
+	c.preMessageOpCode = 255
+	c.currMessageOpCode = 255
+	return c
 }
 
-func (codec *Codec) Fd() int {
-	return codec.conn.Fd()
+func (r *codec) SetClosedFlagOnSafe() bool {
+	return atomic.CompareAndSwapUint32(&r.closed, 0, 1)
 }
 
-func (codec *Codec) AsyncWrite(buf []byte) error {
-	return codec.conn.AsyncWrite(buf, nil)
+func (r *codec) IsClosedOnSafe() bool {
+	return atomic.LoadUint32(&r.closed) == 1
 }
 
-func (codec *Codec) RemoteAddr() net.Addr {
-	return codec.conn.RemoteAddr()
+func (r *codec) IsCompressOnSafe() bool {
+	return r.compression
 }
 
-func (codec *Codec) SetClosedFlag() bool {
-	return atomic.CompareAndSwapUint32(&codec.closed, 0, 1)
-}
-
-func (codec *Codec) IsClosed() bool {
-	return atomic.LoadUint32(&codec.closed) == 1
-}
-
-func (codec *Codec) Close() {
-	_ = codec.conn.Close()
-}
-
-func (codec *Codec) IsCompress() bool {
-	return codec.compression
-}
-
-func (codec *Codec) SetSession(session any) {
-	codec.session = session
-}
-
-func (codec *Codec) GetSession() any {
-	return codec.session
-}
-
-func (codec *Codec) resetCurrMessage() {
-	codec.currMessagePayload.reset()
-	if codec.preMessageOpCode == 255 {
-		codec.currMessageOpCode = 255
-		codec.messageRsv = 0
+func (r *codec) resetCurrMessage() {
+	r.currMessagePayload.reset()
+	if r.preMessageOpCode == 255 {
+		r.currMessageOpCode = 255
+		r.messageRsv = 0
 	} else {
-		codec.currMessageOpCode = codec.preMessageOpCode
-		codec.currMessagePayload = codec.preMessagePayload
-		codec.preMessageOpCode = 255
-		codec.preMessagePayload = nil
+		r.currMessageOpCode = r.preMessageOpCode
+		r.currMessagePayload = r.preMessagePayload
+		r.preMessageOpCode = 255
+		r.preMessagePayload = nil
 	}
 }
 
-func (codec *Codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c gnet.Conn) (*http.Request, gnet.Action) {
+func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c gnet.Conn) (*http.Request, gnet.Action) {
 	peek, err := c.Peek(-1)
 	if err != nil {
 		return nil, gnet.Close
@@ -214,7 +188,7 @@ func (codec *Codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Respons
 		}
 		for _, option := range options {
 			if bytes.Equal(option.Name, wsflate.ExtensionNameBytes) {
-				codec.compression = true
+				r.compression = true
 				break
 			}
 		}
@@ -252,7 +226,7 @@ func (codec *Codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Respons
 	}
 
 	//添加压缩扩展
-	if codec.compression {
+	if r.compression {
 		//两个参数直接决定了系统的内存开销和压缩率，除非你的并发连接数非常少，且对压缩率有极致要求，否则永远选择 no_context_takeover。
 		//这是一个典型的用少量性能损失换取巨大可伸缩性和稳定性的架构决策。
 		// server_no_context_takeover //告诉客户端，服务器不会为客户端的不同消息复用同一个 LZ77 滑动窗口（即压缩上下文），每次压缩都是独立的。
@@ -273,12 +247,12 @@ func (codec *Codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Respons
 	}
 
 	//升级成功
-	codec.upgraded = true
+	r.upgraded = true
 
 	return req, gnet.None
 }
 
-func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
+func (r *codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 	for {
 		peek, err := c.Peek(-1)
 		if err != nil {
@@ -307,7 +281,7 @@ func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 		}
 		if head.Rsv != 0 {
 			//未协商开启压缩扩展，RSV1 bits MUST be 0
-			if codec.compression == false {
+			if r.compression == false {
 				return nil, ws.StatusProtocolError, errors.New("RSV1 bits must be 0 without extensions")
 			} else if head.OpCode.IsControl() {
 				//控制帧的 RSV1 不对
@@ -315,25 +289,25 @@ func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 			}
 		}
 		//已经得到了首帧，此刻的是后续帧
-		if codec.currMessageOpCode != 255 {
+		if r.currMessageOpCode != 255 {
 			//控制帧不允许分片
-			if codec.currMessageOpCode.IsControl() {
+			if r.currMessageOpCode.IsControl() {
 				return nil, ws.StatusProtocolError, errors.New("control message MUST NOT be fragmented")
 			}
 			//后续帧
 			if head.OpCode.IsControl() {
 				//控制帧穿插在数据帧分片之间，保存之前的数据帧
-				codec.preMessageOpCode = codec.currMessageOpCode
-				codec.preMessagePayload = codec.currMessagePayload
-				codec.currMessageOpCode = 255
-				codec.currMessagePayload = NewMessagePayload(1)
+				r.preMessageOpCode = r.currMessageOpCode
+				r.preMessagePayload = r.currMessagePayload
+				r.currMessageOpCode = 255
+				r.currMessagePayload = newMessagePayload(1)
 			} else {
 				//数据帧的连续帧的 opcode 不对
 				if head.OpCode != ws.OpContinuation {
 					return nil, ws.StatusProtocolError, errors.New("non-first fragment must be continuation")
 				}
 				//协商已开启压缩扩展，连续帧的 RSV1 不对
-				if codec.compression && head.Rsv != 0 {
+				if r.compression && head.Rsv != 0 {
 					return nil, ws.StatusProtocolError, errors.New("RSV1 must be 0")
 				}
 			}
@@ -370,7 +344,7 @@ func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 			head.Length = int64(binary.BigEndian.Uint64(peek[:8]))
 			peek = peek[8:]
 		}
-		//校验 Ping/Pong/Close 的 payload 长度
+		//校验 Ping/Pong/CloseOnSafe 的 payload 长度
 		if head.OpCode.IsControl() && head.Length > 125 {
 			return nil, ws.StatusProtocolError, errors.New("control frame too long")
 		}
@@ -380,29 +354,29 @@ func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 		}
 		copy(head.Mask[:], peek[:4])
 		//即将得到一个完整的消息帧，此刻可以记住首帧的opcode、RSV
-		if codec.currMessageOpCode == 255 {
-			if codec.compression && head.Rsv != 4 && head.Rsv != 0 {
+		if r.currMessageOpCode == 255 {
+			if r.compression && head.Rsv != 4 && head.Rsv != 0 {
 				//协商启用了压缩扩展，首帧的 RSV1 不对
 				return nil, ws.StatusProtocolError, errors.New("RSV1 must be 0 or 4")
 			}
-			codec.messageRsv = head.Rsv
+			r.messageRsv = head.Rsv
 			//在没有待继续消息时，禁止接收 Continuation 帧
 			if head.OpCode == ws.OpContinuation {
 				return nil, ws.StatusProtocolError, errors.New("unexpected continuation frame: no message to continue")
 			}
-			codec.currMessageOpCode = head.OpCode
+			r.currMessageOpCode = head.OpCode
 		}
-		codec.currMessagePayload.append(peek[4:4+(int)(head.Length)], head.Mask)
+		r.currMessagePayload.append(peek[4:4+(int)(head.Length)], head.Mask)
 		_, err = c.Discard(2 + extra + (int)(head.Length))
 		if err != nil {
 			return nil, ws.StatusInternalServerError, err
 		}
 		if head.Fin {
-			completeMessagePayload := codec.currMessagePayload.merge()
+			completeMessagePayload := r.currMessagePayload.merge()
 			//当前 header 已经是一个完整消息
-			if codec.currMessageOpCode == ws.OpText {
+			if r.currMessageOpCode == ws.OpText {
 				//解压缩数据
-				if codec.compression && codec.messageRsv == 4 {
+				if r.compression && r.messageRsv == 4 {
 					completeMessagePayload, err = wsflate.DefaultHelper.Decompress(completeMessagePayload)
 					if err != nil {
 						return nil, ws.StatusInvalidFramePayloadData, errors.New("invalid deflate stream")
@@ -412,15 +386,15 @@ func (codec *Codec) decode(c gnet.Conn) ([]byte, ws.StatusCode, error) {
 				if utf8.Valid(completeMessagePayload) == false {
 					return nil, ws.StatusInvalidFramePayloadData, errors.New("invalid utf8 in text message")
 				}
-			} else if codec.currMessageOpCode == ws.OpBinary {
+			} else if r.currMessageOpCode == ws.OpBinary {
 				//解压缩数据
-				if codec.compression && codec.messageRsv == 4 {
+				if r.compression && r.messageRsv == 4 {
 					completeMessagePayload, err = wsflate.DefaultHelper.Decompress(completeMessagePayload)
 					if err != nil {
 						return nil, ws.StatusInvalidFramePayloadData, errors.New("invalid deflate stream")
 					}
 				}
-			} else if codec.currMessageOpCode == ws.OpClose && len(completeMessagePayload) > 0 {
+			} else if r.currMessageOpCode == ws.OpClose && len(completeMessagePayload) > 0 {
 				//关闭消息，校验关闭码
 				pl := len(completeMessagePayload)
 				if pl == 1 || pl > 125 {

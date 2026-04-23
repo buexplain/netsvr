@@ -36,12 +36,11 @@ SessionLen = 2048
 # 群数量
 GroupNum = 10
 # 发送的消息大小
-MessageLen = 1024
+MessageLen = 100
 # 每秒发消息条数
-SendSpeed = 1
+SendSpeed = 3
 # 每个群的人数
 Step = [
-    { ConnNum = 25, ConnectNum = 100, Suspend = 10 },
     { ConnNum = 25, ConnectNum = 100, Suspend = 10 },
 ]
 
