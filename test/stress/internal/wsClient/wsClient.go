@@ -18,6 +18,7 @@ package wsClient
 
 import (
 	"encoding/json"
+	"github.com/antlabs/timer"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
 	"io"
@@ -145,8 +146,11 @@ func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *C
 	client.wsStatus.Online.Inc(1)
 	//开启心跳
 	if configs.Config.Heartbeat > 0 {
-		wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Heartbeat), func() {
-			client.Heartbeat()
+		var tNode timer.TimeNoder
+		tNode = wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Heartbeat), func() {
+			if !client.Heartbeat() {
+				tNode.Stop()
+			}
 		})
 	}
 	//添加到进程结束管理模块
@@ -154,12 +158,14 @@ func New(connUrl string, status *wsMetrics.WsStatus, option func(ws *Client)) *C
 	return client
 }
 
-func (r *Client) Heartbeat() {
+func (r *Client) Heartbeat() bool {
 	select {
 	case <-r.close:
-		return
+		return false
+	case r.sendCh <- configs.Config.CustomerHeartbeatMessage:
+		return true
 	default:
-		r.sendCh <- configs.Config.CustomerHeartbeatMessage
+		return true
 	}
 }
 
@@ -301,9 +307,7 @@ func (r *Client) Send(cmd protocol.Cmd, data interface{}) {
 			log.Logger.Error().Msgf("格式化请求的路由对象错误 %v", err)
 			return
 		}
-		b := make([]byte, 0, len(ret)+3)
-		b = append(b, ret...)
-		r.sendCh <- b
+		r.sendCh <- ret
 	}
 }
 
@@ -323,7 +327,7 @@ func (r *Client) LoopRead() {
 				case <-quit.Ctx.Done():
 					break
 				default:
-					log.Logger.Debug().Err(err).Msg("读取服务器消息失败")
+					log.Logger.Debug().Err(err).Str("模块", r.wsStatus.Name).Msg("读取服务器消息失败")
 				}
 				r.Close()
 				return

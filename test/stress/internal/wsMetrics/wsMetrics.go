@@ -20,12 +20,17 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 	gMetrics "github.com/rcrowley/go-metrics"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/term"
 )
 
 type WsStatusSnapshot struct {
@@ -87,14 +92,14 @@ func (r *WsStatus) ToTableRow() map[string]string {
 	ret["阶段"] = fmt.Sprintf("%d", r.Step)
 	ret["连接数"] = fmt.Sprintf("%d", r.Online.Count())
 	ret["构建中耗时 "] = (time.Duration(r.ConnectOK.SpendTime.Milliseconds()) * time.Millisecond).String()
-	ret["构建中发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.SendByte), r.ConnectOK.SendNum)
-	ret["构建中接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ConnectOK.ReceiveByte), r.ConnectOK.ReceiveNum)
+	ret["构建中发送"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.ConnectOK.SendByte), r.ConnectOK.SendNum)
+	ret["构建中接收"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.ConnectOK.ReceiveByte), r.ConnectOK.ReceiveNum)
 	ret["构建后耗时"] = (time.Duration((currentTime.Sub(r.StartTime) - r.ConnectOK.SpendTime).Milliseconds()) * time.Millisecond).String()
-	ret["构建后发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()-r.ConnectOK.SendByte), r.SendNum.Count()-r.ConnectOK.SendNum)
-	ret["构建后接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()-r.ConnectOK.ReceiveByte), r.ReceiveNum.Count()-r.ConnectOK.ReceiveNum)
+	ret["构建后发送"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.SendByte.Count()-r.ConnectOK.SendByte), r.SendNum.Count()-r.ConnectOK.SendNum)
+	ret["构建后接收"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.ReceiveByte.Count()-r.ConnectOK.ReceiveByte), r.ReceiveNum.Count()-r.ConnectOK.ReceiveNum)
 	ret["总耗时"] = (time.Duration(currentTime.Sub(r.StartTime).Milliseconds()) * time.Millisecond).String()
-	ret["总发送"] = fmt.Sprintf("%s、%d次", bytesToNice(r.SendByte.Count()), r.SendNum.Count())
-	ret["总接收"] = fmt.Sprintf("%s、%d次", bytesToNice(r.ReceiveByte.Count()), r.ReceiveNum.Count())
+	ret["总发送"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.SendByte.Count()), r.SendNum.Count())
+	ret["总接收"] = fmt.Sprintf("%s\n%d次", bytesToNice(r.ReceiveByte.Count()), r.ReceiveNum.Count())
 	return ret
 }
 
@@ -220,9 +225,35 @@ func (r *collect) ToTable() *bytes.Buffer {
 	}
 	sort.Strings(moduleSlice)
 	ret := &bytes.Buffer{}
-	table := tablewriter.NewWriter(ret)
+	
+	// Get terminal width
+	terminalWidth := 0
+	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+		terminalWidth = width
+	}
+	
+	// Create table with custom renderer configuration for dashed borders
+	table := tablewriter.NewTable(ret, tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+		Borders: tw.Border{
+			Left:   tw.On,
+			Right:  tw.On,
+			Top:    tw.On,
+			Bottom: tw.On,
+		},
+		Settings: tw.Settings{
+			Separators: tw.Separators{
+				BetweenRows:    tw.On,
+				BetweenColumns: tw.On,
+			},
+			Lines: tw.Lines{
+				ShowTop:    tw.On,
+				ShowBottom: tw.On,
+			},
+		},
+		Symbols: tw.NewSymbols(tw.StyleASCII),
+	})))
 	header := []string{"模块", "阶段", "连接数", "构建中耗时 ", "构建中发送", "构建中接收", "构建后耗时", "构建后发送", "构建后接收", "总耗时", "总发送", "总接收"}
-	table.SetHeader(header)
+	table.Header(header)
 	total := New("", -1)
 	for _, m := range moduleSlice {
 		statusSlice := r.c[m]
@@ -239,7 +270,7 @@ func (r *collect) ToTable() *bytes.Buffer {
 			for _, v := range header {
 				row = append(row, tmp[v])
 			}
-			table.Append(row)
+			_ = table.Append(row)
 		}
 		tmp := subtotal.ToTableRow()
 		tmp["阶段"] = "小计"
@@ -249,7 +280,7 @@ func (r *collect) ToTable() *bytes.Buffer {
 		for _, v := range header {
 			row = append(row, tmp[v])
 		}
-		table.Append(row)
+		_ = table.Append(row)
 	}
 	tmp := total.ToTableRow()
 	tmp["模块"] = "总计"
@@ -260,10 +291,23 @@ func (r *collect) ToTable() *bytes.Buffer {
 	for _, v := range header {
 		row = append(row, tmp[v])
 	}
-	table.Append(row)
-	table.SetAutoMergeCellsByColumnIndex([]int{0})
-	table.SetRowLine(true)
-	table.Render()
+	_ = table.Append(row)
+	// Configure column merging, alignment and width
+	table.Configure(func(cfg *tablewriter.Config) {
+		// Configure column merging for first column (index 0)
+		cfg.Row.Merging.ByColumnIndex = tw.NewMapper[int, bool]()
+		cfg.Row.Merging.ByColumnIndex.Set(0, true)
+			
+		// Set alignment for all cells
+		cfg.Row.Alignment.Global = tw.AlignCenter
+		cfg.Header.Alignment.Global = tw.AlignCenter
+		
+		// Set table width to fill terminal
+		if terminalWidth > 0 {
+			cfg.Widths.Global = terminalWidth
+		}
+	})
+	_ = table.Render()
 	return ret
 }
 
