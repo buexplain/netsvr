@@ -63,6 +63,16 @@ func (server *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 func (server *Server) OnClose(c gnet.Conn, _ error) (action gnet.Action) {
 	conn, ok := c.Context().(*Conn)
 	if ok {
+		//当客户端异常断开（不发送 Close 帧）时：
+		//gnet 直接调用 OnClose
+		//closed 字段保持为 0
+		//OnWebsocketClose 异步执行
+		//在异步回调执行期间，business 可能发送 TopicSubscribe
+		//topicSubscribe 检查 IsClosedOnSafe() → false（因为 closed=0）
+		//继续订阅新主题 ❌
+		//异步回调清理旧的 topics，但新订阅的 topic 残留
+		//所以必须强制设置为1，尽可能早的标记关闭状态
+		conn.SetClosedFlagOnSafe()
 		server.OnWebsocketClose(conn)
 	}
 	return gnet.None

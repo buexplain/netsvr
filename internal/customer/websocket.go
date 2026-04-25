@@ -218,6 +218,8 @@ func Start() {
 			return ws.StatusCode(0), nil
 		},
 		OnWebsocketClose: func(conn *wsServer.Conn) {
+			//先从 manager 删除（阻止新的订阅）
+			manager.Manager.Del(conn.GetUniqIdOnSafe())
 			fn := func() {
 				defer func() {
 					if err := recover(); err != nil {
@@ -234,8 +236,6 @@ func Start() {
 				conn.RUnlock()
 				//统计客户连接的关闭次数
 				metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
-				//从连接管理器中删除
-				manager.Manager.Del(uniqId)
 				//解除uniqId与customerId的关系
 				if customerId != "" {
 					binder.Binder.DelRelation(customerId, conn)
