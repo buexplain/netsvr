@@ -230,10 +230,7 @@ func Start() {
 							Msg("OnWebsocketClose failed")
 					}
 				}()
-				conn.RLock()
-				uniqId, customerId, customerSession, topics := conn.Snapshot()
-				//释放锁
-				conn.RUnlock()
+				uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
 				//统计客户连接的关闭次数
 				metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
 				//解除uniqId与customerId的关系
@@ -284,11 +281,8 @@ func Start() {
 			if currentWorker == nil {
 				return
 			}
-			//获取session中的数据
-			conn.Lock()
-			allow := conn.Allow()
-			uniqId, customerId, customerSession, topics := conn.Snapshot()
-			conn.UnLock()
+			//获取连接中的信息
+			uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
 			//限制数据包大小，溢出限制大小，直接丢弃该数据
 			if len(data) > configs.Config.Customer.ReceivePackLimit {
 				WriteClose(conn, ws.StatusMessageTooBig, errors.New("message too big"))
@@ -302,8 +296,8 @@ func Start() {
 					Msg("message too large")
 				return
 			}
-			//连接限流检查
-			if allow == false {
+			//连接限流检查，Allow方法虽然不是线程安全的，但是因为它只在此处被调用，并且OnWebsocketMessage在单协程中执行，所以这里没有问题
+			if conn.Allow() == false {
 				//统计连接消息限流次数
 				metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
 				//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多

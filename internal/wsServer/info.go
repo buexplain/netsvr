@@ -104,7 +104,9 @@ func (r *info) Allow() bool {
 	return false
 }
 
-func (r *info) Snapshot() (uniqId string, customerId string, session string, topics []string) {
+func (r *info) SnapshotOnSafe() (uniqId string, customerId string, session string, topics []string) {
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	topics = r.getTopics()
 	uniqId = r.uniqId
 	session = r.session
