@@ -84,56 +84,44 @@ func (r *Conn) loopSend() {
 	packLimit := max(configs.Config.Customer.ReceivePackLimit, 65536)
 	var size int
 	var i int
-	var j int
+	var count int
+	var pkg *packet
 	packets := make([]*packet, 20) //假设一个用户消息是2kb，20个消息则会一次性写入40kb数据
-	buffers := make(net.Buffers, 40)
-	buffer := make(net.Buffers, 2)
+	bulkBuffer := make(net.Buffers, 40)
+	var length int // bulkBuffer的实际长度
 	for {
-		count := r.sendCh.Dequeue(packets)
+		count = r.sendCh.Dequeue(packets)
 		if count == 0 {
 			return
 		}
-		size = 0
-		i = 0
-		j = 0
-		for ; i < count; i++ {
+		size = count * 8
+		length = 0
+		for i = 0; i < count; i++ {
 			//单个消息包
-			pkg := packets[i]
-			//统计大小
-			size += len(pkg.header) + len(pkg.body)
+			pkg = packets[i]
+			//累计body大小
+			size += len(pkg.body)
 			//构造成net.Buffers
-			buffers[j] = pkg.header
-			j++
-			buffers[j] = pkg.body
-			j++
-			packets[i] = nil
-			packetObjPool.Put(pkg)
+			bulkBuffer[length] = pkg.header
+			length++
+			bulkBuffer[length] = pkg.body
+			length++
+			packetObjPool.Put(pkg) //回收
+			packets[i] = nil       // 回收
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给business
 		if size < packLimit {
-			tmp := buffers[0 : count*2]
-			r.send(tmp)
-			for k := range tmp {
-				buffers[k] = nil
+			r.send(bulkBuffer)
+		} else {
+			//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给business侧造成压力
+			for i = 0; i < length; i += 2 {
+				r.send(bulkBuffer[i : i+2])
 			}
-			continue
 		}
-		//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给business侧造成压力
-		i = 0
-		j = 0
-		for ; i < count; i++ {
-			//构造成net.Buffers
-			buffer[0] = buffers[j]
-			j++
-			buffer[1] = buffers[j]
-			j++
-			r.send(buffer)
+		//回收bulkBuffer
+		for i = 0; i < length; i++ {
+			bulkBuffer[i] = nil
 		}
-		for k := 0; k < count*2; k++ {
-			buffers[k] = nil
-		}
-		buffer[0] = nil
-		buffer[1] = nil
 	}
 }
 
@@ -216,6 +204,10 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	// 编码业务数据
 	body, err := proto.Marshal(message)
 	if err != nil {
+		log.Logger.Error().Err(err).
+			Int32("events", r.GetEvents()).
+			Str("connId", r.connId).
+			Msg("Worker proto.Marshal failed")
 		return 0
 	}
 	//填充 cmd 字段 (大端序)
