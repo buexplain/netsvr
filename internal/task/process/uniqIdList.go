@@ -24,7 +24,6 @@ import (
 
 // uniqIdList 获取网关中全部的uniqId
 func uniqIdList(_ []byte, taskConn net.Conn) {
-	//加1024的目的是担心获取连接的过程中又有连接进来，导致slice的底层发生扩容，引起内存拷贝
 	uniqIds := customerManager.Manager.GetUniqIds()
 	ret := &netsvrProtocol.UniqIdListResp{}
 	ret.UniqIds = uniqIds

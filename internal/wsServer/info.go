@@ -190,7 +190,7 @@ func (r *info) PullTopics() map[string]struct{} {
 	return ret
 }
 
-// SubscribeTopics 订阅，并返回当前的uniqId
+// SubscribeTopics 订阅
 func (r *info) SubscribeTopics(topics []string) {
 	if r.topics == nil {
 		r.topics = make(map[string]struct{}, len(topics))
@@ -205,7 +205,7 @@ func (r *info) SubscribeTopics(topics []string) {
 	}
 }
 
-// UnsubscribeTopics 取消订阅，并返回当前的uniqId
+// UnsubscribeTopics 取消订阅
 func (r *info) UnsubscribeTopics(topics []string) {
 	for _, topic := range topics {
 		delete(r.topics, topic)
