@@ -35,7 +35,9 @@ func init() {
 	packetObjPool = &packetPool{
 		pool: &sync.Pool{
 			New: func() any {
-				return &packet{}
+				return &packet{
+					header: make([]byte, 8),
+				}
 			},
 		},
 	}
@@ -46,7 +48,7 @@ func (r *packetPool) Get() *packet {
 }
 
 func (r *packetPool) Put(packet *packet) {
-	packet.header = nil
+	packet.header = packet.header[:8]
 	packet.body = nil
 	r.pool.Put(packet)
 }

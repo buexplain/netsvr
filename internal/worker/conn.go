@@ -106,8 +106,6 @@ func (r *Conn) loopSend() {
 			length++
 			bulkBuffer[length] = pkg.body
 			length++
-			packetObjPool.Put(pkg) //回收
-			packets[i] = nil       // 回收
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给business
 		if size < packLimit {
@@ -118,9 +116,15 @@ func (r *Conn) loopSend() {
 				r.send(bulkBuffer[i : i+2])
 			}
 		}
-		//回收bulkBuffer
-		for i = 0; i < length; i++ {
+		//回收bulkBuffer的后半截数据
+		for i = count; i < length; i++ {
 			bulkBuffer[i] = nil
+		}
+		//回收bulkBuffer的前半截数据、释放数据包对象
+		for i = 0; i < count; i++ {
+			bulkBuffer[i] = nil
+			packetObjPool.Put(packets[i])
+			packets[i] = nil
 		}
 	}
 }
@@ -210,22 +214,20 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 			Msg("Worker proto.Marshal failed")
 		return 0
 	}
-	//填充 cmd 字段 (大端序)
-	header := make([]byte, 8)
-	binary.BigEndian.PutUint32(header[4:8], uint32(cmd))
-	//填充长度字段 (大端序)
-	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
-	//发送出去
 	pkg := packetObjPool.Get()
-	pkg.header = header
 	pkg.body = body
+	//填充 cmd 字段 (大端序)
+	binary.BigEndian.PutUint32(pkg.header[4:8], uint32(cmd))
+	//填充长度字段 (大端序)
+	binary.BigEndian.PutUint32(pkg.header[0:4], uint32(len(body)+4))
+	//发送出去
 	if r.sendCh.Enqueue(pkg) {
 		return 8 + len(body)
 	}
 	packetObjPool.Put(pkg)
 	//统计worker到business的失败次数
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-	r.formatSendToBusinessData(header, body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
+	r.formatSendToBusinessData(pkg.header, body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
 		Int32("events", r.GetEvents()).
 		Str("connId", r.connId).
 		Msg("Worker send failed and discard message")
