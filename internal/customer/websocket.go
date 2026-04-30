@@ -93,7 +93,7 @@ func Start() {
 			default:
 			}
 			//检查在线人数
-			if server.OnlineNum() >= configs.Config.Customer.MaxOnlineNum {
+			if server.OnlineNum() > configs.Config.Customer.MaxOnlineNum {
 				return ws.StatusCode(1013), errors.New("open rate limited, try again later")
 			}
 			//限流检查
@@ -281,59 +281,8 @@ func Start() {
 			if currentWorker == nil {
 				return
 			}
-			//获取连接中的信息
-			uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
-			//限制数据包大小，溢出限制大小，直接丢弃该数据
-			if len(data) > configs.Config.Customer.ReceivePackLimit {
-				WriteClose(conn, ws.StatusMessageTooBig, errors.New("message too big"))
-				//打日志，方便客户端排查问题
-				log.Logger.Info().
-					Str("uniqId", uniqId).
-					Str("customerId", customerId).
-					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
-					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-					Msg("message too large")
-				return
-			}
-			//连接限流检查，Allow方法虽然不是线程安全的，但是因为它只在此处被调用，并且OnWebsocketMessage在单协程中执行，所以这里没有问题
-			if conn.Allow() == false {
-				//统计连接消息限流次数
-				metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
-				//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多
-				formatCustomerData(data, log.Logger.Error()).
-					Str("uniqId", uniqId).
-					Str("customerId", customerId).
-					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
-					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-					Msg("connection message rate limited")
-				return
-			}
-			//全局限流检查
-			if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
-				//统计客户消息限流次数
-				metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
-				//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
-				formatCustomerData(data, log.Logger.Error()).
-					Str("uniqId", uniqId).
-					Str("customerId", customerId).
-					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
-					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-					Msg("message rate limited")
-				return
-			}
-			//记录所有请求日志
-			if configs.Config.LogLevel == "debug" {
-				formatCustomerData(data, log.Logger.Debug()).
-					Str("uniqId", uniqId).
-					Str("customerId", customerId).
-					Str("customerSession", customerSession).
-					Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
-					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-					Send()
-			}
+			//连接限流检查，Allow方法虽然不是协程安全的，但是因为它只在此处被调用，并且OnWebsocketMessage在单协程中执行，所以这里没有问题
+			allow := conn.Allow()
 			fn := func() {
 				defer func() {
 					if err := recover(); err != nil {
@@ -344,14 +293,66 @@ func Start() {
 							Msg("OnWebsocketMessage failed")
 					}
 				}()
+				//获取连接中的信息
+				uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
+				//限制数据包大小，溢出限制大小，直接丢弃该数据
+				if len(data) > configs.Config.Customer.ReceivePackLimit {
+					WriteClose(conn, ws.StatusMessageTooBig, errors.New("message too big"))
+					//打日志，方便客户端排查问题
+					log.Logger.Info().
+						Str("uniqId", uniqId).
+						Str("customerId", customerId).
+						Str("customerSession", customerSession).
+						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Msg("message too large")
+					return
+				}
+				if allow == false {
+					//统计连接消息限流次数
+					metrics.Registry[metrics.ItemConnectionMessageRateLimitCount].Meter.Mark(1)
+					//触发了限流要打错误日志告警，因为这个时候有可能是被人攻击，或者是客户端的业务逻辑问题，导致请求太多
+					formatCustomerData(data, log.Logger.Error()).
+						Str("uniqId", uniqId).
+						Str("customerId", customerId).
+						Str("customerSession", customerSession).
+						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Msg("connection message rate limited")
+					return
+				}
+				//全局限流检查
+				if limit.Manager.Allow(netsvrProtocol.Event_OnMessage) == false {
+					//统计客户消息限流次数
+					metrics.Registry[metrics.ItemMessageRateLimitCount].Meter.Mark(1)
+					//触发了限流要打错误日志告警，因为这个时候有可能是因为客户消息太多了，网关的business进程处理不过来
+					formatCustomerData(data, log.Logger.Error()).
+						Str("uniqId", uniqId).
+						Str("customerId", customerId).
+						Str("customerSession", customerSession).
+						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Msg("message rate limited")
+					return
+				}
+				//记录所有请求日志
+				if configs.Config.LogLevel == "debug" {
+					formatCustomerData(data, log.Logger.Debug()).
+						Str("uniqId", uniqId).
+						Str("customerId", customerId).
+						Str("customerSession", customerSession).
+						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Send()
+				}
 				//编码数据成business需要的格式
 				tf := objPool.Transfer.Get()
+				defer objPool.Transfer.Put(tf)
 				tf.UniqId = uniqId
 				tf.CustomerId = customerId
 				tf.Session = customerSession
 				tf.Topics = topics
 				tf.Data = data
-				defer objPool.Transfer.Put(tf)
 				//转发数据到business
 				if sendSize := currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
 					//统计转发到business的次数与字节数
