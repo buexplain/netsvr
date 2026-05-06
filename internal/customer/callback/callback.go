@@ -19,6 +19,7 @@ package callback
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -58,6 +59,14 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		// 即使状态码不是200，也需要读取响应体以确保连接复用
+		_, _ = io.Copy(io.Discard, resp.Body)
+		err = fmt.Errorf("receive error http status code: %d", resp.StatusCode)
+		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Customer.OnOpenCallbackApi)
+		return nil, err
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Customer.OnOpenCallbackApi)
@@ -90,7 +99,5 @@ func OnClose(req *netsvrProtocol.ConnClose) {
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	if resp.StatusCode == http.StatusOK {
-		_, _ = io.Copy(io.Discard, resp.Body)
-	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 }
