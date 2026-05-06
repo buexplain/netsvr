@@ -114,9 +114,7 @@ func Start() {
 				defer func() {
 					if err := recover(); err != nil {
 						log.Logger.Error().
-							Stack().Err(nil).
-							Type("recoverType", err).
-							Interface("recover", err).
+							Stack().Any("panic", err).
 							Msg("OnWebsocketOpen failed")
 					}
 				}()
@@ -220,25 +218,24 @@ func Start() {
 		OnWebsocketClose: func(conn *wsServer.Conn) {
 			//先从 manager 删除（阻止新的订阅）
 			manager.Manager.Del(conn.GetUniqIdOnSafe())
+			//获取连接信息
+			uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
+			//解除uniqId与customerId的关系
+			if customerId != "" {
+				binder.Binder.DelRelation(customerId, conn)
+			}
+			//删除订阅关系
+			topic.Topic.DelRelationBySlice(topics, conn)
 			fn := func() {
 				defer func() {
 					if err := recover(); err != nil {
 						log.Logger.Error().
-							Stack().Err(nil).
-							Type("recoverType", err).
-							Interface("recover", err).
+							Stack().Any("panic", err).
 							Msg("OnWebsocketClose failed")
 					}
 				}()
-				uniqId, customerId, customerSession, topics := conn.SnapshotOnSafe()
 				//统计客户连接的关闭次数
 				metrics.Registry[metrics.ItemCustomerConnCloseCount].Meter.Mark(1)
-				//解除uniqId与customerId的关系
-				if customerId != "" {
-					binder.Binder.DelRelation(customerId, conn)
-				}
-				//删除订阅关系
-				topic.Topic.DelRelationBySlice(topics, conn)
 				cl := objPool.ConnClose.Get()
 				defer objPool.ConnClose.Put(cl)
 				cl.UniqId = uniqId
@@ -287,9 +284,7 @@ func Start() {
 				defer func() {
 					if err := recover(); err != nil {
 						log.Logger.Error().
-							Stack().Err(nil).
-							Type("recoverType", err).
-							Interface("recover", err).
+							Stack().Any("panic", err).
 							Msg("OnWebsocketMessage failed")
 					}
 				}()
