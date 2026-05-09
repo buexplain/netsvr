@@ -103,7 +103,7 @@ func (r *collect) Del(uniqId string) {
 	defer sd.mux.Unlock()
 	if _, ok := sd.data[uniqId]; ok {
 		delete(sd.data, uniqId)
-		atomic.AddUint32(&r.len, -1)
+		atomic.AddUint32(&r.len, ^uint32(0)) // 相当于减1：0xFFFFFFFF + 1 = 0（溢出）
 	}
 }
 
