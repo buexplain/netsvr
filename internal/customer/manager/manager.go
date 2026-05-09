@@ -22,6 +22,7 @@ import (
 	"netsvr/internal/wsServer"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -36,6 +37,7 @@ type shard struct {
 
 type collect struct {
 	shards [shardCount]shard
+	len    uint32
 }
 
 func hashUniqId(uniqId string) int {
@@ -76,11 +78,19 @@ func (r *collect) Get(uniqId string) *wsServer.Conn {
 }
 
 func (r *collect) Set(uniqId string, conn *wsServer.Conn) {
+	if uniqId == "" {
+		return
+	}
 	idx := hashUniqId(uniqId)
 	sd := &r.shards[idx]
 	sd.mux.Lock()
 	defer sd.mux.Unlock()
+	_, exists := sd.data[uniqId]
 	sd.data[uniqId] = conn
+	if !exists {
+		// 只有在新增时才增加计数，覆盖已有连接不改变总数
+		atomic.AddUint32(&r.len, 1)
+	}
 }
 
 func (r *collect) Del(uniqId string) {
@@ -91,18 +101,14 @@ func (r *collect) Del(uniqId string) {
 	sd := &r.shards[idx]
 	sd.mux.Lock()
 	defer sd.mux.Unlock()
-	delete(sd.data, uniqId)
+	if _, ok := sd.data[uniqId]; ok {
+		delete(sd.data, uniqId)
+		atomic.AddUint32(&r.len, -1)
+	}
 }
 
 func (r *collect) Len() int {
-	total := 0
-	for i := range r.shards {
-		sd := &r.shards[i]
-		sd.mux.RLock()
-		total += len(sd.data)
-		sd.mux.RUnlock()
-	}
-	return total
+	return int(atomic.LoadUint32(&r.len))
 }
 
 // GetConnections 获取所有连接对象
