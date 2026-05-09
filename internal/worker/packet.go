@@ -26,14 +26,14 @@ type packet struct {
 }
 
 type packetPool struct {
-	pool *sync.Pool
+	pool sync.Pool
 }
 
 var packetObjPool *packetPool
 
 func init() {
 	packetObjPool = &packetPool{
-		pool: &sync.Pool{
+		pool: sync.Pool{
 			New: func() any {
 				return &packet{
 					header: make([]byte, 8),

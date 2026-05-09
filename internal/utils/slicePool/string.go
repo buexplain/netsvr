@@ -23,7 +23,7 @@ import "sync"
 type StrSlice struct {
 	pools map[int]*sync.Pool
 	step  int
-	mux   *sync.RWMutex
+	mux   sync.RWMutex
 }
 
 func NewStrSlice(step int) *StrSlice {
@@ -33,7 +33,7 @@ func NewStrSlice(step int) *StrSlice {
 	return &StrSlice{
 		pools: map[int]*sync.Pool{},
 		step:  step,
-		mux:   &sync.RWMutex{},
+		mux:   sync.RWMutex{},
 	}
 }
 

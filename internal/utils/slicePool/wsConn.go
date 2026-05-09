@@ -26,7 +26,7 @@ import (
 type WsConn struct {
 	pools map[int]*sync.Pool
 	step  int
-	mux   *sync.RWMutex
+	mux   sync.RWMutex
 }
 
 func NewWsConn(step int) *WsConn {
@@ -36,7 +36,7 @@ func NewWsConn(step int) *WsConn {
 	return &WsConn{
 		pools: map[int]*sync.Pool{},
 		step:  step,
-		mux:   &sync.RWMutex{},
+		mux:   sync.RWMutex{},
 	}
 }
 
