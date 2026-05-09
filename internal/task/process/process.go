@@ -27,6 +27,7 @@ import (
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	"sync"
 	"time"
 )
 
@@ -204,6 +205,36 @@ func Process(conn net.Conn) {
 	}
 }
 
+// headerPool
+type headerPool struct {
+	pool sync.Pool
+}
+
+// headerObjPool 头对象池
+var headerObjPool *headerPool
+
+func init() {
+	headerObjPool = &headerPool{
+		pool: sync.Pool{
+			New: func() any {
+				header := make([]byte, 8)
+				return &header
+			},
+		},
+	}
+}
+
+// Get 获取一个header对象
+func (r *headerPool) Get() *[]byte {
+	return r.pool.Get().(*[]byte)
+}
+
+// Put 放回一个header对象
+func (r *headerPool) Put(header *[]byte) {
+	*header = (*header)[:8]
+	r.pool.Put(header)
+}
+
 func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
 	// 编码业务数据
 	body, err := proto.Marshal(message)
@@ -214,7 +245,9 @@ func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
 		return
 	}
 	//填充 cmd 字段 (大端序)
-	header := make([]byte, 8)
+	headerPtr := headerObjPool.Get()
+	defer headerObjPool.Put(headerPtr)
+	header := *headerPtr
 	binary.BigEndian.PutUint32(header[4:8], uint32(cmd))
 	//填充长度字段 (大端序)
 	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)+4))
