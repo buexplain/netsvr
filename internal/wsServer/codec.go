@@ -17,7 +17,6 @@
 package wsServer
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
@@ -113,7 +112,10 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 	}
 
 	//读取 http head
-	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(peek)))
+	reader := bufReaderObjPool.Get()
+	defer bufReaderObjPool.Put(reader)
+	reader.Reset(bytes.NewReader(peek))
+	req, err := http.ReadRequest(reader)
 	if err != nil {
 		//返回 HTTP 400
 		resp := http.Response{
