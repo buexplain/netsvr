@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -29,6 +30,7 @@ import (
 	"netsvr/internal/log"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 type GetCallback func(data []byte, taskConn net.Conn)
@@ -237,12 +239,36 @@ func (r *headerPool) Put(header *[]byte) {
 
 func send(taskConn net.Conn, message proto.Message, cmd netsvrProtocol.Cmd) {
 	// 编码业务数据
-	body, err := proto.Marshal(message)
-	if err != nil {
-		log.Logger.Error().Err(err).
-			Str("cmd", cmd.String()).
-			Msg("Task proto marshal failed")
-		return
+	opts := proto.MarshalOptions{}
+	size := opts.Size(message)
+	var body []byte
+	var err error
+	if size > 0 {
+		pooled := byteslice.Get(size)                       // 从对象池获取一个 []byte 对象
+		body, err = opts.MarshalAppend(pooled[:0], message) // 编码数据包
+		if err != nil {
+			// 编码失败
+			byteslice.Put(pooled) //回收 pooled
+			log.Logger.Error().Err(err).
+				Str("cmd", cmd.String()).
+				Msg("Task proto marshal failed")
+			return
+		}
+		// MarshalAppend 若换底层数组（扩容），需立即归还 pooled；否则 defer 在返回时归还（含 SetWriteDeadline / WriteTo 任一路径）
+		if unsafe.SliceData(body) != unsafe.SliceData(pooled) {
+			byteslice.Put(pooled)
+		} else {
+			defer byteslice.Put(pooled)
+		}
+	} else {
+		// size <= 0 时，直接序列化（byteslice.Get(0) 返回 nil）
+		body, err = opts.MarshalAppend(nil, message)
+		if err != nil {
+			log.Logger.Error().Err(err).
+				Str("cmd", cmd.String()).
+				Msg("Task proto marshal failed")
+			return
+		}
 	}
 	//填充 cmd 字段 (大端序)
 	headerPtr := headerObjPool.Get()
