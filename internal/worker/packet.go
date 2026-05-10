@@ -44,9 +44,9 @@ func (pkg *packet) set(message proto.Message, cmd netsvrProtocol.Cmd) error {
 	opts := proto.MarshalOptions{}
 	size := opts.Size(message)
 	var result []byte
+	var err error
 	if size > 0 {
 		pooled := byteslice.Get(size)
-		var err error
 		result, err = opts.MarshalAppend(pooled[:0], message)
 		if err != nil {
 			byteslice.Put(pooled) //回收 packet.body
@@ -61,7 +61,6 @@ func (pkg *packet) set(message proto.Message, cmd netsvrProtocol.Cmd) error {
 		}
 	} else {
 		// size <= 0 时，直接序列化（byteslice.Get(0) 返回 nil）
-		var err error
 		result, err = opts.MarshalAppend(nil, message)
 		if err != nil {
 			return err
