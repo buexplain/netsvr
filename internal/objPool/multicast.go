@@ -32,8 +32,7 @@ func (r *multicast) Get() *netsvrProtocol.Multicast {
 }
 
 func (r *multicast) Put(multicast *netsvrProtocol.Multicast) {
-	multicast.Data = nil
-	multicast.UniqIds = nil
+	multicast.Reset()
 	r.pool.Put(multicast)
 }
 

@@ -32,8 +32,7 @@ func (r *singleCastByCustomerId) Get() *netsvrProtocol.SingleCastByCustomerId {
 }
 
 func (r *singleCastByCustomerId) Put(singleCastByCustomerId *netsvrProtocol.SingleCastByCustomerId) {
-	singleCastByCustomerId.Data = nil
-	singleCastByCustomerId.CustomerId = ""
+	singleCastByCustomerId.Reset()
 	r.pool.Put(singleCastByCustomerId)
 }
 

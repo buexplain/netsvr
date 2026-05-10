@@ -32,11 +32,7 @@ func (r *connInfoUpdate) Get() *netsvrProtocol.ConnInfoUpdate {
 }
 
 func (r *connInfoUpdate) Put(connInfoUpdate *netsvrProtocol.ConnInfoUpdate) {
-	connInfoUpdate.UniqId = ""
-	connInfoUpdate.NewCustomerId = ""
-	connInfoUpdate.NewSession = ""
-	connInfoUpdate.NewTopics = nil
-	connInfoUpdate.Data = nil
+	connInfoUpdate.Reset()
 	r.pool.Put(connInfoUpdate)
 }
 

@@ -32,7 +32,7 @@ func (r *uniqIdCountResp) Get() *netsvrProtocol.UniqIdCountResp {
 }
 
 func (r *uniqIdCountResp) Put(uniqIdCountResp *netsvrProtocol.UniqIdCountResp) {
-	uniqIdCountResp.Count = 0
+	uniqIdCountResp.Reset()
 	r.pool.Put(uniqIdCountResp)
 }
 

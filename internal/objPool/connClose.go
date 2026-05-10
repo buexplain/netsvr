@@ -32,10 +32,7 @@ func (r *connClose) Get() *netsvrProtocol.ConnClose {
 }
 
 func (r *connClose) Put(connClose *netsvrProtocol.ConnClose) {
-	connClose.UniqId = ""
-	connClose.CustomerId = ""
-	connClose.Session = ""
-	connClose.Topics = nil
+	connClose.Reset()
 	r.pool.Put(connClose)
 }
 

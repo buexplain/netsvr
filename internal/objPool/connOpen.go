@@ -32,11 +32,7 @@ func (r *connOpen) Get() *netsvrProtocol.ConnOpen {
 }
 
 func (r *connOpen) Put(connOpen *netsvrProtocol.ConnOpen) {
-	connOpen.UniqId = ""
-	connOpen.RawQuery = ""
-	connOpen.XForwardedFor = ""
-	connOpen.XRealIp = ""
-	connOpen.RemoteAddr = ""
+	connOpen.Reset()
 	r.pool.Put(connOpen)
 }
 

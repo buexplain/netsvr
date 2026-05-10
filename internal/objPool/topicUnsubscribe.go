@@ -32,9 +32,7 @@ func (r *topicUnsubscribe) Get() *netsvrProtocol.TopicUnsubscribe {
 }
 
 func (r *topicUnsubscribe) Put(topicUnsubscribe *netsvrProtocol.TopicUnsubscribe) {
-	topicUnsubscribe.Data = nil
-	topicUnsubscribe.Topics = nil
-	topicUnsubscribe.UniqId = ""
+	topicUnsubscribe.Reset()
 	r.pool.Put(topicUnsubscribe)
 }
 

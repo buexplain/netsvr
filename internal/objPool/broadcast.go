@@ -32,7 +32,7 @@ func (r *broadcast) Get() *netsvrProtocol.Broadcast {
 }
 
 func (r *broadcast) Put(broadcast *netsvrProtocol.Broadcast) {
-	broadcast.Data = nil
+	broadcast.Reset()
 	r.pool.Put(broadcast)
 }
 

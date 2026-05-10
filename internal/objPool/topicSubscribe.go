@@ -32,9 +32,7 @@ func (r *topicSubscribe) Get() *netsvrProtocol.TopicSubscribe {
 }
 
 func (r *topicSubscribe) Put(topicSubscribe *netsvrProtocol.TopicSubscribe) {
-	topicSubscribe.Data = nil
-	topicSubscribe.Topics = nil
-	topicSubscribe.UniqId = ""
+	topicSubscribe.Reset()
 	r.pool.Put(topicSubscribe)
 }
 

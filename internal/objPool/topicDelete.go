@@ -32,8 +32,7 @@ func (r *topicDelete) Get() *netsvrProtocol.TopicDelete {
 }
 
 func (r *topicDelete) Put(topicDelete *netsvrProtocol.TopicDelete) {
-	topicDelete.Data = nil
-	topicDelete.Topics = nil
+	topicDelete.Reset()
 	r.pool.Put(topicDelete)
 }
 

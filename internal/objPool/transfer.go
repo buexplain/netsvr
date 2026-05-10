@@ -32,11 +32,7 @@ func (r *transfer) Get() *netsvrProtocol.Transfer {
 }
 
 func (r *transfer) Put(transfer *netsvrProtocol.Transfer) {
-	transfer.UniqId = ""
-	transfer.CustomerId = ""
-	transfer.Session = ""
-	transfer.Topics = nil
-	transfer.Data = nil
+	transfer.Reset()
 	r.pool.Put(transfer)
 }
 

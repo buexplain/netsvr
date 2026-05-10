@@ -32,8 +32,7 @@ func (r *topicPublishBulk) Get() *netsvrProtocol.TopicPublishBulk {
 }
 
 func (r *topicPublishBulk) Put(topicPublishBulk *netsvrProtocol.TopicPublishBulk) {
-	topicPublishBulk.Data = nil
-	topicPublishBulk.Topics = nil
+	topicPublishBulk.Reset()
 	r.pool.Put(topicPublishBulk)
 }
 

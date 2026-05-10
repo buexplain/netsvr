@@ -32,8 +32,7 @@ func (r *multicastByCustomerId) Get() *netsvrProtocol.MulticastByCustomerId {
 }
 
 func (r *multicastByCustomerId) Put(multicastByCustomerId *netsvrProtocol.MulticastByCustomerId) {
-	multicastByCustomerId.Data = nil
-	multicastByCustomerId.CustomerIds = nil
+	multicastByCustomerId.Reset()
 	r.pool.Put(multicastByCustomerId)
 }
 

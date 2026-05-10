@@ -32,8 +32,7 @@ func (r *connInfoDelete) Get() *netsvrProtocol.ConnInfoDelete {
 }
 
 func (r *connInfoDelete) Put(connInfoDelete *netsvrProtocol.ConnInfoDelete) {
-	connInfoDelete.Data = nil
-	connInfoDelete.UniqId = ""
+	connInfoDelete.Reset()
 	r.pool.Put(connInfoDelete)
 }
 

@@ -32,8 +32,7 @@ func (r *singleCast) Get() *netsvrProtocol.SingleCast {
 }
 
 func (r *singleCast) Put(singleCast *netsvrProtocol.SingleCast) {
-	singleCast.Data = nil
-	singleCast.UniqId = ""
+	singleCast.Reset()
 	r.pool.Put(singleCast)
 }
 
