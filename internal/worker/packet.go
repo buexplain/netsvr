@@ -43,18 +43,30 @@ func (pkg *packet) reset() {
 func (pkg *packet) set(message proto.Message, cmd netsvrProtocol.Cmd) error {
 	opts := proto.MarshalOptions{}
 	size := opts.Size(message)
-	pooled := byteslice.Get(size)
-	result, err := opts.MarshalAppend(pooled[:0], message)
-	if err != nil {
-		byteslice.Put(pooled) //回收 packet.body
-		return err
-	}
-	// MarshalAppend 若换底层数组（或返回 nil 而 pooled 仍来自池），需归还 pooled；result 非池块时不可 byteslice.Put(result)
-	if pooled != nil && unsafe.SliceData(result) != unsafe.SliceData(pooled) {
-		byteslice.Put(pooled)
-		pkg.bodyFromPool = false
+	var result []byte
+	if size > 0 {
+		pooled := byteslice.Get(size)
+		var err error
+		result, err = opts.MarshalAppend(pooled[:0], message)
+		if err != nil {
+			byteslice.Put(pooled) //回收 packet.body
+			return err
+		}
+		// MarshalAppend 若换底层数组（或返回 nil 而 pooled 仍来自池），需归还 pooled；result 非池块时不可 byteslice.Put(result)
+		if unsafe.SliceData(result) != unsafe.SliceData(pooled) {
+			byteslice.Put(pooled)
+			pkg.bodyFromPool = false
+		} else {
+			pkg.bodyFromPool = true
+		}
 	} else {
-		pkg.bodyFromPool = pooled != nil
+		// size <= 0 时，直接序列化（byteslice.Get(0) 返回 nil）
+		var err error
+		result, err = opts.MarshalAppend(nil, message)
+		if err != nil {
+			return err
+		}
+		pkg.bodyFromPool = false
 	}
 	pkg.body = result
 	//填充 cmd 字段 (大端序)
