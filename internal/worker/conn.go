@@ -19,6 +19,7 @@ package worker
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"github.com/gobwas/ws"
 	"github.com/rs/zerolog"
@@ -186,6 +187,7 @@ func (r *Conn) SetEvents(id int32) {
 }
 
 func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
+	var pkg *packet
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			var logEvent *zerolog.Event
@@ -197,16 +199,22 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 			} else {
 				logEvent = log.Logger.Error()
 			}
+			fmt.Println(panicErr)
 			logEvent.
-				Stack().
+				Stack().Err(nil).
 				Any("panic", panicErr).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send sendCh failed")
 		}
+		// 仍持有 pkg 时统一归还：set 失败、入队失败、或 panic（入队成功须先把 pkg 置 nil，避免与 loopSend 双重 Put）
+		if pkg != nil {
+			packetObjPool.Put(pkg)
+		}
 	}()
 	// 编码业务数据
-	body, err := proto.Marshal(message)
+	pkg = packetObjPool.Get()
+	err := pkg.set(message, cmd)
 	if err != nil {
 		log.Logger.Error().Err(err).
 			Int32("events", r.GetEvents()).
@@ -214,20 +222,15 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 			Msg("Worker proto.Marshal failed")
 		return 0
 	}
-	pkg := packetObjPool.Get()
-	pkg.body = body
-	//填充 cmd 字段 (大端序)
-	binary.BigEndian.PutUint32(pkg.header[4:8], uint32(cmd))
-	//填充长度字段 (大端序)
-	binary.BigEndian.PutUint32(pkg.header[0:4], uint32(len(body)+4))
 	//发送出去
 	if r.sendCh.Enqueue(pkg) {
-		return 8 + len(body)
+		n := 8 + len(pkg.body)
+		pkg = nil // 所有权已转移到 loopSend，避免 defer 重复归还
+		return n
 	}
-	packetObjPool.Put(pkg)
 	//统计worker到business的失败次数
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
-	r.formatSendToBusinessData(pkg.header, body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
+	r.formatSendToBusinessData(pkg.header, pkg.body, log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
 		Int32("events", r.GetEvents()).
 		Str("connId", r.connId).
 		Msg("Worker send failed and discard message")
