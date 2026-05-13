@@ -21,11 +21,13 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	"unsafe"
 )
 
 var httpClient *http.Client
@@ -34,12 +36,37 @@ func init() {
 	httpClient = &http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
 }
 
+// marshalAppendPooled 将 message 序列化到 byteslice 池；返回的 cleanup 须在请求体被 http 客户端读完后再调用（例如 defer）。
+func marshalAppendPooled(message proto.Message) (data []byte, cleanup func(), err error) {
+	opts := proto.MarshalOptions{}
+	size := opts.Size(message)
+	if size > 0 {
+		pooled := byteslice.Get(size)
+		data, err = opts.MarshalAppend(pooled[:0], message)
+		if err != nil {
+			byteslice.Put(pooled)
+			return nil, nil, err
+		}
+		if unsafe.SliceData(data) != unsafe.SliceData(pooled) {
+			byteslice.Put(pooled)
+			return data, func() {}, nil
+		}
+		return data, func() { byteslice.Put(pooled) }, nil
+	}
+	data, err = opts.MarshalAppend(nil, message)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, func() {}, nil
+}
+
 func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) {
-	reqBytes, err := proto.Marshal(req)
+	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.ConnOpen failed")
 		return nil, err
 	}
+	defer cleanup()
 	httpReq, err := http.NewRequest(
 		http.MethodPost,
 		configs.Config.Customer.OnOpenCallbackApi,
@@ -82,11 +109,12 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 }
 
 func OnClose(req *netsvrProtocol.ConnClose) {
-	reqBytes, err := proto.Marshal(req)
+	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.ConnClose failed")
 		return
 	}
+	defer cleanup()
 	resp, err := httpClient.Post(
 		configs.Config.Customer.OnCloseCallbackApi,
 		"application/x-protobuf",
