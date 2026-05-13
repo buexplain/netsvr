@@ -36,7 +36,8 @@ func broadcast(param []byte) {
 	if len(payload.Data) == 0 {
 		return
 	}
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	//取出所有的连接
 	connections := customerManager.Manager.GetConnections(objPool.ConnSlice)
 	if connections == nil {

@@ -40,10 +40,11 @@ func singleCastBulkByCustomerId(param []byte) {
 			if len(data) == 0 {
 				continue
 			}
-			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, data)
+			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, data)
 			for _, conn := range connList {
 				msg.WriteTo(conn)
 			}
+			customer.FrameObjPool.Put(msg)
 		}
 		return
 	}
@@ -57,11 +58,12 @@ func singleCastBulkByCustomerId(param []byte) {
 			}
 			//获得数据对应的index下标的customerId对应的uniqId
 			connList := binder.Binder.GetConnListByCustomerId(payload.CustomerIds[index])
-			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data[index])
+			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data[index])
 			for _, conn := range connList {
 				//将数据写入到连接中
 				msg.WriteTo(conn)
 			}
+			customer.FrameObjPool.Put(msg)
 		}
 		return
 	}

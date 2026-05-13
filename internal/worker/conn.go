@@ -19,7 +19,6 @@ package worker
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"github.com/gobwas/ws"
 	"github.com/rs/zerolog"
@@ -29,7 +28,6 @@ import (
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"netsvr/pkg/queue"
-	"runtime"
 	"sync/atomic"
 	"time"
 )
@@ -68,10 +66,9 @@ func (r *Conn) Close() {
 
 func (r *Conn) loopSend() {
 	defer func() {
-		if err := recover(); err != nil {
+		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().
-				Stack().
-				Any("panic", err).
+				Stack().Err(nil).Any("panic", panicErr).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send coroutine is closed")
@@ -190,19 +187,8 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	var pkg *packet
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
-			var logEvent *zerolog.Event
-			if runtimeError, ok := panicErr.(runtime.Error); ok && runtimeError.Error() == "send on closed channel" {
-				//这个错误是无解的，因为正常情况下，channel的关闭是在生产者协程进行的
-				//但是现在这里的生产者是多个，并且现在是读取或者是写失败产生的关闭，这里没有关闭的理由
-				//所以只能降低日志级别，生产环境无需在意这个日志
-				logEvent = log.Logger.Debug()
-			} else {
-				logEvent = log.Logger.Error()
-			}
-			fmt.Println(panicErr)
-			logEvent.
-				Stack().Err(nil).
-				Any("panic", panicErr).
+			log.Logger.Error().
+				Stack().Err(nil).Any("panic", panicErr).
 				Int32("events", r.GetEvents()).
 				Str("connId", r.connId).
 				Msg("Worker send sendCh failed")
@@ -223,8 +209,8 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 		return 0
 	}
 	//发送出去
+	n := 8 + len(pkg.body) // 入队列前计算一下数据包大小，避免入队列后计算，产生数据竞争
 	if r.sendCh.Enqueue(pkg) {
-		n := 8 + len(pkg.body)
 		pkg = nil // 所有权已转移到 loopSend，避免 defer 重复归还
 		return n
 	}

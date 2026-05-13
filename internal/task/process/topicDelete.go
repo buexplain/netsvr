@@ -64,7 +64,8 @@ func topicDelete(param []byte) {
 		}
 	}
 	//需要发送取消订阅消息，注意，只能发送一次
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	for _, conn := range unsubscribeConn {
 		msg.WriteTo(conn)
 	}

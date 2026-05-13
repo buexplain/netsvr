@@ -51,7 +51,8 @@ func forceOffline(param []byte) {
 		return
 	}
 	//写入数据，并在一定倒计时后关闭连接
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	for _, uniqId := range payload.UniqIds {
 		conn := customerManager.Manager.Get(uniqId)
 		if conn == nil {

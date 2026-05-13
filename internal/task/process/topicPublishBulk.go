@@ -43,10 +43,11 @@ func topicPublishBulk(param []byte) {
 		defer objPool.ConnSlice.Put(connList)
 		connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
 		for _, data := range payload.Data {
-			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, data)
+			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, data)
 			for _, conn := range connListAlias {
 				msg.WriteTo(conn)
 			}
+			customer.FrameObjPool.Put(msg)
 		}
 		return
 	}
@@ -66,11 +67,12 @@ func topicPublishBulk(param []byte) {
 				continue
 			}
 			connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
-			msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data[index])
+			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data[index])
 			for _, conn := range connListAlias {
 				//将当前迭代的主题对应的数据写入到该连接
 				msg.WriteTo(conn)
 			}
+			customer.FrameObjPool.Put(msg)
 			//将connList归还给内存池
 			objPool.ConnSlice.Put(connList)
 		}

@@ -32,10 +32,9 @@ import (
 func process(workerConn *Conn) {
 	defer func() {
 		workerConn.Close()
-		if err := recover(); err != nil {
+		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().
-				Stack().
-				Any("panic", err).
+				Stack().Err(nil).Any("panic", panicErr).
 				Int32("events", workerConn.GetEvents()).
 				Str("connId", workerConn.connId).
 				Msg("Worker receive coroutine is closed")
@@ -119,10 +118,9 @@ func process(workerConn *Conn) {
 		if currentCmd == netsvrProtocol.Cmd_Register {
 			func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().
-							Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Str("cmd", currentCmd.String()).
 							Msg("Worker exec cmd failed")
 					}
@@ -132,10 +130,9 @@ func process(workerConn *Conn) {
 		} else if currentCmd == netsvrProtocol.Cmd_Unregister {
 			func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().
-							Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Str("cmd", currentCmd.String()).
 							Msg("Worker exec cmd failed")
 					}

@@ -40,7 +40,7 @@ func forceOfflineGuest(param []byte) {
 		return
 	}
 	closeFrame := customer.BuildCloseFrame(ws.StatusPolicyViolation, errors.New("forceOfflineGuest"))
-	fn := func(uniqId string, msg *customer.Message) {
+	fn := func(uniqId string, msg *customer.Frame) {
 		conn := customerManager.Manager.Get(uniqId)
 		if conn == nil {
 			return
@@ -56,9 +56,10 @@ func forceOfflineGuest(param []byte) {
 		customer.WriteCloseFrame(conn, closeFrame)
 	}
 	if payload.Delay <= 0 {
-		var msg *customer.Message
+		var msg *customer.Frame
 		if len(payload.Data) > 0 {
-			msg = customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+			msg = customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+			defer customer.FrameObjPool.Put(msg)
 		}
 		for _, uniqId := range payload.UniqIds {
 			fn(uniqId, msg)
@@ -68,9 +69,10 @@ func forceOfflineGuest(param []byte) {
 			defer func() {
 				_ = recover()
 			}()
-			var msg *customer.Message
+			var msg *customer.Frame
 			if len(payload.Data) > 0 {
-				msg = customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+				msg = customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+				defer customer.FrameObjPool.Put(msg)
 			}
 			for _, uniqId := range payload.UniqIds {
 				fn(uniqId, msg)

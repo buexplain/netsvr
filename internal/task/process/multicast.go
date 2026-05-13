@@ -36,7 +36,8 @@ func multicast(param []byte) {
 	if len(payload.Data) == 0 {
 		return
 	}
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	for _, uniqId := range payload.UniqIds {
 		conn := manager.Manager.Get(uniqId)
 		if conn == nil {

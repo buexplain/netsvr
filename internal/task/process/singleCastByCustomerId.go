@@ -36,7 +36,8 @@ func singleCastByCustomerId(param []byte) {
 	if payload.CustomerId == "" || len(payload.Data) == 0 {
 		return
 	}
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	connList := binder.Binder.GetConnListByCustomerId(payload.CustomerId)
 	for _, conn := range connList {
 		msg.WriteTo(conn)

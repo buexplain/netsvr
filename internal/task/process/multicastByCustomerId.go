@@ -37,7 +37,8 @@ func multicastByCustomerId(param []byte) {
 		return
 	}
 	customerIdConnList := binder.Binder.GetConnListByCustomerIds(payload.CustomerIds)
-	msg := customer.NewMessage(configs.Config.Customer.SendMessageType, payload.Data)
+	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
+	defer customer.FrameObjPool.Put(msg)
 	for _, connList := range customerIdConnList {
 		for _, conn := range connList {
 			msg.WriteTo(conn)

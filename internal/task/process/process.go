@@ -85,10 +85,9 @@ func init() {
 func Process(conn net.Conn) {
 	defer func() {
 		_ = conn.Close()
-		if err := recover(); err != nil {
+		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().
-				Stack().
-				Any("panic", err).
+				Stack().Err(nil).Any("panic", panicErr).
 				Msg("Task coroutine is closed")
 		} else {
 			log.Logger.Debug().
@@ -154,10 +153,9 @@ func Process(conn net.Conn) {
 		if pnbCallback, ok := postNonBlockingCallback[currentCmd]; ok {
 			fn := func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().
-							Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Str("cmd", currentCmd.String()).
 							Msg("Task exec cmd failed")
 					}
@@ -174,10 +172,9 @@ func Process(conn net.Conn) {
 		} else if pbCallback, ok := postBlockingCallback[currentCmd]; ok {
 			func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().
-							Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Str("cmd", currentCmd.String()).
 							Msg("Task exec cmd failed")
 					}
@@ -187,10 +184,9 @@ func Process(conn net.Conn) {
 		} else if gCallback, ok := getCallback[currentCmd]; ok {
 			func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().
-							Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Str("cmd", currentCmd.String()).
 							Msg("Task exec cmd failed")
 					}

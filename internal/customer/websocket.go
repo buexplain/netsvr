@@ -112,9 +112,9 @@ func Start() {
 			}
 			err := goroutine.DefaultWorkerPool.Submit(func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Msg("OnWebsocketOpen failed")
 					}
 				}()
@@ -228,9 +228,9 @@ func Start() {
 			topic.Topic.DelRelationBySlice(topics, conn)
 			fn := func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Msg("OnWebsocketClose failed")
 					}
 				}()
@@ -282,9 +282,9 @@ func Start() {
 			allow := conn.Allow()
 			fn := func() {
 				defer func() {
-					if err := recover(); err != nil {
+					if panicErr := recover(); panicErr != nil {
 						log.Logger.Error().
-							Stack().Any("panic", err).
+							Stack().Err(nil).Any("panic", panicErr).
 							Msg("OnWebsocketMessage failed")
 					}
 				}()
@@ -409,9 +409,7 @@ func StartAutobahn() {
 		},
 		OnWebsocketMessage: func(conn *wsServer.Conn, messageType ws.OpCode, data []byte) {
 			fn := func() {
-				//两个写入方法都要测试一次
-				NewMessage(messageType, data).WriteTo(conn)
-				//WriteMessage(conn, messageType, data)
+				WriteMessage(conn, messageType, data)
 			}
 			err := goroutine.DefaultWorkerPool.Submit(fn)
 			if err != nil {
