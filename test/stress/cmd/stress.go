@@ -40,6 +40,7 @@ import (
 )
 
 func main() {
+	gcStatsMsg := gcStats.Start()
 	go func() {
 		wg := &sync.WaitGroup{}
 		if configs.Config.Concurrent {
@@ -79,8 +80,10 @@ func main() {
 			broadcast.Run(nil)
 		}
 		wg.Wait()
+		if gcStatsMsg != "" {
+			log.Logger.Info().Msg(gcStatsMsg)
+		}
 		log.Logger.Info().Msgf("all connections established, current online %d", wsMetrics.Collect.Count())
-		go gcStats.Start()
 		go func() {
 			if wsMetrics.Collect.Count() > 0 {
 				time.Sleep(time.Second * time.Duration(configs.Config.Suspend))

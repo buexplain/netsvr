@@ -31,8 +31,65 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+func Start() string {
+	//127.0.0.1:6065
+	if configs.Config.ClientListenAddress == "" {
+		return ""
+	}
+	//127.0.0.1:6063
+	if configs.Config.NetsvrPprofListenAddress == "" {
+		return ""
+	}
+	checkIsOpen := func(addr string) bool {
+		c, err := net.Dial("tcp", addr)
+		if err == nil {
+			_ = c.Close()
+			return true
+		}
+		var e *net.OpError
+		if errors.As(err, &e) && (strings.Contains(e.Err.Error(), "No connection") || strings.Contains(e.Err.Error(), "connection refused")) {
+			return false
+		}
+		return true
+	}
+	if checkIsOpen(configs.Config.ClientListenAddress) {
+		log.Logger.Info().Msg("地址已被占用: " + configs.Config.ClientListenAddress)
+		return ""
+	}
+	if !checkIsOpen(configs.Config.NetsvrPprofListenAddress) {
+		log.Logger.Info().Msg("地址未开启: " + configs.Config.NetsvrPprofListenAddress)
+		return ""
+	}
+	failed := make(chan struct{})
+	http.HandleFunc("/", serveHTML)
+	http.HandleFunc("/data", serveData)
+	go func() {
+		if err := http.ListenAndServe(configs.Config.ClientListenAddress, nil); err != nil {
+			log.Logger.Error().Msgf("启动失败: %v", err)
+			close(failed)
+		}
+	}()
+	select {
+	case <-failed:
+		return ""
+	case <-time.After(time.Millisecond * 200):
+		break
+	}
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			collectAndStore(configs.Config.NetsvrPprofListenAddress)
+		}
+	}()
+	msg := fmt.Sprintf("点击访问gc监控面板: http://%s", configs.Config.ClientListenAddress)
+	log.Logger.Info().Msg(msg)
+	return msg
+}
 
 //go:embed chart.js
 var chartJS string
@@ -65,63 +122,12 @@ type DataPoint struct {
 }
 
 var dataPoints []DataPoint
-
-func Start() {
-	//127.0.0.1:6065
-	if configs.Config.ClientListenAddress == "" {
-		return
-	}
-	//127.0.0.1:6063
-	if configs.Config.NetsvrPprofListenAddress == "" {
-		return
-	}
-	checkIsOpen := func(addr string) bool {
-		c, err := net.Dial("tcp", addr)
-		if err == nil {
-			_ = c.Close()
-			return true
-		}
-		var e *net.OpError
-		if errors.As(err, &e) && (strings.Contains(e.Err.Error(), "No connection") || strings.Contains(e.Err.Error(), "connection refused")) {
-			return false
-		}
-		return true
-	}
-	if checkIsOpen(configs.Config.ClientListenAddress) {
-		log.Logger.Info().Msg("地址已被占用: " + configs.Config.ClientListenAddress)
-		return
-	}
-	if !checkIsOpen(configs.Config.NetsvrPprofListenAddress) {
-		log.Logger.Info().Msg("地址未开启: " + configs.Config.NetsvrPprofListenAddress)
-		return
-	}
-	closed := make(chan struct{})
-	go func() {
-		select {
-		case <-closed:
-			return
-		case <-time.After(time.Millisecond * 1500):
-			break
-		}
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			collectAndStore(configs.Config.NetsvrPprofListenAddress)
-		}
-	}()
-	http.HandleFunc("/", serveHTML)
-	http.HandleFunc("/data", serveData)
-	log.Logger.Info().Msgf("点击访问gc监控面板: http://%s", configs.Config.ClientListenAddress)
-	if err := http.ListenAndServe(configs.Config.ClientListenAddress, nil); err != nil {
-		log.Logger.Error().Msgf("启动失败: %v", err)
-		close(closed)
-	}
-}
+var dataMutex sync.RWMutex
 
 func collectAndStore(address string) {
 	stats, err := collectMemStats(address)
 	if err != nil {
-		log.Logger.Error().Msgf("收集 %s 数据失败: %v", address, err)
+		log.Logger.Error().Msgf("收集数据失败: %v", err)
 		return
 	}
 
@@ -155,7 +161,9 @@ func collectAndStore(address string) {
 		GCCPUPercent:    stats.GCCPUFraction * 100,
 	}
 
+	dataMutex.Lock()
 	dataPoints = append(dataPoints, point)
+	dataMutex.Unlock()
 }
 
 func collectMemStats(address string) (*GCStats, error) {
@@ -475,7 +483,7 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
 </head>
 <body>
     <div class="container">
-        <h1>netsvr gc 分析面板</h1>
+        <h1>🔍 Go GC 分析面板</h1>
         
         <div class="stats" id="stats"></div>
         
@@ -521,6 +529,8 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
         let pollingInterval = null;
         let isServerDown = false;
         let statsInitialized = false;
+        let consecutiveFailures = 0;
+        const MAX_FAILURES = 3;
         
         async function fetchData() {
             if (isServerDown) return;
@@ -531,11 +541,20 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
                     throw new Error('服务器响应错误: ' + response.status);
                 }
                 const data = await response.json();
+                
+                // 请求成功，重置失败计数
+                consecutiveFailures = 0;
+                
                 updateCharts(data);
                 updateStats(data);
             } catch (error) {
                 console.error('获取数据失败:', error);
-                handleServerDown();
+                consecutiveFailures++;
+                
+                // 累计三次失败后才显示服务器断开提示
+                if (consecutiveFailures >= MAX_FAILURES) {
+                    handleServerDown();
+                }
             }
         }
 
@@ -567,15 +586,29 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
                 'right: 20px;' +
                 'background: #f44336;' +
                 'color: white;' +
-                'padding: 15px 20px;' +
+                'padding: 15px 40px 15px 20px;' +
                 'border-radius: 8px;' +
                 'box-shadow: 0 4px 6px rgba(0,0,0,0.1);' +
                 'z-index: 1000;' +
-                'animation: slideIn 0.3s ease-out;';
+                'animation: slideIn 0.3s ease-out;' +
+                'cursor: default;';
             
             msgDiv.innerHTML = 
                 '<div style="font-weight: bold; margin-bottom: 5px;">⚠️ 服务器已断开</div>' +
-                '<div style="font-size: 14px;">监控服务已停止，请刷新页面重试</div>';
+                '<div style="font-size: 14px;">监控服务已停止，请刷新页面重试</div>' +
+                '<div id="close-btn" style="' +
+                'position: absolute;' +
+                'top: 10px;' +
+                'right: 10px;' +
+                'width: 24px;' +
+                'height: 24px;' +
+                'line-height: 24px;' +
+                'text-align: center;' +
+                'font-size: 18px;' +
+                'cursor: pointer;' +
+                'border-radius: 50%;' +
+                'transition: background-color 0.2s;' +
+                '">&times;</div>';
             
             // 添加动画样式
             const style = document.createElement('style');
@@ -593,6 +626,18 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
             
             document.head.appendChild(style);
             container.appendChild(msgDiv);
+            
+            // 添加关闭按钮事件
+            const closeBtn = document.getElementById('close-btn');
+            closeBtn.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+            });
+            closeBtn.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'transparent';
+            });
+            closeBtn.addEventListener('click', function() {
+                msgDiv.remove();
+            });
         }
 
         function updateStats(data) {
@@ -920,6 +965,8 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
 
 func serveData(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	dataMutex.RLock()
+	defer dataMutex.RUnlock()
 	err := json.NewEncoder(w).Encode(dataPoints)
 	if err != nil {
 		return
