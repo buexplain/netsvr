@@ -21,6 +21,7 @@ import (
 	"netsvr/pkg/quit"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/broadcast"
+	"netsvr/test/stress/internal/gcStats"
 	"netsvr/test/stress/internal/groupChat"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/multicast"
@@ -79,6 +80,7 @@ func main() {
 		}
 		wg.Wait()
 		log.Logger.Info().Msgf("all connections established, current online %d", wsMetrics.Collect.Count())
+		go gcStats.Start()
 		go func() {
 			if wsMetrics.Collect.Count() > 0 {
 				time.Sleep(time.Second * time.Duration(configs.Config.Suspend))

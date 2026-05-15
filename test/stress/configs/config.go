@@ -38,6 +38,10 @@ type config struct {
 	EnableCompression bool
 	//日志级别 debug、info、warn、error
 	LogLevel string
+	// netsvr的pprof监听地址
+	NetsvrPprofListenAddress string
+	// netsvr gc 分析面板
+	ClientListenAddress string
 	//customer服务的websocket连接地址
 	CustomerWsAddress string
 	//客户端websocket发送的心跳消息
