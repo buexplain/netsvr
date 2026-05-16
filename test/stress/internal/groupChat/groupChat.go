@@ -49,7 +49,7 @@ func Run(wg *sync.WaitGroup) {
 	}
 	sendLimitB := 1
 	if configs.Config.GroupChat.Limit > 0 {
-		sendLimitB = int(configs.Config.GroupChat.Limit * 1.6)
+		sendLimitB = max(int(configs.Config.GroupChat.Limit*1.6), 1)
 	}
 	message := "我是一条群聊信息"
 	if configs.Config.Topic.Publish.MessageLen > 0 {

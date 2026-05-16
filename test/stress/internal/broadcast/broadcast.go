@@ -52,7 +52,7 @@ func Run(wg *sync.WaitGroup) {
 	}
 	sendLimitB := 1
 	if configs.Config.Broadcast.Limit > 0 {
-		sendLimitB = int(configs.Config.Broadcast.Limit * 1.6)
+		sendLimitB = max(int(configs.Config.Broadcast.Limit*1.6), 1)
 	}
 	message := "我是一条广播信息"
 	if configs.Config.Broadcast.MessageLen > 0 {
