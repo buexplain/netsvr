@@ -127,7 +127,7 @@ var dataMutex sync.RWMutex
 func collectAndStore(address string) {
 	stats, err := collectMemStats(address)
 	if err != nil {
-		log.Logger.Error().Msgf("收集数据失败: %v", err)
+		log.Logger.Info().Msgf("收集数据失败: %v", err)
 		return
 	}
 
@@ -531,22 +531,34 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
         let statsInitialized = false;
         let consecutiveFailures = 0;
         const MAX_FAILURES = 3;
+        let nextIndex = 0;  // 记录下次请求的起始索引
+        let allDataPoints = [];  // 本地存储所有数据点
         
         async function fetchData() {
             if (isServerDown) return;
             
             try {
-                const response = await fetch('/data');
+                // 使用增量获取，传递下次请求的起始索引
+                const response = await fetch('/data?index=' + nextIndex);
                 if (!response.ok) {
                     throw new Error('服务器响应错误: ' + response.status);
                 }
-                const data = await response.json();
+                const newData = await response.json();
+                
+                // 如果有新数据，合并到本地数据集
+                if (newData.length > 0) {
+                    allDataPoints = allDataPoints.concat(newData);
+                    nextIndex = allDataPoints.length;  // 更新下次请求的索引
+                }
                 
                 // 请求成功，重置失败计数
                 consecutiveFailures = 0;
                 
-                updateCharts(data);
-                updateStats(data);
+                // 只有当有数据时才更新图表
+                if (allDataPoints.length > 0) {
+                    updateCharts(allDataPoints);
+                    updateStats(allDataPoints);
+                }
             } catch (error) {
                 console.error('获取数据失败:', error);
                 consecutiveFailures++;
@@ -963,11 +975,33 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(html))
 }
 
-func serveData(w http.ResponseWriter, _ *http.Request) {
+func serveData(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// 获取客户端已知的最后一个数据索引
+	indexStr := r.URL.Query().Get("index")
+	startIndex := 0
+	if indexStr != "" {
+		if idx, err := strconv.Atoi(indexStr); err == nil && idx >= 0 {
+			startIndex = idx
+		}
+	}
+
 	dataMutex.RLock()
 	defer dataMutex.RUnlock()
-	err := json.NewEncoder(w).Encode(dataPoints)
+
+	// 如果起始索引超出范围，返回空数组
+	if startIndex >= len(dataPoints) {
+		_, err := w.Write([]byte("[]"))
+		if err != nil {
+			return
+		}
+		return
+	}
+
+	// 返回从 startIndex 开始的所有数据
+	responseData := dataPoints[startIndex:]
+	err := json.NewEncoder(w).Encode(responseData)
 	if err != nil {
 		return
 	}
