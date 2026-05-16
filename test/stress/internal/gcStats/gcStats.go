@@ -659,6 +659,12 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
             const avgPause = data.reduce((sum, d) => sum + d.pause_ms, 0) / data.length;
             const maxPause = Math.max(...data.map(d => d.pause_ms));
             
+            // 计算各指标的平均值
+            const avgHeapAlloc = data.reduce((sum, d) => sum + d.heap_alloc_mb, 0) / data.length;
+            const avgUtilization = data.reduce((sum, d) => sum + d.heap_utilization, 0) / data.length;
+            const avgObjects = data.reduce((sum, d) => sum + d.heap_objects, 0) / data.length;
+            const avgCpuPercent = data.reduce((sum, d) => sum + d.gc_cpu_percent, 0) / data.length;
+            
             if (!statsInitialized) {
                 // 首次初始化，创建完整的 HTML 结构
                 document.getElementById('stats').innerHTML = 
@@ -683,36 +689,36 @@ func serveHTML(w http.ResponseWriter, _ *http.Request) {
 	'<div class="tooltip">监控期间记录到的最长 GC 暂停时间。用于评估 GC 的最坏情况。</div>' +
 	'</div>' +
 	'<div class="stat-card">' +
-	'<div class="stat-value" id="stat-heap-alloc">' + latest.heap_alloc_mb.toFixed(2) + 'MB</div>' +
+	'<div class="stat-value" id="stat-heap-alloc">' + latest.heap_alloc_mb.toFixed(2) + 'MB<br><span style="font-size:12px;color:#999;">平均: ' + avgHeapAlloc.toFixed(2) + 'MB</span></div>' +
 	'<div class="stat-label">堆分配</div>' +
 	'<div class="tooltip">当前已分配的堆内存总量。包括正在使用和空闲的内存。</div>' +
 	'</div>' +
 	'<div class="stat-card">' +
-	'<div class="stat-value" id="stat-utilization">' + latest.heap_utilization.toFixed(1) + '%</div>' +
+	'<div class="stat-value" id="stat-utilization">' + latest.heap_utilization.toFixed(1) + '%<br><span style="font-size:12px;color:#999;">平均: ' + avgUtilization.toFixed(1) + '%</span></div>' +
 	'<div class="stat-label">堆利用率</div>' +
 	'<div class="tooltip">堆内存使用率 = 使用中内存 / 系统分配内存 × 100%。过低可能存在内存碎片。</div>' +
 	'</div>' +
 	'<div class="stat-card">' +
-	'<div class="stat-value" id="stat-objects">' + latest.heap_objects.toLocaleString() + '</div>' +
+	'<div class="stat-value" id="stat-objects">' + latest.heap_objects.toLocaleString() + '<br><span style="font-size:12px;color:#999;">平均: ' + Math.round(avgObjects).toLocaleString() + '</span></div>' +
 	'<div class="stat-label">活跃对象</div>' +
 	'<div class="tooltip">当前堆中的活跃对象数量。持续增长可能表示内存泄漏。</div>' +
 	'</div>' +
 	'<div class="stat-card">' +
-	'<div class="stat-value" id="stat-cpu-percent">' + latest.gc_cpu_percent.toFixed(2) + '%</div>' +
+	'<div class="stat-value" id="stat-cpu-percent">' + latest.gc_cpu_percent.toFixed(2) + '%<br><span style="font-size:12px;color:#999;">平均: ' + avgCpuPercent.toFixed(2) + '%</span></div>' +
 	'<div class="stat-label">GC CPU 占用</div>' +
 	'<div class="tooltip">GC 占用的 CPU 时间比例。过高会影响应用程序性能。</div>' +
 	'</div>';
                 statsInitialized = true;
             } else {
                 // 后续只更新数值，不重建 DOM
-                document.getElementById('stat-num-gc').textContent = latest.num_gc;
-                document.getElementById('stat-pause-ms').textContent = latest.pause_ms.toFixed(2) + 'ms';
-                document.getElementById('stat-avg-pause').textContent = latest.avg_pause_ms.toFixed(2) + 'ms';
-                document.getElementById('stat-max-pause').textContent = maxPause.toFixed(2) + 'ms';
-                document.getElementById('stat-heap-alloc').textContent = latest.heap_alloc_mb.toFixed(2) + 'MB';
-                document.getElementById('stat-utilization').textContent = latest.heap_utilization.toFixed(1) + '%';
-                document.getElementById('stat-objects').textContent = latest.heap_objects.toLocaleString();
-                document.getElementById('stat-cpu-percent').textContent = latest.gc_cpu_percent.toFixed(2) + '%';
+                document.getElementById('stat-num-gc').innerHTML = latest.num_gc;
+                document.getElementById('stat-pause-ms').innerHTML = latest.pause_ms.toFixed(2) + 'ms';
+                document.getElementById('stat-avg-pause').innerHTML = latest.avg_pause_ms.toFixed(2) + 'ms';
+                document.getElementById('stat-max-pause').innerHTML = maxPause.toFixed(2) + 'ms';
+                document.getElementById('stat-heap-alloc').innerHTML = latest.heap_alloc_mb.toFixed(2) + 'MB<br><span style="font-size:12px;color:#999;">平均: ' + avgHeapAlloc.toFixed(2) + 'MB</span>';
+                document.getElementById('stat-utilization').innerHTML = latest.heap_utilization.toFixed(1) + '%<br><span style="font-size:12px;color:#999;">平均: ' + avgUtilization.toFixed(1) + '%</span>';
+                document.getElementById('stat-objects').innerHTML = latest.heap_objects.toLocaleString() + '<br><span style="font-size:12px;color:#999;">平均: ' + Math.round(avgObjects).toLocaleString() + '</span>';
+                document.getElementById('stat-cpu-percent').innerHTML = latest.gc_cpu_percent.toFixed(2) + '%<br><span style="font-size:12px;color:#999;">平均: ' + avgCpuPercent.toFixed(2) + '%</span>';
             }
         }
 
