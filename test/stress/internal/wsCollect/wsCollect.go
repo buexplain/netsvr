@@ -45,6 +45,15 @@ func (r *Collect) Del(ws *wsClient.Client) {
 	delete(r.collect, ws)
 }
 
+func (r *Collect) RandomGet() *wsClient.Client {
+	r.mux.RLock()
+	defer r.mux.RUnlock()
+	for ws := range r.collect {
+		return ws
+	}
+	return nil
+}
+
 func (r *Collect) RandomGetUniqIds(num int) []string {
 	r.mux.RLock()
 	defer r.mux.RUnlock()

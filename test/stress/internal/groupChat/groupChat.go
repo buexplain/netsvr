@@ -27,6 +27,7 @@ import (
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
+	"netsvr/test/stress/internal/wsCollect"
 	"netsvr/test/stress/internal/wsMetrics"
 	"strconv"
 	"strings"
@@ -42,21 +43,43 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("groupChat running")
+	if configs.Config.GroupChat.Limit == 0 {
+		log.Logger.Error().Msg("配置 Config.GroupChat.Limit 必须是个有效的值")
+		return
+	}
+	sendLimitB := 1
+	if configs.Config.GroupChat.Limit > 0 {
+		sendLimitB = int(configs.Config.GroupChat.Limit * 1.6)
+	}
 	message := "我是一条群聊信息"
 	if configs.Config.Topic.Publish.MessageLen > 0 {
 		message = strings.Repeat("g", configs.Config.GroupChat.MessageLen)
 	}
 	signInParam := map[string]uint{"sessionLen": configs.Config.GroupChat.SessionLen}
+	//循环构建群
 	for groupId := 1; groupId <= configs.Config.GroupChat.GroupNum; groupId++ {
-		groupName := "groupChat-" + strconv.Itoa(groupId)
-		groupSendLimit := rate.NewLimiter(rate.Limit(configs.Config.GroupChat.SendSpeed), configs.Config.GroupChat.SendSpeed)
-		groupSenderNum := 0
-		groupNameTopic := groupName + testUtils.GlobalId //加上全局随机id，确保多个压测程序订阅的topic不冲突
+		groupName := "groupChat-" + strconv.Itoa(groupId) //统计的名字
+		groupNameTopic := groupName + testUtils.GlobalId  //真实的群名字，加上全局随机id，确保多个压测程序订阅的topic不冲突
 		groupMessage := map[string]any{"topics": []string{groupNameTopic}, "message": message}
+		collect := wsCollect.New()                                                           //收集群成员连接
+		sendLimit := rate.NewLimiter(rate.Limit(configs.Config.GroupChat.Limit), sendLimitB) //发送限流
+		//启动多个协程去发送群消息
+		for i := 0; i < sendLimitB; i++ {
+			go func(collect *wsCollect.Collect, sendLimit *rate.Limiter, groupMessage map[string]any) {
+				for {
+					if err := sendLimit.Wait(quit.Ctx); err != nil {
+						return
+					}
+					if ws := collect.RandomGet(); ws != nil {
+						ws.Send(protocol.RouterTopicPublish, groupMessage)
+					}
+				}
+			}(collect, sendLimit, groupMessage)
+		}
 		for key, step := range configs.Config.GroupChat.Step {
 			metrics := wsMetrics.New(groupName, key+1)
 			utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
-				wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
+				ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
 					//模拟登录
 					ws.Send(protocol.RouterSignInForForge, signInParam)
 					ws.OnMessage = map[protocol.Cmd]func(payload gjson.Result){
@@ -67,30 +90,15 @@ func Run(wg *sync.WaitGroup) {
 								groupNameTopic,
 							}})
 						},
-						//订阅成功
-						protocol.RouterTopicSubscribe: func(payload gjson.Result) {
-							//模拟群聊
-							if groupSenderNum > configs.Config.GroupChat.SendSpeed*2 {
-								//没必要搞那么多人去发送消息
-								return
-							}
-							groupSenderNum++
-							go func() {
-								for {
-									if err := groupSendLimit.Wait(quit.Ctx); err == nil {
-										ws.Send(protocol.RouterTopicPublish, groupMessage)
-									}
-								}
-							}()
-						},
-						//模拟群聊成功
-						protocol.RouterTopicPublish: func(_ gjson.Result) {
-						},
 						//去掉其它命令发来的信息
 						protocol.Placeholder: func(_ gjson.Result) {
 						},
 					}
 				})
+				if ws == nil {
+					return
+				}
+				collect.Add(ws)
 			})
 			metrics.RecordConnectOK()
 			log.Logger.Info().Msgf("%s current step %d online %d", groupName, metrics.Step, metrics.Online.Count())

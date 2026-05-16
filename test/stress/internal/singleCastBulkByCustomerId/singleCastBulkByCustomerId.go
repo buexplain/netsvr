@@ -75,11 +75,8 @@ func Run(wg *sync.WaitGroup) {
 				return
 			}
 			collect.Add(ws)
-			customerIds := collect.RandomGetCustomerIds(configs.Config.SingleCastBulkByCustomerId.CustomerIdNum)
 			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCastBulkByCustomerId.SendInterval), func() {
-				if len(customerIds) < configs.Config.SingleCastBulkByCustomerId.CustomerIdNum {
-					customerIds = collect.RandomGetCustomerIds(configs.Config.SingleCastBulkByCustomerId.CustomerIdNum)
-				}
+				customerIds := collect.RandomGetCustomerIds(configs.Config.SingleCastBulkByCustomerId.CustomerIdNum)
 				data := make([]string, 0, len(customerIds))
 				for i := len(customerIds); i > 0; i-- {
 					data = append(data, message)

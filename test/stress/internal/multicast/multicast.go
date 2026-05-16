@@ -67,11 +67,8 @@ func Run(wg *sync.WaitGroup) {
 				return
 			}
 			collect.Add(ws)
-			uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
 			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Multicast.SendInterval), func() {
-				if len(uniqIds) < configs.Config.Multicast.UniqIdNum {
-					uniqIds = collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
-				}
+				uniqIds := collect.RandomGetUniqIds(configs.Config.Multicast.UniqIdNum)
 				ws.Send(protocol.RouterMulticast, map[string]interface{}{"message": message, "uniqIds": uniqIds})
 			})
 		})

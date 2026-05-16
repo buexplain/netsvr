@@ -18,17 +18,25 @@
 package broadcast
 
 import (
+	"golang.org/x/time/rate"
+	"netsvr/pkg/quit"
 	"netsvr/test/pkg/protocol"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
 	"netsvr/test/stress/internal/utils"
 	"netsvr/test/stress/internal/wsClient"
+	"netsvr/test/stress/internal/wsCollect"
 	"netsvr/test/stress/internal/wsMetrics"
-	"netsvr/test/stress/internal/wsTimer"
 	"strings"
 	"sync"
 	"time"
 )
+
+var collect *wsCollect.Collect
+
+func init() {
+	collect = wsCollect.New()
+}
 
 func Run(wg *sync.WaitGroup) {
 	if wg != nil {
@@ -38,26 +46,42 @@ func Run(wg *sync.WaitGroup) {
 		return
 	}
 	log.Logger.Info().Msgf("broadcast running")
-	if configs.Config.Broadcast.SendInterval <= 0 {
-		log.Logger.Error().Msg("配置 Config.Broadcast.SendInterval 必须是个大于0的值")
+	if configs.Config.Broadcast.Limit == 0 {
+		log.Logger.Error().Msg("配置 Config.Broadcast.Limit 必须是个有效的值")
 		return
+	}
+	sendLimitB := 1
+	if configs.Config.Broadcast.Limit > 0 {
+		sendLimitB = int(configs.Config.Broadcast.Limit * 1.6)
 	}
 	message := "我是一条广播信息"
 	if configs.Config.Broadcast.MessageLen > 0 {
 		message = strings.Repeat("b", configs.Config.Broadcast.MessageLen)
 	}
 	data := map[string]interface{}{"message": message}
+	sendLimit := rate.NewLimiter(rate.Limit(configs.Config.Broadcast.Limit), sendLimitB)
+	for i := 0; i < sendLimitB; i++ {
+		go func() {
+			for {
+				if err := sendLimit.Wait(quit.Ctx); err != nil {
+					return
+				}
+				if ws := collect.RandomGet(); ws != nil {
+					ws.Send(protocol.RouterBroadcast, data)
+				}
+			}
+		}()
+	}
 	for key, step := range configs.Config.Broadcast.Step {
 		metrics := wsMetrics.New("broadcast", key+1)
 		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
 			ws := wsClient.New(configs.Config.CustomerWsAddress, metrics, func(ws *wsClient.Client) {
 				ws.OnMessage = nil
 			})
-			if ws != nil {
-				wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.Broadcast.SendInterval), func() {
-					ws.Send(protocol.RouterBroadcast, data)
-				})
+			if ws == nil {
+				return
 			}
+			collect.Add(ws)
 		})
 		metrics.RecordConnectOK()
 		log.Logger.Info().Msgf("broadcast current step %d online %d", metrics.Step, metrics.Online.Count())

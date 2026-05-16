@@ -67,11 +67,8 @@ func Run(wg *sync.WaitGroup) {
 				return
 			}
 			collect.Add(ws)
-			uniqIds := collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
 			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.SingleCastBulk.SendInterval), func() {
-				if len(uniqIds) < configs.Config.SingleCastBulk.UniqIdNum {
-					uniqIds = collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
-				}
+				uniqIds := collect.RandomGetUniqIds(configs.Config.SingleCastBulk.UniqIdNum)
 				data := make([]string, 0, len(uniqIds))
 				for i := len(uniqIds); i > 0; i-- {
 					data = append(data, message)

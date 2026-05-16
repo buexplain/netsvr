@@ -75,11 +75,8 @@ func Run(wg *sync.WaitGroup) {
 				return
 			}
 			collect.Add(ws)
-			customerIds := collect.RandomGetCustomerIds(configs.Config.MulticastByCustomerId.CustomerIdNum)
 			wsTimer.WsTimer.ScheduleFunc(time.Second*time.Duration(configs.Config.MulticastByCustomerId.SendInterval), func() {
-				if len(customerIds) < configs.Config.MulticastByCustomerId.CustomerIdNum {
-					customerIds = collect.RandomGetUniqIds(configs.Config.MulticastByCustomerId.CustomerIdNum)
-				}
+				customerIds := collect.RandomGetCustomerIds(configs.Config.MulticastByCustomerId.CustomerIdNum)
 				ws.Send(protocol.RouterMulticastByCustomerId, map[string]interface{}{"message": message, "customerIds": customerIds})
 			})
 		})

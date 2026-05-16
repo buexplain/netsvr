@@ -41,8 +41,8 @@ SessionLen = 2048
 GroupNum = 10
 # 发送的消息大小
 MessageLen = 100
-# 每秒发消息条数
-SendSpeed = 3
+# 发送消息限流控制，示例：每5秒最多1个请求=1/5，每秒最多3个请求=3
+Limit = 3
 # 每个群的人数
 Step = [
     { ConnNum = 25, ConnectNum = 100, Suspend = 10 },
@@ -187,8 +187,8 @@ TopicNum = 10
 [Broadcast]
 Enable = true
 MessageLen = 1024
-# 每个连接间隔多少秒进行一次广播操作
-SendInterval = 15
+# 发送消息限流控制，示例：每5秒最多1个请求=1/5，每秒最多3个请求=3
+Limit = 0.07
 Step = [
     { ConnNum = 1, ConnectNum = 100, Suspend = 10 },
     { ConnNum = 2, ConnectNum = 100, Suspend = 10 },

@@ -50,6 +50,27 @@ func Run(wg *sync.WaitGroup) {
 	if configs.Config.Topic.Publish.MessageLen > 0 {
 		message = strings.Repeat("t", configs.Config.Topic.Publish.MessageLen)
 	}
+	//订阅配置
+	if configs.Config.Topic.Subscribe.ModeSecond < 0 {
+		configs.Config.Topic.Subscribe.ModeSecond = 1
+	}
+	if configs.Config.Topic.Subscribe.TopicNum < 0 {
+		configs.Config.Topic.Subscribe.TopicNum = 1
+	}
+	//取消订阅配置
+	if configs.Config.Topic.Unsubscribe.ModeSecond < 0 {
+		configs.Config.Topic.Unsubscribe.ModeSecond = 1
+	}
+	if configs.Config.Topic.Unsubscribe.TopicNum < 0 {
+		configs.Config.Topic.Unsubscribe.TopicNum = 1
+	}
+	//发布消息配置
+	if configs.Config.Topic.Publish.ModeSecond < 0 {
+		configs.Config.Topic.Publish.ModeSecond = 1
+	}
+	if configs.Config.Topic.Publish.TopicNum < 0 {
+		configs.Config.Topic.Publish.TopicNum = 1
+	}
 	for key, step := range configs.Config.Topic.Step {
 		metrics := wsMetrics.New("topic", key+1)
 		utils.Concurrency(step.ConnNum, step.ConnectNum, func() {
@@ -61,12 +82,6 @@ func Run(wg *sync.WaitGroup) {
 				return
 			}
 			//处理订阅
-			if configs.Config.Topic.Subscribe.ModeSecond < 0 {
-				configs.Config.Topic.Subscribe.ModeSecond = 1
-			}
-			if configs.Config.Topic.Subscribe.TopicNum < 0 {
-				configs.Config.Topic.Subscribe.TopicNum = 1
-			}
 			if configs.Config.Topic.Subscribe.Mode == configs.ModeAfter {
 				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Subscribe.ModeSecond), func() {
 					ws.Send(protocol.RouterTopicSubscribe, map[string][]string{"topics": ws.GetSubscribeTopic(configs.Config.Topic.Subscribe.TopicNum)})
@@ -77,12 +92,6 @@ func Run(wg *sync.WaitGroup) {
 				})
 			}
 			//处理取消订阅
-			if configs.Config.Topic.Unsubscribe.ModeSecond < 0 {
-				configs.Config.Topic.Unsubscribe.ModeSecond = 1
-			}
-			if configs.Config.Topic.Unsubscribe.TopicNum < 0 {
-				configs.Config.Topic.Unsubscribe.TopicNum = 1
-			}
 			if configs.Config.Topic.Unsubscribe.Mode == configs.ModeAfter {
 				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Unsubscribe.ModeSecond), func() {
 					ws.Send(protocol.RouterTopicUnsubscribe, map[string][]string{"topics": ws.GetUnsubscribeTopic(configs.Config.Topic.Unsubscribe.TopicNum)})
@@ -93,12 +102,6 @@ func Run(wg *sync.WaitGroup) {
 				})
 			}
 			//处理发布
-			if configs.Config.Topic.Publish.ModeSecond < 0 {
-				configs.Config.Topic.Publish.ModeSecond = 1
-			}
-			if configs.Config.Topic.Publish.TopicNum < 0 {
-				configs.Config.Topic.Publish.TopicNum = 1
-			}
 			if configs.Config.Topic.Publish.Mode == configs.ModeAfter {
 				wsTimer.WsTimer.AfterFunc(time.Second*time.Duration(configs.Config.Topic.Publish.ModeSecond), func() {
 					ws.Send(protocol.RouterTopicPublish, map[string]any{"topics": ws.GetPublishTopic(configs.Config.Topic.Publish.TopicNum), "message": message})

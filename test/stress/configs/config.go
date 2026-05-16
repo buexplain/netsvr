@@ -74,8 +74,8 @@ type config struct {
 		GroupNum int
 		//发送的消息大小
 		MessageLen int
-		//每秒发消息条数
-		SendSpeed int
+		//限流控制，示例：每5秒最多1个请求=1/5，每秒最多3个请求=3
+		Limit float64
 		//阶段式发起连接
 		Step []Step
 	}
@@ -210,8 +210,8 @@ type config struct {
 		Enable bool
 		//发送的消息大小
 		MessageLen int
-		//发消息的间隔，单位秒
-		SendInterval int
+		//限流控制，示例：每5秒最多1个请求=1/5，每秒最多3个请求=3
+		Limit float64
 		//阶段式发起连接
 		Step []Step
 	}
