@@ -23,16 +23,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"netsvr/test/stress/configs"
 	"netsvr/test/stress/internal/log"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gops/signal"
 )
 
 func Start() string {
@@ -167,12 +169,37 @@ func collectAndStore(address string) {
 }
 
 func collectMemStats(address string) (*GCStats, error) {
-	cmd := exec.Command("gops", "memstats", address)
-	var out bytes.Buffer
-	cmd.Stdout = &out
+	// 直接通过 TCP 连接 gops agent
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("连接 gops agent 失败: %w", err)
+	}
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
 
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("执行 gops 命令失败: %w", err)
+	// 设置超时
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	// gops 协议: 发送 signal.MemStats 字节 (值为 1)
+	if _, err := conn.Write([]byte{signal.MemStats}); err != nil {
+		return nil, fmt.Errorf("发送 memstats 指令失败: %w", err)
+	}
+
+	// 使用 bufio.Reader 读取直到 EOF
+	reader := bufio.NewReader(conn)
+	var out bytes.Buffer
+	_, err = reader.WriteTo(&out)
+	if err != nil && err != io.EOF {
+		// gops agent 会在发送完数据后关闭连接，所以这里经常会收到 EOF 或连接关闭错误
+		// 只要 out 中有数据，我们就认为采集成功了
+		if out.Len() == 0 {
+			return nil, fmt.Errorf("读取 memstats 数据失败: %w", err)
+		}
+	}
+
+	if out.Len() == 0 {
+		return nil, errors.New("gops agent 返回空数据")
 	}
 
 	stats := &GCStats{
