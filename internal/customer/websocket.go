@@ -32,8 +32,8 @@ import (
 	"net"
 	"net/http"
 	"netsvr/configs"
+	"netsvr/internal/callback"
 	"netsvr/internal/customer/binder"
-	"netsvr/internal/customer/callback"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/limit"
@@ -132,7 +132,8 @@ func Start() {
 				co.RemoteAddr = remoteAddr
 				var connOpenResp *netsvrProtocol.ConnOpenResp
 				var err error
-				if configs.Config.Customer.OnOpenCallbackApi != "" {
+				//将连接打开的消息转发给后端接口
+				if configs.Config.Callback.OnOpenApi != "" {
 					connOpenResp, err = callback.OnOpen(co)
 					//回调函数回来后，连接可能已经关闭了
 					if conn.IsClosedOnSafe() {
@@ -201,7 +202,7 @@ func Start() {
 						WriteClose(conn, ws.StatusGoingAway, errors.New("heartbeat timeout"))
 					}
 				})
-				//需要将客户端连接打开的信息转发给business进程
+				//将连接打开的消息转发给business进程
 				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnOpen); currentWorker != nil {
 					if sendSize := currentWorker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
 						//统计转发到business的次数与字节数
@@ -242,8 +243,8 @@ func Start() {
 				cl.CustomerId = customerId
 				cl.Session = customerSession
 				cl.Topics = topics
-				if configs.Config.Customer.OnCloseCallbackApi != "" {
-					//如果网关程序仅作推送消息的场景，则business进程是不存在的，所以这里需要回调，方便此场景下处理连接关闭的事件
+				//将连接关闭的消息转发给后端接口
+				if configs.Config.Callback.OnCloseApi != "" {
 					callback.OnClose(cl)
 				}
 				//将连接关闭的消息转发给business进程
@@ -272,10 +273,6 @@ func Start() {
 			//判断是否是心跳包
 			if bytes.Equal(data, configs.Config.Customer.HeartbeatMessage) {
 				metrics.Registry[metrics.ItemCustomerHeartbeatCount].Meter.Mark(1)
-				return
-			}
-			currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnMessage)
-			if currentWorker == nil {
 				return
 			}
 			//连接限流检查，Allow方法虽然不是协程安全的，但是因为它只在此处被调用，并且OnWebsocketMessage在单协程中执行，所以这里没有问题
@@ -348,11 +345,17 @@ func Start() {
 				tf.Session = customerSession
 				tf.Topics = topics
 				tf.Data = data
-				//转发数据到business
-				if sendSize := currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
-					//统计转发到business的次数与字节数
-					metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-					metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
+				//将连接发来的消息转发给后端接口
+				if configs.Config.Callback.OnMessageApi != "" {
+					callback.OnMessage(tf)
+				}
+				//将连接发来的消息转发给business进程
+				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnMessage); currentWorker != nil {
+					if sendSize := currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
+						//统计转发到business的次数与字节数
+						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
+						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
+					}
 				}
 			}
 			err := goroutine.DefaultWorkerPool.Submit(fn)

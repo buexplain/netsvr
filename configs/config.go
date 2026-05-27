@@ -82,11 +82,6 @@ type config struct {
 		ReceivePackLimit int
 		//往websocket连接写入时的消息类型，1：TextMessage，2：BinaryMessage
 		SendMessageType ws.OpCode
-		//# 连接打开与关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/customer/callback/callback.go
-		OnOpenCallbackApi  string
-		OnCloseCallbackApi string
-		//连接打开与关闭的回调接口超时时间
-		CallbackApiDeadline time.Duration
 		//心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 		HeartbeatMessage BytesConfigItem
 		//压缩级别，区间是：[-2,9]，0表示不压缩，具体见https://golang.org/pkg/compress/flate/
@@ -99,6 +94,19 @@ type config struct {
 		//固定窗口限流器的第0个窗口允许的最大请求数
 		LimitZeroWindowMaxRequests int32
 	}
+
+	//连接打开、发送消息、关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/callback/callback.go
+	Callback struct {
+		//连接打开的回调接口
+		OnOpenApi string
+		//发送消息的回调接口
+		OnMessageApi string
+		//连接关闭的回调接口
+		OnCloseApi string
+		//回调接口超时时间
+		Timeout time.Duration
+	}
+
 	//Worker的tcp服务器配置
 	Worker struct {
 		// 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志

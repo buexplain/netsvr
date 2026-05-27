@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-// Package callback 回调脚本
+// Package callback 连接打开、发送消息、关闭的回调接口，会发送http的post调用，header头是application/x-protobuf
 package callback
 
 import (
@@ -33,7 +33,9 @@ import (
 var httpClient *http.Client
 
 func init() {
-	httpClient = &http.Client{Timeout: configs.Config.Customer.CallbackApiDeadline}
+	if configs.Config.Callback.OnOpenApi != "" && configs.Config.Callback.OnMessageApi != "" && configs.Config.Callback.OnCloseApi != "" {
+		httpClient = &http.Client{Timeout: configs.Config.Callback.Timeout}
+	}
 }
 
 // marshalAppendPooled 将 message 序列化到 byteslice 池；返回的 cleanup 须在请求体被 http 客户端读完后再调用（例如 defer）。
@@ -60,6 +62,7 @@ func marshalAppendPooled(message proto.Message) (data []byte, cleanup func(), er
 	return data, func() {}, nil
 }
 
+// OnOpen websocket连接打开的回调接口
 func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) {
 	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
@@ -69,18 +72,18 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 	defer cleanup()
 	httpReq, err := http.NewRequest(
 		http.MethodPost,
-		configs.Config.Customer.OnOpenCallbackApi,
+		configs.Config.Callback.OnOpenApi,
 		bytes.NewReader(reqBytes),
 	)
 	if err != nil {
-		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Customer.OnOpenCallbackApi)
+		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/x-protobuf")
 	httpReq.Header.Set("Accept", "application/x-protobuf")
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
-		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Customer.OnOpenCallbackApi)
+		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
 	defer func() {
@@ -91,12 +94,12 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 		// 即使状态码不是200，也需要读取响应体以确保连接复用
 		_, _ = io.Copy(io.Discard, resp.Body)
 		err = fmt.Errorf("receive error http status code: %d", resp.StatusCode)
-		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Customer.OnOpenCallbackApi)
+		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Customer.OnOpenCallbackApi)
+		log.Logger.Error().Err(err).Msgf("Read netsvrProtocol.ConnOpen from %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
 	data := &netsvrProtocol.ConnOpenResp{}
@@ -108,6 +111,30 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 	return data, nil
 }
 
+// OnMessage websocket连接发送消息的回调接口
+func OnMessage(req *netsvrProtocol.Transfer) {
+	reqBytes, cleanup, err := marshalAppendPooled(req)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.Transfer failed")
+		return
+	}
+	defer cleanup()
+	resp, err := httpClient.Post(
+		configs.Config.Callback.OnMessageApi,
+		"application/x-protobuf",
+		bytes.NewReader(reqBytes),
+	)
+	if err != nil {
+		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.Transfer to %s failed", configs.Config.Callback.OnMessageApi)
+		return
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	_, _ = io.Copy(io.Discard, resp.Body)
+}
+
+// OnClose websocket连接关闭的回调接口
 func OnClose(req *netsvrProtocol.ConnClose) {
 	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
@@ -116,12 +143,12 @@ func OnClose(req *netsvrProtocol.ConnClose) {
 	}
 	defer cleanup()
 	resp, err := httpClient.Post(
-		configs.Config.Customer.OnCloseCallbackApi,
+		configs.Config.Callback.OnCloseApi,
 		"application/x-protobuf",
 		bytes.NewReader(reqBytes),
 	)
 	if err != nil {
-		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnClose to %s failed", configs.Config.Customer.OnCloseCallbackApi)
+		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnClose to %s failed", configs.Config.Callback.OnCloseApi)
 		return
 	}
 	defer func() {

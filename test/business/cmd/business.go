@@ -142,6 +142,23 @@ func clientServer() {
 		_, _ = writer.Write(responseData)
 		log.Logger.Debug().Msgf("onopen --> %s", cp.String())
 	})
+	//监听onmessage
+	http.HandleFunc("/onmessage", func(writer http.ResponseWriter, request *http.Request) {
+		protobuf, err := io.ReadAll(request.Body)
+		if err != nil {
+			log.Logger.Error().Msgf("读取回调的netsvrProtocol.Transfer失败：%s", err)
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		tf := &netsvrProtocol.Transfer{}
+		if err := proto.Unmarshal(protobuf, tf); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			log.Logger.Error().Msgf("解析回调的netsvrProtocol.Transfer失败：%s", err)
+			return
+		}
+		log.Logger.Debug().Msgf("onmessage --> %s", tf.String())
+		writer.WriteHeader(http.StatusNoContent)
+	})
 	//监听onclose
 	http.HandleFunc("/onclose", func(writer http.ResponseWriter, request *http.Request) {
 		protobuf, err := io.ReadAll(request.Body)
