@@ -33,7 +33,7 @@ import (
 var httpClient *http.Client
 
 func init() {
-	if configs.Config.Callback.OnOpenApi != "" && configs.Config.Callback.OnMessageApi != "" && configs.Config.Callback.OnCloseApi != "" {
+	if configs.Config.Callback.OnOpenApi != "" || configs.Config.Callback.OnMessageApi != "" || configs.Config.Callback.OnCloseApi != "" {
 		httpClient = &http.Client{Timeout: configs.Config.Callback.Timeout}
 	}
 }
