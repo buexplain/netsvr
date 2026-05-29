@@ -130,7 +130,7 @@ type config struct {
 		OnClose RedisQueue
 	}
 
-	//Worker的tcp服务器配置
+	//Worker的tcp服务器配置，不需要则不配置
 	Worker struct {
 		// 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 		ListenAddress string

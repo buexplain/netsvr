@@ -136,15 +136,16 @@ func (r *Conn) send(buffers net.Buffers) {
 			Msg("Worker SetWriteDeadline failed")
 		return
 	}
+	messageCount := len(buffers) / 2
 	writeLen, err := buffers.WriteTo(r.conn)
 	if err == nil {
 		//写入成功：统计指标
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(len(buffers) / 2))
+		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(messageCount))
 		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(writeLen)
 		return
 	}
 	//写入失败：统计指标
-	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
+	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(messageCount))
 	if writeLen == 0 {
 		for i := 0; i < len(buffers); {
 			r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).

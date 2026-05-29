@@ -21,6 +21,7 @@ import (
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
+	"sort"
 )
 
 type metrics struct{}
@@ -31,8 +32,57 @@ func init() {
 	businessCmdCallback[protocol.RouterMetrics] = Metrics.Request
 }
 
-// Request 获取网关统计的服务状态
+type Item struct {
+	sortBy      int32
+	Description string  `json:"description"`
+	Count       int64   `json:"count"`
+	MeanRate    float32 `json:"meanRate"`
+	Rate1       float32 `json:"rate1"`
+	Rate5       float32 `json:"rate5"`
+	Rate15      float32 `json:"rate15"`
+}
+
+var description = map[int]string{
+	1:  "客户连接的打开次数",
+	2:  "客户连接的关闭次数",
+	3:  "客户连接的心跳次数",
+	4:  "客户数据通过worker转发到业务侧的次数",
+	5:  "客户数据通过worker转发到业务侧的字节数",
+	6:  "往客户写入数据成功次数",
+	7:  "往客户写入数据成功字节数",
+	8:  "连接打开的限流次数",
+	9:  "客户消息限流次数",
+	10: "客户数据通过worker转发到业务侧的失败次数",
+	11: "往客户写入数据失败次数",
+	12: "往客户写入数据失败字节数",
+	13: "连接消息限流次数",
+	14: "客户数据通过redis队列转发到业务侧的次数",
+	15: "客户数据通过redis队列转发到业务侧的字节数",
+	16: "客户数据通过redis队列转发到业务侧的失败次数",
+	17: "客户数据通过http回调转发到业务侧的次数",
+	18: "客户数据通过http回调转发到业务侧的字节数",
+	19: "客户数据通过http回调转发到业务侧的失败次数",
+}
+
+// Request 获取网关的服务状态
 func (metrics) Request(tf *netsvrProtocol.Transfer, _ string) {
 	resp := netBus.NetBus.Metrics()
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的统计信息成功", "data": resp.Data}))
+	var data []Item
+	for _, metricsResp := range resp.Data {
+		for i, item := range metricsResp.Items {
+			data = append(data, Item{
+				sortBy:      i,
+				Description: description[int(i)],
+				Count:       item.Count,
+				MeanRate:    item.MeanRate,
+				Rate1:       item.Rate1,
+				Rate5:       item.Rate5,
+				Rate15:      item.Rate15,
+			})
+		}
+	}
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].sortBy < data[j].sortBy
+	})
+	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的信息成功", "data": data}))
 }
