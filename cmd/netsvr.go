@@ -22,6 +22,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/log"
+	"netsvr/internal/redisQueue"
 	"netsvr/internal/task"
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"
@@ -31,6 +32,7 @@ import (
 
 func main() {
 	pprof()
+	redisQueue.Start()
 	if configs.Config.Autobahn {
 		go customer.StartAutobahn()
 	} else {
@@ -55,6 +57,8 @@ func main() {
 		quit.Wg.Wait()
 		//关闭worker服务器
 		worker.Shutdown()
+		//关闭redis队列
+		redisQueue.Shutdown()
 		task.Shutdown()
 		//关闭customer服务器
 		customer.Shutdown()

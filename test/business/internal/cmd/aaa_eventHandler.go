@@ -36,9 +36,6 @@ func (e eventHandler) OnMessage(transfer *netsvrProtocol.Transfer) {
 			Msg("Parse protocol.ClientRouter failed")
 		return
 	}
-	log.Logger.Debug().
-		Stringer("cmd", clientRoute.Cmd).
-		Msg("Business receive client command")
 	//客户发来的命令
 	if callback, ok := businessCmdCallback[clientRoute.Cmd]; ok {
 		callback(transfer, clientRoute.Data)

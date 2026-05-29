@@ -33,9 +33,24 @@ func (r *BytesConfigItem) UnmarshalText(text []byte) error {
 	return nil
 }
 
+type RedisQueue struct {
+	//Redis地址
+	Address string
+	//Redis密码
+	Password string
+	//Redis数据库
+	DB int
+	//Redis队列的key
+	Key string
+	//Redis队列的key类型，目前支持：stream、list
+	KeyType string
+}
+
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
+	//提供服务的方式，目前支持：worker、queue、callback
+	Service string
 	//worker服务的监听地址
 	WorkerListenAddress string
 	//任务服务的监听地址
@@ -50,6 +65,15 @@ type config struct {
 	WorkerHeartbeatMessage BytesConfigItem
 	//business进程向网关的task服务器发送的心跳消息
 	TaskHeartbeatMessage BytesConfigItem
+	//Redis队列的配置
+	RedisQueue struct {
+		//连接打开的Redis队列
+		OnOpen RedisQueue
+		//发送消息的Redis队列
+		OnMessage RedisQueue
+		//连接关闭的Redis队列
+		OnClose RedisQueue
+	}
 }
 
 func (r *config) GetLogLevel() zerolog.Level {
@@ -82,6 +106,13 @@ func init() {
 	Config = new(config)
 	if _, err := toml.Decode(string(c), Config); err != nil {
 		slog.Error("Parse business.toml failed", "error", err)
+		os.Exit(1)
+	}
+	if Config.Service == "" {
+		Config.Service = "worker"
+	}
+	if Config.Service != "worker" && Config.Service != "queue" && Config.Service != "callback" {
+		slog.Error("Invalid service", "service", Config.Service)
 		os.Exit(1)
 	}
 }

@@ -42,6 +42,19 @@ func (r *BytesConfigItem) UnmarshalText(text []byte) error {
 	return nil
 }
 
+type RedisQueue struct {
+	//Redis地址
+	Address string
+	//Redis密码
+	Password string
+	//Redis数据库
+	DB int
+	//Redis队列的key
+	Key string
+	//Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+	KeyType string
+}
+
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
@@ -95,7 +108,7 @@ type config struct {
 		LimitZeroWindowMaxRequests int32
 	}
 
-	//连接打开、发送消息、关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/callback/callback.go
+	//连接打开、发送消息、关闭的回调接口，不需要则不配置
 	Callback struct {
 		//连接打开的回调接口
 		OnOpenApi string
@@ -105,6 +118,16 @@ type config struct {
 		OnCloseApi string
 		//回调接口超时时间
 		Timeout time.Duration
+	}
+
+	//Redis队列的配置，不需要则不配置
+	RedisQueue struct {
+		//连接打开的Redis队列
+		OnOpen RedisQueue
+		//发送消息的Redis队列
+		OnMessage RedisQueue
+		//连接关闭的Redis队列
+		OnClose RedisQueue
 	}
 
 	//Worker的tcp服务器配置
@@ -125,7 +148,7 @@ type config struct {
 		HeartbeatMessage BytesConfigItem
 	}
 
-	//Task的tcp服务器配置
+	//Task的tcp服务器配置，必须配置
 	Task struct {
 		// 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 		ListenAddress string
@@ -270,6 +293,41 @@ func init() {
 	}
 	if Config.Customer.LimitZeroWindowMaxRequests <= 0 {
 		Config.Customer.LimitZeroWindowMaxRequests = 1000
+	}
+	if Config.RedisQueue.OnOpen.KeyType == "" {
+		Config.RedisQueue.OnOpen.KeyType = "list"
+	} else {
+		Config.RedisQueue.OnOpen.KeyType = strings.ToLower(Config.RedisQueue.OnOpen.KeyType)
+		switch Config.RedisQueue.OnOpen.KeyType {
+		case "list":
+		case "stream":
+		default:
+			slog.Error("Config RedisQueue.OnOpen.KeyType is invalid")
+			os.Exit(1)
+		}
+	}
+	if Config.RedisQueue.OnClose.KeyType == "" {
+		Config.RedisQueue.OnClose.KeyType = "list"
+	} else {
+		Config.RedisQueue.OnClose.KeyType = strings.ToLower(Config.RedisQueue.OnClose.KeyType)
+		switch Config.RedisQueue.OnClose.KeyType {
+		case "list":
+		case "stream":
+		default:
+			slog.Error("Config RedisQueue.OnClose.KeyType is invalid")
+			os.Exit(1)
+		}
+	}
+	if Config.RedisQueue.OnMessage.KeyType == "" {
+		Config.RedisQueue.OnMessage.KeyType = "list"
+	} else {
+		Config.RedisQueue.OnMessage.KeyType = strings.ToLower(Config.RedisQueue.OnMessage.KeyType)
+		switch Config.RedisQueue.OnMessage.KeyType {
+		case "list":
+		case "stream":
+		default:
+			slog.Error("Config RedisQueue.OnMessage.KeyType is invalid")
+		}
 	}
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒

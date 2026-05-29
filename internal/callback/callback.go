@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	internalMetrics "netsvr/internal/metrics"
 	"unsafe"
 )
 
@@ -66,6 +67,7 @@ func marshalAppendPooled(message proto.Message) (data []byte, cleanup func(), er
 func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) {
 	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.ConnOpen failed")
 		return nil, err
 	}
@@ -76,6 +78,7 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 		bytes.NewReader(reqBytes),
 	)
 	if err != nil {
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
@@ -83,12 +86,16 @@ func OnOpen(req *netsvrProtocol.ConnOpen) (*netsvrProtocol.ConnOpenResp, error) 
 	httpReq.Header.Set("Accept", "application/x-protobuf")
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnOpen to %s failed", configs.Config.Callback.OnOpenApi)
 		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	//写入成功：统计指标
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedCount].Meter.Mark(1)
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedByte].Meter.Mark(int64(len(reqBytes)))
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
 		// 即使状态码不是200，也需要读取响应体以确保连接复用
@@ -116,6 +123,7 @@ func OnMessage(req *netsvrProtocol.Transfer) {
 	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.Transfer failed")
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		return
 	}
 	defer cleanup()
@@ -125,12 +133,16 @@ func OnMessage(req *netsvrProtocol.Transfer) {
 		bytes.NewReader(reqBytes),
 	)
 	if err != nil {
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.Transfer to %s failed", configs.Config.Callback.OnMessageApi)
 		return
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	//写入成功：统计指标
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedCount].Meter.Mark(1)
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedByte].Meter.Mark(int64(len(reqBytes)))
 	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
@@ -139,6 +151,7 @@ func OnClose(req *netsvrProtocol.ConnClose) {
 	reqBytes, cleanup, err := marshalAppendPooled(req)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Format the netsvrProtocol.ConnClose failed")
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		return
 	}
 	defer cleanup()
@@ -149,10 +162,14 @@ func OnClose(req *netsvrProtocol.ConnClose) {
 	)
 	if err != nil {
 		log.Logger.Error().Err(err).Msgf("Send netsvrProtocol.ConnClose to %s failed", configs.Config.Callback.OnCloseApi)
+		internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessFailedCount].Meter.Mark(1)
 		return
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	//写入成功：统计指标
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedCount].Meter.Mark(1)
+	internalMetrics.Registry[internalMetrics.ItemCallbackToBusinessSucceedByte].Meter.Mark(int64(len(reqBytes)))
 	_, _ = io.Copy(io.Discard, resp.Body)
 }

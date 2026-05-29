@@ -138,6 +138,9 @@ func (r *Conn) send(buffers net.Buffers) {
 	}
 	writeLen, err := buffers.WriteTo(r.conn)
 	if err == nil {
+		//写入成功：统计指标
+		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(len(buffers) / 2))
+		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(writeLen)
 		return
 	}
 	//写入失败：统计指标
@@ -183,7 +186,7 @@ func (r *Conn) SetEvents(id int32) {
 	atomic.StoreInt32(&r.events, id)
 }
 
-func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
+func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 	var pkg *packet
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
@@ -206,13 +209,12 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker proto.Marshal failed")
-		return 0
+		return
 	}
 	//发送出去
-	n := 8 + len(pkg.body) // 入队列前计算一下数据包大小，避免入队列后计算，产生数据竞争
 	if r.sendCh.Enqueue(pkg) {
 		pkg = nil // 所有权已转移到 loopSend，避免 defer 重复归还
-		return n
+		return
 	}
 	//统计worker到business的失败次数
 	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
@@ -220,7 +222,6 @@ func (r *Conn) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 		Int32("events", r.GetEvents()).
 		Str("connId", r.connId).
 		Msg("Worker send failed and discard message")
-	return 0
 }
 
 func (r *Conn) formatSendToBusinessData(header []byte, body []byte, event *zerolog.Event) *zerolog.Event {

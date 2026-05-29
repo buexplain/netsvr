@@ -32,10 +32,10 @@ const (
 	ItemCustomerConnCloseCount
 	// ItemCustomerHeartbeatCount 统计客户连接的心跳次数
 	ItemCustomerHeartbeatCount
-	// ItemCustomerTransferCount 统计客户数据转发到worker的次数
-	ItemCustomerTransferCount
-	// ItemCustomerTransferByte 统计客户数据转发到worker的字节数
-	ItemCustomerTransferByte
+	// ItemWorkerToBusinessSucceedCount 统计客户数据通过worker转发到业务侧的次数
+	ItemWorkerToBusinessSucceedCount
+	// ItemWorkerToBusinessSucceedByte 统计客户数据通过worker转发到业务侧的字节数
+	ItemWorkerToBusinessSucceedByte
 	// ItemCustomerWriteCount 统计往客户写入数据成功的次数
 	ItemCustomerWriteCount
 	// ItemCustomerWriteByte 统计往客户写入数据成功的字节数
@@ -44,7 +44,7 @@ const (
 	ItemOpenRateLimitCount
 	// ItemMessageRateLimitCount 统计客户消息限流次数
 	ItemMessageRateLimitCount
-	// ItemWorkerToBusinessFailedCount 统计worker到business的失败次数
+	// ItemWorkerToBusinessFailedCount 统计客户数据通过worker转发到业务侧的失败次数
 	ItemWorkerToBusinessFailedCount
 	// ItemCustomerWriteFailedCount 统计往客户写入数据失败的次数
 	ItemCustomerWriteFailedCount
@@ -52,6 +52,21 @@ const (
 	ItemCustomerWriteFailedByte
 	// ItemConnectionMessageRateLimitCount 统计连接消息限流次数
 	ItemConnectionMessageRateLimitCount
+
+	// ItemRedisQueueToBusinessSucceedCount 统计客户数据通过redis队列转发到业务侧的次数
+	ItemRedisQueueToBusinessSucceedCount
+	// ItemRedisQueueToBusinessSucceedByte 统计客户数据通过redis队列转发到业务侧的字节数
+	ItemRedisQueueToBusinessSucceedByte
+	// ItemRedisQueueToBusinessFailedCount 统计客户数据通过redis队列转发到业务侧的失败次数
+	ItemRedisQueueToBusinessFailedCount
+
+	// ItemCallbackToBusinessSucceedCount 统计客户数据通过http回调转发到业务侧的次数
+	ItemCallbackToBusinessSucceedCount
+	// ItemCallbackToBusinessSucceedByte 统计客户数据通过http回调转发到业务侧的字节数
+	ItemCallbackToBusinessSucceedByte
+	// ItemCallbackToBusinessFailedCount 统计客户数据通过http回调转发到业务侧的失败次数
+	ItemCallbackToBusinessFailedCount
+
 	//结束符
 	itemLen
 )

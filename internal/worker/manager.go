@@ -18,58 +18,15 @@ package worker
 
 import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"math/rand"
+	"math/rand/v2"
+	"netsvr/internal/log"
 	"sync"
-	"sync/atomic"
 )
 
-type collect struct {
-	conn  []*Conn
-	index uint32
-	mux   sync.RWMutex
-}
+// 数组大小基于协议中最大的 Event 枚举值
+const managerLen = netsvrProtocol.Event_OnMessage + 1
 
-func (r *collect) Get() *Conn {
-	index := atomic.AddUint32(&r.index, 1)
-	r.mux.RLock()
-	defer r.mux.RUnlock()
-	if len(r.conn) == 0 {
-		return nil
-	}
-	return r.conn[index%uint32(len(r.conn))]
-}
-
-func (r *collect) Set(conn *Conn) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	exist := false
-	for _, v := range r.conn {
-		if v == conn {
-			exist = true
-			break
-		}
-	}
-	if exist == false {
-		r.conn = append(r.conn, conn)
-	}
-}
-
-func (r *collect) Del(connId string) bool {
-	if connId == "" {
-		return false
-	}
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	for k, v := range r.conn {
-		if v.GetConnId() == connId {
-			r.conn = append(r.conn[0:k], r.conn[k+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
-type manager map[netsvrProtocol.Event]*collect
+type manager [managerLen]*collect
 
 func (r manager) Get(event netsvrProtocol.Event) *Conn {
 	return r[event].Get()
@@ -104,7 +61,17 @@ func (r manager) Del(connId string) bool {
 var Manager manager
 
 func init() {
-	Manager = make(manager)
+	// 验证协议中的 Event 枚举值是否超出数组范围
+	maxUsedEvent := 0
+	for _, v := range netsvrProtocol.Event_value {
+		maxUsedEvent = max(maxUsedEvent, int(v))
+	}
+	if maxUsedEvent >= int(managerLen) {
+		log.Logger.Error().Msgf("Event enum value %d exceeds manager array size %d",
+			maxUsedEvent, managerLen)
+		panic("too many netsvrProtocol.Event")
+	}
+	Manager = manager{}
 	for _, v := range netsvrProtocol.Event_value {
 		if netsvrProtocol.Event(v) == netsvrProtocol.Event_Placeholder {
 			continue

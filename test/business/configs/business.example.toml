@@ -1,5 +1,7 @@
 #日志级别 debug、info、warn、error
 LogLevel = "info"
+# 提供服务的方式，目前支持：worker、queue、callback
+Service = "worker"
 # worker服务的监听地址
 WorkerListenAddress = "127.0.0.1:6061"
 # 任务服务的监听地址
@@ -14,3 +16,30 @@ CustomerHeartbeatMessage = "~6YOt5rW35piO~"
 WorkerHeartbeatMessage = "~6YOt5rW35piO~"
 # business进程向网关的task服务器发送的心跳消息
 TaskHeartbeatMessage = "~6YOt5rW35piO~"
+
+# Redis队列的配置
+[RedisQueue]
+# 连接打开的Redis队列
+[RedisQueue.OnOpen]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:list:onopenclose"
+# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+KeyType = "list"
+# 发送消息的Redis队列
+[RedisQueue.OnMessage]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:stream:onmessage"
+# Redis队列的key类型，目前支持：stream、list
+KeyType = "stream"
+# 连接关闭的Redis队列
+[RedisQueue.OnClose]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:list:onopenclose"
+# Redis队列的key类型，目前支持：stream、list
+KeyType = "list"

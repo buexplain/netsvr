@@ -54,6 +54,33 @@ OnCloseApi = "http://127.0.0.1:6064/onclose"
 # 连接打开与关闭的回调接口超时时间
 Timeout = "3s"
 
+# Redis队列的配置，如果没有，则不需要配置，
+[RedisQueue]
+# 连接打开的Redis队列
+[RedisQueue.OnOpen]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:list:onopenclose"
+# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+KeyType = "list"
+# 发送消息的Redis队列
+[RedisQueue.OnMessage]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:stream:onmessage"
+# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+KeyType = "stream"
+# 连接关闭的Redis队列
+[RedisQueue.OnClose]
+Address = "127.0.0.1:6379"
+Password = ""
+DB = 0
+Key = "netsvr:list:onopenclose"
+# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+KeyType = "list"
+
 # Worker的tcp服务器配置
 [Worker]
 # 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
@@ -92,14 +119,20 @@ HeartbeatMessage = "~6YOt5rW35piO~"
 # 1：统计客户连接的打开次数
 # 2：统计客户连接的关闭次数
 # 3：统计客户连接的心跳次数
-# 4：统计客户数据转发到worker的次数
-# 5：统计客户数据转发到worker的字节数
+# 4：统计客户数据通过worker转发到业务侧的次数
+# 5：统计客户数据通过worker转发到业务侧的字节数
 # 6：统计往客户写入数据成功次数
 # 7：统计往客户写入数据成功字节数
 # 8：统计连接打开的限流次数
 # 9：统计客户消息限流次数
-# 10：统计worker到business的失败次数
+# 10：统计客户数据通过worker转发到业务侧的失败次数
 # 11：统计往客户写入数据失败次数
 # 12：统计往客户写入数据失败字节数
 # 13：统计连接消息限流次数
-Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+# 14：统计客户数据通过redis队列转发到业务侧的次数
+# 15：统计客户数据通过redis队列转发到业务侧的字节数
+# 16：统计客户数据通过redis队列转发到业务侧的失败次数
+# 17：统计客户数据通过http回调转发到业务侧的次数
+# 18：统计客户数据通过http回调转发到业务侧的字节数
+# 19：统计客户数据通过http回调转发到业务侧的失败次数
+Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

@@ -40,6 +40,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
+	"netsvr/internal/redisQueue"
 	"netsvr/internal/timer"
 	"netsvr/internal/worker"
 	"netsvr/internal/wsServer"
@@ -202,13 +203,13 @@ func Start() {
 						WriteClose(conn, ws.StatusGoingAway, errors.New("heartbeat timeout"))
 					}
 				})
+				//将连接打开的消息转发给redis队列
+				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnOpen); currentQueue != nil {
+					currentQueue.Send(co, netsvrProtocol.Cmd_ConnOpen)
+				}
 				//将连接打开的消息转发给business进程
 				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnOpen); currentWorker != nil {
-					if sendSize := currentWorker.Send(co, netsvrProtocol.Cmd_ConnOpen); sendSize > 0 {
-						//统计转发到business的次数与字节数
-						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-					}
+					currentWorker.Send(co, netsvrProtocol.Cmd_ConnOpen)
 				}
 			})
 			if err != nil {
@@ -247,13 +248,13 @@ func Start() {
 				if configs.Config.Callback.OnCloseApi != "" {
 					callback.OnClose(cl)
 				}
+				//将连接关闭的消息转发给redis队列
+				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnClose); currentQueue != nil {
+					currentQueue.Send(cl, netsvrProtocol.Cmd_ConnClose)
+				}
 				//将连接关闭的消息转发给business进程
 				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnClose); currentWorker != nil {
-					if sendSize := currentWorker.Send(cl, netsvrProtocol.Cmd_ConnClose); sendSize > 0 {
-						//统计客户数据转发到worker的次数与字节数情况
-						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-					}
+					currentWorker.Send(cl, netsvrProtocol.Cmd_ConnClose)
 				}
 			}
 			if err := goroutine.DefaultWorkerPool.Submit(fn); err != nil {
@@ -349,13 +350,13 @@ func Start() {
 				if configs.Config.Callback.OnMessageApi != "" {
 					callback.OnMessage(tf)
 				}
+				//将连接发来的消息转发给redis队列
+				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnMessage); currentQueue != nil {
+					currentQueue.Send(tf, netsvrProtocol.Cmd_Transfer)
+				}
 				//将连接发来的消息转发给business进程
 				if currentWorker := worker.Manager.Get(netsvrProtocol.Event_OnMessage); currentWorker != nil {
-					if sendSize := currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer); sendSize > 0 {
-						//统计转发到business的次数与字节数
-						metrics.Registry[metrics.ItemCustomerTransferCount].Meter.Mark(1)
-						metrics.Registry[metrics.ItemCustomerTransferByte].Meter.Mark(int64(sendSize))
-					}
+					currentWorker.Send(tf, netsvrProtocol.Cmd_Transfer)
 				}
 			}
 			err := goroutine.DefaultWorkerPool.Submit(fn)

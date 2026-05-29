@@ -75,6 +75,9 @@ func (r *Server) Start() {
 var server *Server
 
 func Start() {
+	if configs.Config.Worker.ListenAddress == "" {
+		return
+	}
 	listen, err := net.Listen("tcp", configs.Config.Worker.ListenAddress)
 	if err != nil {
 		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Worker tcp start failed")
@@ -90,6 +93,9 @@ func Start() {
 }
 
 func Shutdown() {
+	if configs.Config.Worker.ListenAddress == "" || server == nil {
+		return
+	}
 	err := server.listener.Close()
 	if err != nil {
 		log.Logger.Error().Int("pid", os.Getpid()).Err(err).Msg("Worker tcp shutdown failed")
