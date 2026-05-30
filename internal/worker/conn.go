@@ -247,7 +247,6 @@ func (r *Conn) formatSendToBusinessData(header []byte, body []byte, event *zerol
 		if err := proto.Unmarshal(body, co); err != nil {
 			return event
 		}
-		co.GetUniqId()
 		return event.Str("cmd", cmd.String()).Str("uniqId", co.UniqId).
 			Str("rawQuery", co.RawQuery).
 			Str("xForwardedFor", co.XForwardedFor).
