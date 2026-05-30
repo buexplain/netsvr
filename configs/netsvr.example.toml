@@ -4,7 +4,7 @@ LogLevel = "info"
 LogFile = "log/netSvr.log"
 # 网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 ShutdownWaitTime = "5s"
-# github.com/google/gops/agent服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
+# github.com/google/gops/agent服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没问题就别开它
 PprofListenAddress = "127.0.0.1:6063"
 # 测试用，是否开启Autobahn测试
 Autobahn = false
@@ -46,12 +46,11 @@ LimitWindowMaxRequests = 100
 # 固定窗口限流器的第0个窗口允许的最大请求数
 LimitZeroWindowMaxRequests = 1000
 
-# 连接打开、发送消息、关闭的回调接口，如果没有，则不需要配置，否则会发送http的post调用，header头是application/x-protobuf，具体请求参数与返回要求，请参考internal/callback/callback.go
+# 连接打开、发送消息、关闭的回调接口，不需要则不配置
 [Callback]
 OnOpenApi = "http://127.0.0.1:6064/onopen"
 OnMessageApi = "http://127.0.0.1:6064/onmessage"
 OnCloseApi = "http://127.0.0.1:6064/onclose"
-# 连接打开与关闭的回调接口超时时间
 Timeout = "3s"
 
 # Redis队列的配置，不需要则不配置
@@ -98,7 +97,7 @@ SendChanCap = 1024
 # 心跳字符串，客户端连接必须定时发送该字符串，用于维持心跳
 HeartbeatMessage = "~6YOt5rW35piO~"
 
-#Task的tcp服务器配置，必须配置
+# Task的tcp服务器配置，必须配置
 [Task]
 # 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
 ListenAddress = "127.0.0.1:6062"

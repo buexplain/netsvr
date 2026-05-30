@@ -62,7 +62,7 @@ type config struct {
 	LogFile string
 	//网关收到停止信号后的等待时间，0表示永久等待，否则是超过这个时间还没优雅停止，则会强制退出
 	ShutdownWaitTime time.Duration
-	//github.com/google/gops/agent服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没毛病就别开它
+	//github.com/google/gops/agent服务器监听的地址，ip:port，这个地址必须是内网地址，外网不允许访问，如果是空字符串，则不会开启，生产环境服务没问题就别开它
 	PprofListenAddress string
 	//测试用，是否开启Autobahn测试
 	Autobahn bool
