@@ -100,6 +100,7 @@ func (r *Queue) loopSendList() {
 		if count == 0 {
 			return
 		}
+		size = 0
 		for i = 0; i < count; i++ {
 			//累计message大小
 			size += len(packets[i].Message)
