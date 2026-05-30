@@ -19,6 +19,7 @@ package worker
 import (
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"math/rand/v2"
+	"netsvr/configs"
 	"netsvr/internal/log"
 	"sync"
 )
@@ -29,6 +30,9 @@ const managerLen = netsvrProtocol.Event_OnMessage + 1
 type manager [managerLen]*collect
 
 func (r manager) Get(event netsvrProtocol.Event) *Conn {
+	if configs.Config.Worker.ListenAddress == "" {
+		return nil
+	}
 	return r[event].Get()
 }
 
@@ -61,6 +65,9 @@ func (r manager) Del(connId string) bool {
 var Manager manager
 
 func init() {
+	if configs.Config.Worker.ListenAddress == "" {
+		return
+	}
 	// 验证协议中的 Event 枚举值是否超出数组范围
 	maxUsedEvent := 0
 	for _, v := range netsvrProtocol.Event_value {
