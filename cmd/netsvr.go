@@ -22,7 +22,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/log"
-	"netsvr/internal/redisQueue"
+	"netsvr/internal/queue/redisQueue"
 	"netsvr/internal/task"
 	"netsvr/internal/worker"
 	"netsvr/pkg/quit"

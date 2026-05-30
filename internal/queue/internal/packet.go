@@ -14,8 +14,7 @@
 * limitations under the License.
  */
 
-// Package redisQueue Redis队列
-package redisQueue
+package internal
 
 import (
 	"encoding/binary"
@@ -26,20 +25,20 @@ import (
 	"unsafe"
 )
 
-type packet struct {
-	message      []byte
+type Packet struct {
+	Message      []byte
 	bodyFromPool bool
 }
 
-func (pkg *packet) reset() {
+func (pkg *Packet) reset() {
 	if pkg.bodyFromPool {
-		byteslice.Put(pkg.message) //回收 packet.message
+		byteslice.Put(pkg.Message) //回收 Packet.Message
 		pkg.bodyFromPool = false
 	}
-	pkg.message = nil
+	pkg.Message = nil
 }
 
-func (pkg *packet) set(message proto.Message, cmd netsvrProtocol.Cmd) error {
+func (pkg *Packet) Set(message proto.Message, cmd netsvrProtocol.Cmd) error {
 	opts := proto.MarshalOptions{}
 	size := opts.Size(message)
 	var result []byte
@@ -70,9 +69,9 @@ func (pkg *packet) set(message proto.Message, cmd netsvrProtocol.Cmd) error {
 		}
 		pkg.bodyFromPool = false
 	}
-	pkg.message = result
+	pkg.Message = result
 	//填充 cmd 字段 (大端序)
-	binary.BigEndian.PutUint32(pkg.message[0:4], uint32(cmd))
+	binary.BigEndian.PutUint32(pkg.Message[0:4], uint32(cmd))
 	return nil
 }
 
@@ -80,23 +79,23 @@ type packetPool struct {
 	pool sync.Pool
 }
 
-var packetObjPool *packetPool
+var PacketObjPool *packetPool
 
 func init() {
-	packetObjPool = &packetPool{
+	PacketObjPool = &packetPool{
 		pool: sync.Pool{
 			New: func() any {
-				return &packet{}
+				return &Packet{}
 			},
 		},
 	}
 }
 
-func (r *packetPool) Get() *packet {
-	return r.pool.Get().(*packet)
+func (r *packetPool) Get() *Packet {
+	return r.pool.Get().(*Packet)
 }
 
-func (r *packetPool) Put(pkg *packet) {
+func (r *packetPool) Put(pkg *Packet) {
 	pkg.reset()
 	r.pool.Put(pkg)
 }

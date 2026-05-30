@@ -79,13 +79,13 @@ func (r *Conn) loopSend() {
 				Msg("Worker send coroutine is closed")
 		}
 	}()
-	packLimit := max(configs.Config.Customer.ReceivePackLimit, 65536)
+	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
 	var size int
 	var i int
 	var count int
 	var pkg *packet
-	packets := make([]*packet, 20) //假设一个用户消息是2kb，20个消息则会一次性写入40kb数据
-	bulkBuffer := make(net.Buffers, 40)
+	packets := make([]*packet, 256) //假设一个用户消息是2kb，256个消息则会一次性写入512kb数据
+	bulkBuffer := make(net.Buffers, 512)
 	var length int // bulkBuffer的实际长度
 	for {
 		count = r.sendCh.Dequeue(packets)
@@ -107,11 +107,26 @@ func (r *Conn) loopSend() {
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给business
 		if size < packLimit {
-			r.send(bulkBuffer)
+			if r.send(bulkBuffer) {
+				//写入成功：统计指标
+				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(count))
+				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(int64(size))
+			} else {
+				//写入失败：统计指标
+				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(count))
+			}
 		} else {
 			//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给business侧造成压力
 			for i = 0; i < length; i += 2 {
-				r.send(bulkBuffer[i : i+2])
+				if r.send(bulkBuffer[i : i+2]) {
+					//写入成功：统计指标
+					size = 8 + len(bulkBuffer[i+1]) // header + body
+					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(1)
+					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(int64(size))
+				} else {
+					//写入失败：统计指标
+					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(count))
+				}
 			}
 		}
 		//回收bulkBuffer的后半截数据
@@ -127,38 +142,23 @@ func (r *Conn) loopSend() {
 	}
 }
 
-func (r *Conn) send(buffers net.Buffers) {
+func (r *Conn) send(buffers net.Buffers) bool {
 	if err := r.conn.SetWriteDeadline(time.Now().Add(configs.Config.Worker.SendDeadline)); err != nil {
 		r.Close()
 		log.Logger.Error().Err(err).
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker SetWriteDeadline failed")
-		return
+		return false
 	}
-	messageCount := len(buffers) / 2
 	writeLen, err := buffers.WriteTo(r.conn)
 	if err == nil {
-		//写入成功：统计指标
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(messageCount))
-		internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(writeLen)
-		return
+		return true
 	}
-	//写入失败：统计指标
-	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(messageCount))
-	if writeLen == 0 {
-		for i := 0; i < len(buffers); {
-			r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).
-				Err(err).
-				Int32("events", r.GetEvents()).
-				Str("connId", r.connId).
-				Msg("Worker send failed and discard message")
-			i += 2
-		}
-		return
+	if writeLen != 0 {
+		//已写入部分数据：连接状态不可恢复，强制关闭
+		r.Close()
 	}
-	//其他错误或已写入部分数据：连接状态不可恢复，强制关闭
-	r.Close()
 	for i := 0; i < len(buffers); {
 		r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).
 			Err(err).
@@ -167,6 +167,7 @@ func (r *Conn) send(buffers net.Buffers) {
 			Msg("Worker send failed and force close conn")
 		i += 2
 	}
+	return false
 }
 
 func (r *Conn) GetConnRemoteAddr() string {

@@ -40,7 +40,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
-	"netsvr/internal/redisQueue"
+	"netsvr/internal/queue/redisQueue"
 	"netsvr/internal/timer"
 	"netsvr/internal/worker"
 	"netsvr/internal/wsServer"

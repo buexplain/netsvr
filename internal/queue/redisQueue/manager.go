@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-// Package redisQueue redis队列
+// Package redisQueue Redis队列
 package redisQueue
 
 import (
@@ -99,9 +99,9 @@ func makeRedisClient(redisClientMp map[string]*redis.Client, queueConfig configs
 	defer cancel()
 	_, err := redisClient.Ping(ctx).Result()
 	if err != nil {
-		log.Logger.Error().Err(err).Msgf("redis queue init failed")
+		log.Logger.Error().Err(err).Msgf("redisQueue queue init failed")
 		time.Sleep(time.Millisecond * 300)
-		panic(fmt.Sprintf("redis queue init failed %v", err))
+		panic(fmt.Sprintf("redisQueue queue init failed %v", err))
 	}
 	redisClientMp[redisId] = redisClient
 }
@@ -119,7 +119,7 @@ func makeQueue(redisClientMp map[string]*redis.Client, queueMp map[string]*Queue
 	}
 	redisId := fmt.Sprintf("Address%sDB%d", queueConfig.Address, queueConfig.DB)
 	if redisClientMp[redisId] == nil {
-		panic(fmt.Sprintf("redis queue init failed %s", redisId))
+		panic(fmt.Sprintf("redisQueue queue init failed %s", redisId))
 	}
 	q := newQueue(redisClientMp[redisId], queueConfig)
 	queueMp[queueId] = q

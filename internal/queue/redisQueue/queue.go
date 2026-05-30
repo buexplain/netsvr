@@ -29,6 +29,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
+	"netsvr/internal/queue/internal"
 	"netsvr/pkg/queue"
 	"netsvr/pkg/quit"
 	"sync/atomic"
@@ -38,7 +39,7 @@ import (
 // Queue Redis队列
 type Queue struct {
 	closeLock   int32
-	sendCh      *queue.Queue[*packet]
+	sendCh      *queue.Queue[*internal.Packet]
 	redisClient *redis.Client
 	redisKey    string
 	keyType     string
@@ -49,14 +50,14 @@ func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue) *Queue 
 		redisClient: redisClient,
 		redisKey:    queueConfig.Key,
 		keyType:     queueConfig.KeyType,
-		sendCh:      queue.New[*packet](1024),
+		sendCh:      queue.New[*internal.Packet](1024),
 	}
 	if queueConfig.KeyType == "list" {
 		go q.loopSendList()
 	} else if queueConfig.KeyType == "stream" {
 		go q.loopSendStream()
 	} else {
-		panic(fmt.Sprintf("redis queue init failed %s", queueConfig.KeyType))
+		panic(fmt.Sprintf("redisQueue queue init failed %s", queueConfig.KeyType))
 	}
 	return q
 }
@@ -89,7 +90,7 @@ func (r *Queue) loopSendList() {
 		}
 	}()
 	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
-	packets := make([]*packet, 256)
+	packets := make([]*internal.Packet, 256)
 	var size int
 	var i int
 	var count int
@@ -101,24 +102,24 @@ func (r *Queue) loopSendList() {
 		}
 		for i = 0; i < count; i++ {
 			//累计message大小
-			size += len(packets[i].message)
+			size += len(packets[i].Message)
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给redis
 		if size < packLimit {
 			//发送
 			for i = 0; i < count; i++ {
-				pipe.LPush(quit.Ctx, r.redisKey, packets[i].message)
+				pipe.LPush(quit.Ctx, r.redisKey, packets[i].Message)
 			}
 			if cmderList, err := pipe.Exec(quit.Ctx); err != nil {
 				log.Logger.Error().Err(err).
 					Str("redisKey", r.redisKey).
 					Str("keyType", r.keyType).
-					Msg("RedisQueue send redis failed")
+					Msg("RedisQueue send redisQueue failed")
 				var failedCount int64
 				var succeedSize int
 				for j, cmder := range cmderList {
 					if cmder.Err() == nil {
-						succeedSize += len(packets[j].message)
+						succeedSize += len(packets[j].Message)
 					} else {
 						failedCount++
 					}
@@ -137,27 +138,27 @@ func (r *Queue) loopSendList() {
 			}
 			//归还
 			for i = 0; i < count; i++ {
-				packetObjPool.Put(packets[i])
+				internal.PacketObjPool.Put(packets[i])
 				packets[i] = nil
 			}
 		} else {
 			//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给redis造成压力
 			for i = 0; i < count; i++ {
 				//发送
-				if ret := r.redisClient.LPush(quit.Ctx, r.redisKey, packets[i].message); ret.Err() != nil {
+				if ret := r.redisClient.LPush(quit.Ctx, r.redisKey, packets[i].Message); ret.Err() != nil {
 					//写入失败：统计指标
 					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
 					log.Logger.Error().Err(ret.Err()).
 						Str("redisKey", r.redisKey).
 						Str("keyType", r.keyType).
-						Msg("RedisQueue send redis failed")
+						Msg("RedisQueue send redisQueue failed")
 				} else {
 					//写入成功：统计指标
 					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedCount].Meter.Mark(1)
-					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedByte].Meter.Mark(int64(len(packets[i].message)))
+					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedByte].Meter.Mark(int64(len(packets[i].Message)))
 				}
 				//归还
-				packetObjPool.Put(packets[i])
+				internal.PacketObjPool.Put(packets[i])
 				packets[i] = nil
 			}
 		}
@@ -180,7 +181,7 @@ func (r *Queue) loopSendStream() {
 		}
 	}()
 	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
-	packets := make([]*packet, 256)
+	packets := make([]*internal.Packet, 256)
 	var size int
 	var i int
 	var count int
@@ -190,9 +191,10 @@ func (r *Queue) loopSendStream() {
 		if count == 0 {
 			return
 		}
+		size = 0
 		for i = 0; i < count; i++ {
 			//累计message大小
-			size += len(packets[i].message)
+			size += len(packets[i].Message)
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给redis
 		if size < packLimit {
@@ -201,7 +203,7 @@ func (r *Queue) loopSendStream() {
 				args := &redis.XAddArgs{
 					Stream: r.redisKey,
 					Values: map[string]interface{}{
-						"data": packets[i].message,
+						"data": packets[i].Message,
 					},
 				}
 				pipe.XAdd(quit.Ctx, args)
@@ -210,12 +212,12 @@ func (r *Queue) loopSendStream() {
 				log.Logger.Error().Err(err).
 					Str("redisKey", r.redisKey).
 					Str("keyType", r.keyType).
-					Msg("RedisQueue send redis failed")
+					Msg("RedisQueue send redisQueue failed")
 				var failedCount int64
 				var succeedSize int
 				for j, cmder := range cmderList {
 					if cmder.Err() == nil {
-						succeedSize += len(packets[j].message)
+						succeedSize += len(packets[j].Message)
 					} else {
 						failedCount++
 					}
@@ -234,7 +236,7 @@ func (r *Queue) loopSendStream() {
 			}
 			//归还
 			for i = 0; i < count; i++ {
-				packetObjPool.Put(packets[i])
+				internal.PacketObjPool.Put(packets[i])
 				packets[i] = nil
 			}
 		} else {
@@ -244,7 +246,7 @@ func (r *Queue) loopSendStream() {
 				args := &redis.XAddArgs{
 					Stream: r.redisKey,
 					Values: map[string]interface{}{
-						"data": packets[i].message,
+						"data": packets[i].Message,
 					},
 				}
 				if ret := r.redisClient.XAdd(quit.Ctx, args); ret.Err() != nil {
@@ -253,10 +255,14 @@ func (r *Queue) loopSendStream() {
 					log.Logger.Error().Err(ret.Err()).
 						Str("redisKey", r.redisKey).
 						Str("keyType", r.keyType).
-						Msg("RedisQueue send redis failed")
+						Msg("RedisQueue send redisQueue failed")
+				} else {
+					//写入成功：统计指标
+					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedCount].Meter.Mark(1)
+					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedByte].Meter.Mark(int64(len(packets[i].Message)))
 				}
 				//归还
-				packetObjPool.Put(packets[i])
+				internal.PacketObjPool.Put(packets[i])
 				packets[i] = nil
 			}
 		}
@@ -264,7 +270,7 @@ func (r *Queue) loopSendStream() {
 }
 
 func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
-	var pkg *packet
+	var pkg *internal.Packet
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().
@@ -275,12 +281,12 @@ func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 		}
 		// 仍持有 pkg 时统一归还：set 失败、入队失败、或 panic（入队成功须先把 pkg 置 nil，避免与 loopSendList 双重 Put）
 		if pkg != nil {
-			packetObjPool.Put(pkg)
+			internal.PacketObjPool.Put(pkg)
 		}
 	}()
 	// 编码业务数据
-	pkg = packetObjPool.Get()
-	err := pkg.set(message, cmd)
+	pkg = internal.PacketObjPool.Get()
+	err := pkg.Set(message, cmd)
 	if err != nil {
 		log.Logger.Error().Err(err).
 			Str("redisKey", r.redisKey).
@@ -289,14 +295,14 @@ func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 		return 0
 	}
 	//发送出去
-	n := len(pkg.message) // 入队列前计算一下数据包大小，避免入队列后计算，产生数据竞争
+	n := len(pkg.Message) // 入队列前计算一下数据包大小，避免入队列后计算，产生数据竞争
 	if r.sendCh.Enqueue(pkg) {
 		pkg = nil // 所有权已转移到 loopSendList，避免 defer 重复归还
 		return n
 	}
 	//写入失败：统计指标
 	internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
-	r.formatSendToBusinessData(pkg.message[0:4], pkg.message[4:], log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
+	r.formatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
 		Str("redisKey", r.redisKey).
 		Str("keyType", r.keyType).
 		Msg("RedisQueue send failed and discard message")

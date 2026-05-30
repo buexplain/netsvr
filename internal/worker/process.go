@@ -26,6 +26,7 @@ import (
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
+	internalMetrics "netsvr/internal/metrics"
 	"time"
 )
 
@@ -168,7 +169,9 @@ func unregister(param []byte, workerConn *Conn) {
 			Str("remoteAddr", workerConn.GetConnRemoteAddr()).Msg("Unregister a business")
 	}
 	//必须回复给business，否则business端会认为没有收到数据，从而一直等待
-	workerConn.Send(&netsvrProtocol.UnRegisterResp{}, netsvrProtocol.Cmd_Unregister)
+	ret := &netsvrProtocol.UnRegisterResp{}
+	workerConn.Send(ret, netsvrProtocol.Cmd_Unregister)
+	removeMetricsNoise(ret)
 }
 
 // register 注册business进程
@@ -183,6 +186,7 @@ func register(param []byte, workerConn *Conn) {
 			Err(err).Msg("Proto unmarshal netsvrProtocol.RegisterReq failed")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
+		removeMetricsNoise(ret)
 		return
 	}
 	//判断设置的事件是否有效
@@ -203,6 +207,7 @@ func register(param []byte, workerConn *Conn) {
 			Int32("events", payload.Events).Msg("Invalid RegisterReqEvent")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
+		removeMetricsNoise(ret)
 		return
 	}
 	//检查当前的business连接是否已经注册，不允许重复注册
@@ -214,6 +219,7 @@ func register(param []byte, workerConn *Conn) {
 			Msg("Duplicate register are not allowed")
 		ret.Message = ret.Code.String()
 		workerConn.Send(ret, netsvrProtocol.Cmd_Register)
+		removeMetricsNoise(ret)
 		return
 	}
 	//设置business连接的events
@@ -223,6 +229,7 @@ func register(param []byte, workerConn *Conn) {
 	ret.Message = ret.Code.String()
 	ret.ConnId = workerConn.GetConnId()
 	workerConn.Send(ret, netsvrProtocol.Cmd_Register)
+	removeMetricsNoise(ret)
 	//记录日志
 	log.Logger.Info().
 		Str("remoteAddr", workerConn.GetConnRemoteAddr()).
@@ -231,4 +238,10 @@ func register(param []byte, workerConn *Conn) {
 		Msg("Register a business")
 	//最后，将该business连接登记到worker管理器中，一定要最后加入，确保注册结果的数据是第一个到达business进程，因为加入管理器后随时可能被转发数据
 	Manager.Set(workerConn)
+}
+
+func removeMetricsNoise(message proto.Message) {
+	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(-1)
+	size := 8 + proto.Size(message) // header + body
+	internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(-int64(size))
 }
