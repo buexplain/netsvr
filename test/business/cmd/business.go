@@ -50,11 +50,13 @@ func main() {
 	//启动redis队列消费者
 	go redisQueueConsumer()
 	//启动worker连接
-	if mainSocketManager.MainSocketManager.Start() == false {
-		log.Logger.Error().Msg("注册到worker服务器失败")
-		os.Exit(1)
-	} else {
-		log.Logger.Debug().Msg("注册到worker服务器成功")
+	if configs.Config.WorkerListenAddress != "" {
+		if mainSocketManager.MainSocketManager.Start() == false {
+			log.Logger.Error().Msg("注册到worker服务器失败")
+			os.Exit(1)
+		} else {
+			log.Logger.Debug().Msg("注册到worker服务器成功")
+		}
 	}
 	//处理关闭信号
 	quit.Wg.Add(1)

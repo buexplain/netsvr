@@ -23,6 +23,9 @@ func (r *emptyEventHandler) OnClose(*netsvrProtocol.ConnClose) {
 }
 
 func init() {
+	if configs.Config.WorkerListenAddress == "" {
+		return
+	}
 	MainSocketManager = mainSocket.NewManager()
 	var eh contract.EventInterface
 	if configs.Config.Service == "worker" {
