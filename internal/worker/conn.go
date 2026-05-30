@@ -107,12 +107,12 @@ func (r *Conn) loopSend() {
 		}
 		//整批数据小于单个数据包大小的限制，可以直接发送给business
 		if size < packLimit {
-			if r.send(bulkBuffer) {
+			if r.send(bulkBuffer[:length]) {
 				//写入成功：统计指标
 				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(int64(count))
 				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(int64(size))
 			} else {
-				//写入失败：统计指标
+				//写入失败：统计指标（批量发送整批失败）
 				internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(count))
 			}
 		} else {
@@ -124,8 +124,8 @@ func (r *Conn) loopSend() {
 					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(1)
 					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(int64(size))
 				} else {
-					//写入失败：统计指标
-					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(int64(count))
+					//写入失败：统计指标（单个包失败）
+					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessFailedCount].Meter.Mark(1)
 				}
 			}
 		}
@@ -159,13 +159,12 @@ func (r *Conn) send(buffers net.Buffers) bool {
 		//已写入部分数据：连接状态不可恢复，强制关闭
 		r.Close()
 	}
-	for i := 0; i < len(buffers); {
+	for i := 0; i+1 < len(buffers); i += 2 {
 		r.formatSendToBusinessData(buffers[i], buffers[i+1], log.Logger.Error()).
 			Err(err).
 			Int32("events", r.GetEvents()).
 			Str("connId", r.connId).
 			Msg("Worker send failed and force close conn")
-		i += 2
 	}
 	return false
 }
