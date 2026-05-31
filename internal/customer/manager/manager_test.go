@@ -314,6 +314,60 @@ func TestManager_HashDistribution(t *testing.T) {
 	t.Logf("哈希分布情况: %+v", shardCounts)
 }
 
+// TestManager_SetEmptyUniqId 测试设置空uniqId
+func TestManager_SetEmptyUniqId(t *testing.T) {
+	manager := &collect{}
+	for i := range manager.shards {
+		manager.shards[i].data = make(map[string]*wsServer.Conn)
+	}
+
+	// 设置空uniqId应该直接返回，不增加计数
+	conn := createTestConn(1)
+	manager.Set("", conn)
+	if manager.Len() != 0 {
+		t.Errorf("设置空uniqId后期望长度=0, 实际=%d", manager.Len())
+	}
+}
+
+// TestManager_GetUniqIds 测试获取所有uniqId
+func TestManager_GetUniqIds(t *testing.T) {
+	manager := &collect{}
+	for i := range manager.shards {
+		manager.shards[i].data = make(map[string]*wsServer.Conn)
+	}
+
+	// 空状态
+	uniqIds := manager.GetUniqIds()
+	if uniqIds != nil {
+		t.Errorf("空状态期望返回nil, 实际=%v", uniqIds)
+	}
+
+	// 添加多个连接
+	for i := 0; i < 5; i++ {
+		conn := createTestConn(uint64(i))
+		manager.Set(conn.GetUniqIdOnSafe(), conn)
+	}
+
+	uniqIds = manager.GetUniqIds()
+	if len(uniqIds) != 5 {
+		t.Errorf("期望uniqId数=5, 实际=%d", len(uniqIds))
+	}
+}
+
+// TestManager_DelEmptyUniqId 测试删除空uniqId
+func TestManager_DelEmptyUniqId(t *testing.T) {
+	manager := &collect{}
+	for i := range manager.shards {
+		manager.shards[i].data = make(map[string]*wsServer.Conn)
+	}
+
+	// 删除空uniqId应该直接返回
+	manager.Del("")
+	if manager.Len() != 0 {
+		t.Errorf("删除空uniqId后期望长度=0, 实际=%d", manager.Len())
+	}
+}
+
 // BenchmarkManager_Operations 性能基准测试
 func BenchmarkManager_Operations(b *testing.B) {
 	manager := &collect{}

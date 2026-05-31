@@ -287,6 +287,61 @@ func TestBinder_HashDistribution(t *testing.T) {
 	t.Logf("哈希分布情况: %+v", shardCounts)
 }
 
+// TestBinder_DelRelation 测试删除关系方法
+func TestBinder_DelRelation(t *testing.T) {
+	binder := &collect{}
+	for i := range binder.shards {
+		binder.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	customerId := "cust1"
+	conn := createTestConn(1)
+
+	// 设置关系
+	binder.SetRelation(customerId, conn)
+	if binder.Len() != 1 {
+		t.Fatalf("添加后期望客户数=1, 实际=%d", binder.Len())
+	}
+
+	// 删除关系
+	binder.DelRelation(customerId, conn)
+	if binder.Len() != 0 {
+		t.Errorf("删除后期望客户数=0, 实际=%d", binder.Len())
+	}
+
+	// 验证连接列表为空
+	conns := binder.GetConnListByCustomerId(customerId)
+	if conns != nil {
+		t.Errorf("删除后期望返回nil, 实际=%v", conns)
+	}
+}
+
+// TestBinder_GetCustomerIds 测试获取所有客户ID
+func TestBinder_GetCustomerIds(t *testing.T) {
+	binder := &collect{}
+	for i := range binder.shards {
+		binder.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	// 空状态
+	ids := binder.GetCustomerIds()
+	if ids != nil {
+		t.Errorf("空状态期望返回nil, 实际=%v", ids)
+	}
+
+	// 添加多个客户
+	for i := 0; i < 5; i++ {
+		conn := createTestConn(uint64(i))
+		customerId := string(rune('A' + i))
+		binder.SetRelation(customerId, conn)
+	}
+
+	ids = binder.GetCustomerIds()
+	if len(ids) != 5 {
+		t.Errorf("期望客户数=5, 实际=%d", len(ids))
+	}
+}
+
 // BenchmarkBinder_Operations 性能基准测试
 func BenchmarkBinder_Operations(b *testing.B) {
 	binder := &collect{}

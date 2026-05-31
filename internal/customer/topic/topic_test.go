@@ -400,6 +400,116 @@ func TestTopic_HashDistribution(t *testing.T) {
 	t.Logf("哈希分布情况: %+v", shardCounts)
 }
 
+// TestTopic_DelRelationByMap 测试使用map删除关系
+func TestTopic_DelRelationByMap(t *testing.T) {
+	topic := &collect{}
+	for i := range topic.shards {
+		topic.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	// 空topics应该直接返回
+	conn := createTestConn(1)
+	topic.DelRelationByMap(nil, conn)
+	topic.DelRelationByMap(map[string]struct{}{}, conn)
+
+	// 添加主题和连接
+	topicName := "topic1"
+	topic.SetRelation([]string{topicName}, conn)
+	if topic.Len() != 1 {
+		t.Fatalf("添加后期望主题数=1, 实际=%d", topic.Len())
+	}
+
+	// 使用map删除关系
+	topics := map[string]struct{}{
+		"topic1": {},
+	}
+	topic.DelRelationByMap(topics, conn)
+	if topic.Len() != 0 {
+		t.Errorf("删除后期望主题数=0, 实际=%d", topic.Len())
+	}
+}
+
+// TestTopic_GetConnList 测试获取所有主题的连接列表
+func TestTopic_GetConnList(t *testing.T) {
+	topic := &collect{}
+	for i := range topic.shards {
+		topic.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	// 空状态
+	result := topic.GetConnList()
+	if len(result) != 0 {
+		t.Errorf("空状态期望返回空map, 实际长度=%d", len(result))
+	}
+
+	// 添加多个主题
+	topicNames := []string{"topic1", "topic2"}
+	for _, name := range topicNames {
+		conn := createTestConn(1)
+		topic.SetRelation([]string{name}, conn)
+		if name == "topic1" {
+			conn2 := createTestConn(2)
+			topic.SetRelation([]string{name}, conn2)
+		}
+	}
+
+	result = topic.GetConnList()
+	if len(result) != 2 {
+		t.Errorf("期望主题数=2, 实际=%d", len(result))
+	}
+
+	if len(result["topic1"]) != 2 {
+		t.Errorf("topic1期望连接数=2, 实际=%d", len(result["topic1"]))
+	}
+	if len(result["topic2"]) != 1 {
+		t.Errorf("topic2期望连接数=1, 实际=%d", len(result["topic2"]))
+	}
+}
+
+// TestTopic_DelEmptyTopics 测试删除空topics
+func TestTopic_DelEmptyTopics(t *testing.T) {
+	topic := &collect{}
+	for i := range topic.shards {
+		topic.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	// 删除空topics应该返回nil
+	result := topic.Del([]string{})
+	if result != nil {
+		t.Errorf("删除空topics期望返回nil, 实际=%v", result)
+	}
+
+	// 删除包含空字符串的topics会返回空map(因为len(topics) > 0, 会创建map)
+	result = topic.Del([]string{""})
+	if result == nil {
+		t.Error("删除包含空字符串的topics期望返回空map而非nil")
+	}
+	if len(result) != 0 {
+		t.Errorf("删除包含空字符串的topics期望返回空map, 实际长度=%d", len(result))
+	}
+}
+
+// TestTopic_DelRelationBySliceEmptyTopics 测试DelRelationBySlice的空topics
+func TestTopic_DelRelationBySliceEmptyTopics(t *testing.T) {
+	topic := &collect{}
+	for i := range topic.shards {
+		topic.shards[i].data = make(map[string]map[uint64]*wsServer.Conn)
+	}
+
+	conn := createTestConn(1)
+
+	// 空topics应该直接返回
+	topic.DelRelationBySlice([]string{}, conn)
+	topic.DelRelationBySlice(nil, conn)
+
+	// 包含空字符串的topics
+	topic.SetRelation([]string{"topic1"}, conn)
+	topic.DelRelationBySlice([]string{""}, conn)
+	if topic.Len() != 1 {
+		t.Errorf("删除空字符串后期望主题数仍为1, 实际=%d", topic.Len())
+	}
+}
+
 // BenchmarkTopic_Operations 性能基准测试
 func BenchmarkTopic_Operations(b *testing.B) {
 	topic := &collect{}
