@@ -126,6 +126,10 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 				}()
 				batchMode(packetsCopy, size)
 			}); err != nil {
+				//归还
+				for _, pkg := range packetsCopy {
+					internal.PacketObjPool.Put(pkg)
+				}
 				internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
 				log.Logger.Error().Err(err).
 					Str("redisKey", r.redisKey).
@@ -142,6 +146,8 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 					defer internal.PacketObjPool.Put(pkg)
 					singleMode(pkg)
 				}); err != nil {
+					//归还
+					internal.PacketObjPool.Put(pkg)
 					internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
 					log.Logger.Error().Err(err).
 						Str("redisKey", r.redisKey).
