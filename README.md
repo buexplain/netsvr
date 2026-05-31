@@ -184,7 +184,7 @@ Route::post('/onclose', [App\Http\Controllers\Controller::class, 'onclose']);
 
 ### 压测环境
 
-- **服务器**：腾讯云 SA9.LARGE8（`4核`、`8GiB`、`AMD EPYC Turin-D (-/3.4GHz)`）
+- **服务器**：腾讯云 `SA9.LARGE8` `4核` `8GiB` `AMD EPYC Turin-D (-/3.4GHz)`
 - **网络**：内网带宽 `2 Gbps`、内网每秒包转发数量 `30 万 PPS`
 - **部署**：1台 netsvr + 2台 business + 4台 stress
 
