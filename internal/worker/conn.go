@@ -33,18 +33,20 @@ import (
 )
 
 type Conn struct {
-	conn      net.Conn
-	sendCh    *queue.Queue[*packet]
-	connId    string
-	closeLock int32
-	events    int32
+	conn        net.Conn
+	sendCh      *queue.Queue[*packet]
+	connId      string
+	closeLock   int32
+	events      int32
+	dequeueSize int // 一次从队列中取出的元素数量
 }
 
-func newConn(conn net.Conn) *Conn {
+func newConn(conn net.Conn, dequeueSize int) *Conn {
 	tmp := &Conn{
-		conn:   conn,
-		connId: newConnId(conn.RemoteAddr().String()),
-		sendCh: queue.New[*packet](configs.Config.Worker.SendChanCap),
+		conn:        conn,
+		connId:      newConnId(conn.RemoteAddr().String()),
+		sendCh:      queue.New[*packet](configs.Config.Worker.SendChanCap),
+		dequeueSize: dequeueSize,
 	}
 	go tmp.loopSend()
 	return tmp
@@ -79,13 +81,13 @@ func (r *Conn) loopSend() {
 				Msg("Worker send coroutine is closed")
 		}
 	}()
-	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
+	packLimit := max(configs.Config.Customer.ReceivePackLimit, r.dequeueSize*2*1024)
 	var size int
 	var i int
 	var count int
 	var pkg *packet
-	packets := make([]*packet, 256) //假设一个用户消息是2kb，256个消息则会一次性写入512kb数据
-	bulkBuffer := make(net.Buffers, 512)
+	packets := make([]*packet, r.dequeueSize)
+	bulkBuffer := make(net.Buffers, r.dequeueSize*2)
 	var length int // bulkBuffer的实际长度
 	for {
 		count = r.sendCh.Dequeue(packets)
@@ -118,9 +120,10 @@ func (r *Conn) loopSend() {
 		} else {
 			//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给business侧造成压力
 			for i = 0; i < length; i += 2 {
+				// 在send之前计算size，因为WriteTo会消费buffer导致len变为0
+				size = 8 + len(bulkBuffer[i+1]) // header + body
 				if r.send(bulkBuffer[i : i+2]) {
 					//写入成功：统计指标
-					size = 8 + len(bulkBuffer[i+1]) // header + body
 					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedCount].Meter.Mark(1)
 					internalMetrics.Registry[internalMetrics.ItemWorkerToBusinessSucceedByte].Meter.Mark(int64(size))
 				} else {

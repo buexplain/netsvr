@@ -67,7 +67,7 @@ func (r *Server) Start() {
 			continue
 		default:
 			//启动一个协程处理连接
-			go process(newConn(conn))
+			go process(newConn(conn, 256))
 		}
 	}
 }
