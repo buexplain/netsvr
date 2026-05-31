@@ -294,7 +294,7 @@ func (r *Queue) sendStreamBatchMode(packets []*internal.Packet, size int) {
 	}
 }
 
-// sendListSingleMode 单个数据发送
+// sendStreamSingleMode 单个数据发送
 func (r *Queue) sendStreamSingleMode(pkg *internal.Packet) {
 	//发送到redis
 	args := &redis.XAddArgs{
