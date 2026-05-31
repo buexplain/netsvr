@@ -14,6 +14,7 @@ require (
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/panjf2000/gnet/v2 v2.9.7
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
+	github.com/redis/go-redis/v9 v9.19.0
 	github.com/rs/zerolog v1.34.0
 	github.com/tidwall/gjson v1.18.0
 	golang.org/x/term v0.42.0
@@ -36,7 +37,6 @@ require (
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
 	github.com/panjf2000/ants/v2 v2.11.5 // indirect
-	github.com/redis/go-redis/v9 v9.19.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect

@@ -17,13 +17,13 @@
 package redisQueue
 
 import (
-	"context"
 	"encoding/binary"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	internalMetrics "netsvr/internal/metrics"
+	"netsvr/pkg/quit"
 	"testing"
 	"time"
 )
@@ -36,10 +36,8 @@ func TestLoopSendListBatchMode(t *testing.T) {
 
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -49,8 +47,8 @@ func TestLoopSendListBatchMode(t *testing.T) {
 		KeyType: "list",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 10)
 	defer q.Close()
@@ -84,13 +82,15 @@ func TestLoopSendListBatchMode(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 
 	// 验证Redis数据
-	if listLen := rdb.LLen(ctx, queueConfig.Key).Val(); int(listLen) != msgCount {
+	if listLen := rdb.LLen(quit.Ctx, queueConfig.Key).Val(); int(listLen) != msgCount {
 		t.Fatalf("期望Redis中有%d条数据，实际%d", msgCount, listLen)
 	}
 
-	// 从Redis读取数据并验证内容（注意：List是后进先出，所以反向遍历）
-	for i := msgCount - 1; i >= 0; i-- {
-		data, err := rdb.LPop(ctx, queueConfig.Key).Bytes()
+	// 从Redis读取数据并验证内容（注意：List是后进先出，但协程池写入是乱序的，需要基于UniqId验证）
+	// 读取所有数据到map中，通过UniqId进行验证
+	receivedMap := make(map[string]*netsvrProtocol.ConnOpen)
+	for i := 0; i < msgCount; i++ {
+		data, err := rdb.LPop(quit.Ctx, queueConfig.Key).Bytes()
 		if err != nil {
 			t.Fatalf("读取第%d条数据失败: %v", i, err)
 		}
@@ -111,13 +111,19 @@ func TestLoopSendListBatchMode(t *testing.T) {
 			t.Fatalf("第%d条数据反序列化失败: %v", i, err)
 		}
 
-		// 验证字段内容
+		// 存入map，以UniqId为key
+		receivedMap[receivedMsg.UniqId] = receivedMsg
+	}
+
+	// 基于UniqId验证每条消息
+	for i := 0; i < msgCount; i++ {
 		expectedUniqId := string(rune('A' + i))
-		if receivedMsg.UniqId != expectedUniqId {
-			t.Fatalf("第%d条数据UniqId不匹配，期望=%s, 实际=%s", i, expectedUniqId, receivedMsg.UniqId)
+		receivedMsg, exists := receivedMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的消息", expectedUniqId)
 		}
 		if receivedMsg.RemoteAddr != "127.0.0.1:8080" {
-			t.Fatalf("第%d条数据RemoteAddr不匹配，期望=127.0.0.1:8080, 实际=%s", i, receivedMsg.RemoteAddr)
+			t.Fatalf("UniqId=%s的消息RemoteAddr不匹配，期望=127.0.0.1:8080, 实际=%s", expectedUniqId, receivedMsg.RemoteAddr)
 		}
 	}
 
@@ -142,10 +148,8 @@ func TestLoopSendListSingleMode(t *testing.T) {
 
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -155,15 +159,15 @@ func TestLoopSendListSingleMode(t *testing.T) {
 		KeyType: "list",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 2)
 	defer q.Close()
 
 	// dequeueSize=2，packLimit = max(2097152, 2*2*1024) = 2097152 (2MB)
-	// 每条消息1.5MB，2条总共3MB > 2MB，确保走单个发送分支
-	largeData := make([]byte, 1500*1024)
+	// 每条消息3MB，确保走单个发送分支
+	largeData := make([]byte, 3*1024*1024)
 	for i := range largeData {
 		largeData[i] = byte(i % 256)
 	}
@@ -199,15 +203,22 @@ func TestLoopSendListSingleMode(t *testing.T) {
 	t.Logf("packLimit计算: max(2097152, 2*2*1024) = max(2097152, 4096) = 2097152 (2MB)")
 	t.Logf("预期单次Dequeue: 2条 * 1.5MB = 3MB > 2MB，应该走单个发送分支")
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
-	if listLen := rdb.LLen(ctx, queueConfig.Key).Val(); int(listLen) != msgCount {
+	if listLen := rdb.LLen(quit.Ctx, queueConfig.Key).Val(); int(listLen) != msgCount {
 		t.Fatalf("期望Redis中有%d条数据，实际%d", msgCount, listLen)
 	}
 
-	// 从Redis读取并验证每条数据的内容（注意：List是后进先出）
-	for i := msgCount - 1; i >= 0; i-- {
-		data, err := rdb.LPop(ctx, queueConfig.Key).Bytes()
+	// 从Redis读取并验证每条数据的内容（注意：List是后进先出，但协程池写入是乱序的，需要基于UniqId验证）
+	// 读取所有数据到map中，通过UniqId进行验证
+	type receivedTransferData struct {
+		msg      *netsvrProtocol.Transfer
+		expected expectedData
+	}
+	receivedTransferMap := make(map[string]*receivedTransferData)
+
+	for i := 0; i < msgCount; i++ {
+		data, err := rdb.LPop(quit.Ctx, queueConfig.Key).Bytes()
 		if err != nil {
 			t.Fatalf("读取第%d条数据失败: %v", i, err)
 		}
@@ -228,20 +239,33 @@ func TestLoopSendListSingleMode(t *testing.T) {
 			t.Fatalf("第%d条数据反序列化失败: %v", i, err)
 		}
 
-		// 验证字段内容
-		if receivedMsg.UniqId != expectedList[i].uniqId {
-			t.Fatalf("第%d条数据UniqId不匹配，期望=%s, 实际=%s", i, expectedList[i].uniqId, receivedMsg.UniqId)
+		// 存入map，以UniqId为key
+		receivedTransferMap[receivedMsg.UniqId] = &receivedTransferData{
+			msg:      receivedMsg,
+			expected: expectedList[i],
 		}
-		if receivedMsg.CustomerId != expectedList[i].customerId {
-			t.Fatalf("第%d条数据CustomerId不匹配，期望=%s, 实际=%s", i, expectedList[i].customerId, receivedMsg.CustomerId)
+	}
+
+	// 基于UniqId验证每条消息
+	for i := 0; i < msgCount; i++ {
+		expectedUniqId := expectedList[i].uniqId
+		receivedData, exists := receivedTransferMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的消息", expectedUniqId)
 		}
-		if len(receivedMsg.Data) != len(expectedList[i].data) {
-			t.Fatalf("第%d条数据Data长度不匹配，期望=%d, 实际=%d", i, len(expectedList[i].data), len(receivedMsg.Data))
+		receivedMsg := receivedData.msg
+		expected := receivedData.expected
+
+		if receivedMsg.CustomerId != expected.customerId {
+			t.Fatalf("UniqId=%s的消息CustomerId不匹配，期望=%s, 实际=%s", expectedUniqId, expected.customerId, receivedMsg.CustomerId)
+		}
+		if len(receivedMsg.Data) != len(expected.data) {
+			t.Fatalf("UniqId=%s的消息Data长度不匹配，期望=%d, 实际=%d", expectedUniqId, len(expected.data), len(receivedMsg.Data))
 		}
 		// 验证Data内容的每个字节
 		for j := range receivedMsg.Data {
-			if receivedMsg.Data[j] != expectedList[i].data[j] {
-				t.Fatalf("第%d条数据Data[%d]不匹配，期望=%d, 实际=%d", i, j, expectedList[i].data[j], receivedMsg.Data[j])
+			if receivedMsg.Data[j] != expected.data[j] {
+				t.Fatalf("UniqId=%s的消息Data[%d]不匹配，期望=%d, 实际=%d", expectedUniqId, j, expected.data[j], receivedMsg.Data[j])
 			}
 		}
 	}
@@ -267,10 +291,8 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -280,8 +302,8 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 		KeyType: "stream",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 10)
 	defer q.Close()
@@ -310,11 +332,11 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 
 	time.Sleep(300 * time.Millisecond)
 
-	if streamLen := rdb.XLen(ctx, queueConfig.Key).Val(); int(streamLen) != msgCount {
+	if streamLen := rdb.XLen(quit.Ctx, queueConfig.Key).Val(); int(streamLen) != msgCount {
 		t.Fatalf("期望Stream中有%d条数据，实际%d", msgCount, streamLen)
 	}
 
-	messages, err := rdb.XRead(ctx, &redis.XReadArgs{Streams: []string{queueConfig.Key, "0"}, Count: int64(msgCount)}).Result()
+	messages, err := rdb.XRead(quit.Ctx, &redis.XReadArgs{Streams: []string{queueConfig.Key, "0"}, Count: int64(msgCount)}).Result()
 	if err != nil {
 		t.Fatalf("读取Stream消息失败: %v", err)
 	}
@@ -322,7 +344,10 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 		t.Fatal("读取Stream消息数量不匹配")
 	}
 
-	// 验证每条消息的内容（Stream保持插入顺序）
+	// 验证每条消息的内容（Stream保持插入顺序，但协程池写入是乱序的，需要基于UniqId验证）
+	// 读取所有数据到map中，通过UniqId进行验证
+	receivedConnCloseMap := make(map[string]*netsvrProtocol.ConnClose)
+
 	for i := 0; i < msgCount; i++ {
 		msg := messages[0].Messages[i]
 		data := msg.Values["data"]
@@ -358,12 +383,19 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 			t.Fatalf("第%d条数据反序列化失败: %v", i, err)
 		}
 
-		// 验证字段内容
-		if receivedMsg.UniqId != expectedList[i].uniqId {
-			t.Fatalf("第%d条数据UniqId不匹配，期望=%s, 实际=%s", i, expectedList[i].uniqId, receivedMsg.UniqId)
+		// 存入map，以UniqId为key
+		receivedConnCloseMap[receivedMsg.UniqId] = receivedMsg
+	}
+
+	// 基于UniqId验证每条消息
+	for i := 0; i < msgCount; i++ {
+		expectedUniqId := expectedList[i].uniqId
+		receivedMsg, exists := receivedConnCloseMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的消息", expectedUniqId)
 		}
 		if receivedMsg.CustomerId != expectedList[i].customerId {
-			t.Fatalf("第%d条数据CustomerId不匹配，期望=%s, 实际=%s", i, expectedList[i].customerId, receivedMsg.CustomerId)
+			t.Fatalf("UniqId=%s的消息CustomerId不匹配，期望=%s, 实际=%s", expectedUniqId, expectedList[i].customerId, receivedMsg.CustomerId)
 		}
 	}
 
@@ -387,10 +419,8 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -400,15 +430,15 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 		KeyType: "stream",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 2)
 	defer q.Close()
 
 	// dequeueSize=2，packLimit = max(2097152, 2*2*1024) = 2097152 (2MB)
-	// 每条消息1.5MB，2条总共3MB > 2MB，确保走单个发送分支
-	largeData := make([]byte, 1500*1024)
+	// 每条消息3MB，确保走单个发送分支
+	largeData := make([]byte, 3*1024*1024)
 	for i := range largeData {
 		largeData[i] = byte(i % 256)
 	}
@@ -438,18 +468,21 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 		}
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
-	if streamLen := rdb.XLen(ctx, queueConfig.Key).Val(); int(streamLen) != msgCount {
+	if streamLen := rdb.XLen(quit.Ctx, queueConfig.Key).Val(); int(streamLen) != msgCount {
 		t.Fatalf("期望Stream中有%d条数据，实际%d", msgCount, streamLen)
 	}
 
-	messages, _ := rdb.XRead(ctx, &redis.XReadArgs{Streams: []string{queueConfig.Key, "0"}, Count: int64(msgCount)}).Result()
+	messages, _ := rdb.XRead(quit.Ctx, &redis.XReadArgs{Streams: []string{queueConfig.Key, "0"}, Count: int64(msgCount)}).Result()
 	if len(messages) == 0 || len(messages[0].Messages) != msgCount {
 		t.Fatal("读取Stream消息失败")
 	}
 
-	// 验证每条消息的内容（Stream保持插入顺序）
+	// 验证每条消息的内容（Stream保持插入顺序，但协程池写入是乱序的，需要基于UniqId验证）
+	// 读取所有数据到map中，通过UniqId进行验证
+	receivedTransferStreamMap := make(map[string]*netsvrProtocol.Transfer)
+
 	for i := 0; i < msgCount; i++ {
 		msg := messages[0].Messages[i]
 		data := msg.Values["data"]
@@ -483,20 +516,29 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 			t.Fatalf("第%d条数据反序列化失败: %v", i, err)
 		}
 
-		// 验证字段内容
-		if receivedMsg.UniqId != expectedList[i].uniqId {
-			t.Fatalf("第%d条数据UniqId不匹配，期望=%s, 实际=%s", i, expectedList[i].uniqId, receivedMsg.UniqId)
+		// 存入map，以UniqId为key
+		receivedTransferStreamMap[receivedMsg.UniqId] = receivedMsg
+	}
+
+	// 基于UniqId验证每条消息
+	for i := 0; i < msgCount; i++ {
+		expectedUniqId := expectedList[i].uniqId
+		receivedMsg, exists := receivedTransferStreamMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的消息", expectedUniqId)
 		}
-		if receivedMsg.CustomerId != expectedList[i].customerId {
-			t.Fatalf("第%d条数据CustomerId不匹配，期望=%s, 实际=%s", i, expectedList[i].customerId, receivedMsg.CustomerId)
+		expected := expectedList[i]
+
+		if receivedMsg.CustomerId != expected.customerId {
+			t.Fatalf("UniqId=%s的消息CustomerId不匹配，期望=%s, 实际=%s", expectedUniqId, expected.customerId, receivedMsg.CustomerId)
 		}
-		if len(receivedMsg.Data) != len(expectedList[i].data) {
-			t.Fatalf("第%d条数据Data长度不匹配，期望=%d, 实际=%d", i, len(expectedList[i].data), len(receivedMsg.Data))
+		if len(receivedMsg.Data) != len(expected.data) {
+			t.Fatalf("UniqId=%s的消息Data长度不匹配，期望=%d, 实际=%d", expectedUniqId, len(expected.data), len(receivedMsg.Data))
 		}
 		// 验证Data内容的每个字节
 		for j := range receivedMsg.Data {
-			if receivedMsg.Data[j] != expectedList[i].data[j] {
-				t.Fatalf("第%d条数据Data[%d]不匹配，期望=%d, 实际=%d", i, j, expectedList[i].data[j], receivedMsg.Data[j])
+			if receivedMsg.Data[j] != expected.data[j] {
+				t.Fatalf("UniqId=%s的消息Data[%d]不匹配，期望=%d, 实际=%d", expectedUniqId, j, expected.data[j], receivedMsg.Data[j])
 			}
 		}
 	}
@@ -519,10 +561,8 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 func TestLoopSendListQueueClose(t *testing.T) {
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -532,8 +572,8 @@ func TestLoopSendListQueueClose(t *testing.T) {
 		KeyType: "list",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 10)
 
@@ -553,10 +593,8 @@ func TestLoopSendListQueueClose(t *testing.T) {
 func TestLoopSendStreamQueueClose(t *testing.T) {
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -566,8 +604,8 @@ func TestLoopSendStreamQueueClose(t *testing.T) {
 		KeyType: "stream",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 10)
 
@@ -590,10 +628,8 @@ func TestLoopSendMixedSizes(t *testing.T) {
 
 	redisAddr := "localhost:6379"
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
+	if _, err := rdb.Ping(quit.Ctx).Result(); err != nil {
 		t.Fatalf("Redis不可用: %v", err)
 	}
 
@@ -603,8 +639,8 @@ func TestLoopSendMixedSizes(t *testing.T) {
 		KeyType: "list",
 		DB:      0,
 	}
-	rdb.Del(ctx, queueConfig.Key)
-	defer rdb.Del(ctx, queueConfig.Key)
+	rdb.Del(quit.Ctx, queueConfig.Key)
+	defer rdb.Del(quit.Ctx, queueConfig.Key)
 
 	q := newQueue(rdb, queueConfig, 8)
 	defer q.Close()
@@ -622,7 +658,7 @@ func TestLoopSendMixedSizes(t *testing.T) {
 		}
 		q.Send(&netsvrProtocol.ConnOpen{UniqId: smallExpectedList[i].uniqId}, netsvrProtocol.Cmd_ConnOpen)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// 发送大消息并记录期望数据
 	// 每条消息500KB，5条总共2.5MB，确保超过packLimit(2MB)
@@ -644,78 +680,99 @@ func TestLoopSendMixedSizes(t *testing.T) {
 		}
 		q.Send(&netsvrProtocol.Transfer{UniqId: largeExpectedList[i].uniqId, Data: largeExpectedList[i].data}, netsvrProtocol.Cmd_Transfer)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	totalExpected := smallMsgCount + largeMsgCount
-	if listLen := rdb.LLen(ctx, queueConfig.Key).Val(); int(listLen) != totalExpected {
+	if listLen := rdb.LLen(quit.Ctx, queueConfig.Key).Val(); int(listLen) != totalExpected {
 		t.Fatalf("期望Redis中有%d条数据，实际%d", totalExpected, listLen)
 	}
 
-	// 从Redis读取数据并验证（注意：List是后进先出，所以先读大消息，再读小消息）
-	// 先验证大消息（后入的，先出）
-	for i := largeMsgCount - 1; i >= 0; i-- {
-		data, err := rdb.LPop(ctx, queueConfig.Key).Bytes()
+	// 从Redis读取数据并验证（注意：List是后进先出，但协程池写入是乱序的，需要基于UniqId验证）
+	// 读取所有数据到map中，通过UniqId和cmd类型进行验证
+	type mixedReceivedData struct {
+		cmdType  string // "small" or "large"
+		connOpen *netsvrProtocol.ConnOpen
+		transfer *netsvrProtocol.Transfer
+	}
+	mixedReceivedMap := make(map[string]*mixedReceivedData)
+
+	totalExpected = smallMsgCount + largeMsgCount
+	for i := 0; i < totalExpected; i++ {
+		data, err := rdb.LPop(quit.Ctx, queueConfig.Key).Bytes()
 		if err != nil {
-			t.Fatalf("读取第%d条大消息失败: %v", i, err)
+			t.Fatalf("读取第%d条数据失败: %v", i, err)
 		}
 		if len(data) < 4 {
-			t.Fatalf("第%d条大消息长度不足4字节，实际长度: %d", i, len(data))
+			t.Fatalf("第%d条数据长度不足4字节，实际长度: %d", i, len(data))
 		}
 
 		// 解析cmd
 		cmd := binary.BigEndian.Uint32(data[0:4])
-		if cmd != uint32(netsvrProtocol.Cmd_Transfer) {
-			t.Fatalf("第%d条大消息cmd错误，期望=%d, 实际=%d", i, netsvrProtocol.Cmd_Transfer, cmd)
-		}
-
-		// 反序列化body
 		body := data[4:]
-		receivedMsg := &netsvrProtocol.Transfer{}
-		if err := proto.Unmarshal(body, receivedMsg); err != nil {
-			t.Fatalf("第%d条大消息反序列化失败: %v", i, err)
-		}
 
-		// 验证字段内容
-		if receivedMsg.UniqId != largeExpectedList[i].uniqId {
-			t.Fatalf("第%d条大消息UniqId不匹配，期望=%s, 实际=%s", i, largeExpectedList[i].uniqId, receivedMsg.UniqId)
+		if cmd == uint32(netsvrProtocol.Cmd_Transfer) {
+			// 大消息
+			receivedMsg := &netsvrProtocol.Transfer{}
+			if err := proto.Unmarshal(body, receivedMsg); err != nil {
+				t.Fatalf("第%d条大消息反序列化失败: %v", i, err)
+			}
+			mixedReceivedMap[receivedMsg.UniqId] = &mixedReceivedData{
+				cmdType:  "large",
+				transfer: receivedMsg,
+			}
+		} else if cmd == uint32(netsvrProtocol.Cmd_ConnOpen) {
+			// 小消息
+			receivedMsg := &netsvrProtocol.ConnOpen{}
+			if err := proto.Unmarshal(body, receivedMsg); err != nil {
+				t.Fatalf("第%d条小消息反序列化失败: %v", i, err)
+			}
+			mixedReceivedMap[receivedMsg.UniqId] = &mixedReceivedData{
+				cmdType:  "small",
+				connOpen: receivedMsg,
+			}
+		} else {
+			t.Fatalf("第%d条数据cmd错误，实际=%d", i, cmd)
 		}
-		if len(receivedMsg.Data) != len(largeExpectedList[i].data) {
-			t.Fatalf("第%d条大消息Data长度不匹配，期望=%d, 实际=%d", i, len(largeExpectedList[i].data), len(receivedMsg.Data))
+	}
+
+	// 基于UniqId验证大消息
+	for i := 0; i < largeMsgCount; i++ {
+		expectedUniqId := largeExpectedList[i].uniqId
+		receivedData, exists := mixedReceivedMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的大消息", expectedUniqId)
+		}
+		if receivedData.cmdType != "large" {
+			t.Fatalf("UniqId=%s的消息类型错误，期望=large, 实际=%s", expectedUniqId, receivedData.cmdType)
+		}
+		receivedMsg := receivedData.transfer
+		expected := largeExpectedList[i]
+
+		if len(receivedMsg.Data) != len(expected.data) {
+			t.Fatalf("UniqId=%s的大消息Data长度不匹配，期望=%d, 实际=%d", expectedUniqId, len(expected.data), len(receivedMsg.Data))
 		}
 		// 验证Data内容的每个字节
 		for j := range receivedMsg.Data {
-			if receivedMsg.Data[j] != largeExpectedList[i].data[j] {
-				t.Fatalf("第%d条大消息Data[%d]不匹配，期望=%d, 实际=%d", i, j, largeExpectedList[i].data[j], receivedMsg.Data[j])
+			if receivedMsg.Data[j] != expected.data[j] {
+				t.Fatalf("UniqId=%s的大消息Data[%d]不匹配，期望=%d, 实际=%d", expectedUniqId, j, expected.data[j], receivedMsg.Data[j])
 			}
 		}
 	}
 
-	// 再验证小消息
-	for i := smallMsgCount - 1; i >= 0; i-- {
-		data, err := rdb.LPop(ctx, queueConfig.Key).Bytes()
-		if err != nil {
-			t.Fatalf("读取第%d条小消息失败: %v", i, err)
+	// 基于UniqId验证小消息
+	for i := 0; i < smallMsgCount; i++ {
+		expectedUniqId := smallExpectedList[i].uniqId
+		receivedData, exists := mixedReceivedMap[expectedUniqId]
+		if !exists {
+			t.Fatalf("未找到UniqId=%s的小消息", expectedUniqId)
 		}
-		if len(data) < 4 {
-			t.Fatalf("第%d条小消息长度不足4字节，实际长度: %d", i, len(data))
+		if receivedData.cmdType != "small" {
+			t.Fatalf("UniqId=%s的消息类型错误，期望=small, 实际=%s", expectedUniqId, receivedData.cmdType)
 		}
+		receivedMsg := receivedData.connOpen
 
-		// 解析cmd
-		cmd := binary.BigEndian.Uint32(data[0:4])
-		if cmd != uint32(netsvrProtocol.Cmd_ConnOpen) {
-			t.Fatalf("第%d条小消息cmd错误，期望=%d, 实际=%d", i, netsvrProtocol.Cmd_ConnOpen, cmd)
-		}
-
-		// 反序列化body
-		body := data[4:]
-		receivedMsg := &netsvrProtocol.ConnOpen{}
-		if err := proto.Unmarshal(body, receivedMsg); err != nil {
-			t.Fatalf("第%d条小消息反序列化失败: %v", i, err)
-		}
-
-		// 验证字段内容
-		if receivedMsg.UniqId != smallExpectedList[i].uniqId {
-			t.Fatalf("第%d条小消息UniqId不匹配，期望=%s, 实际=%s", i, smallExpectedList[i].uniqId, receivedMsg.UniqId)
+		if receivedMsg.UniqId != expectedUniqId {
+			t.Fatalf("小消息UniqId不匹配，期望=%s, 实际=%s", expectedUniqId, receivedMsg.UniqId)
 		}
 	}
 
