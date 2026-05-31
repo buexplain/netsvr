@@ -121,7 +121,7 @@ func makeQueue(redisClientMp map[string]*redis.Client, queueMp map[string]*Queue
 	if redisClientMp[redisId] == nil {
 		panic(fmt.Sprintf("redisQueue queue init failed %s", redisId))
 	}
-	q := newQueue(redisClientMp[redisId], queueConfig)
+	q := newQueue(redisClientMp[redisId], queueConfig, 256)
 	queueMp[queueId] = q
 	return q
 }

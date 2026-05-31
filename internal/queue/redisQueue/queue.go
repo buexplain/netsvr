@@ -43,14 +43,16 @@ type Queue struct {
 	redisClient *redis.Client
 	redisKey    string
 	keyType     string
+	dequeueSize int // 一次从队列中取出的元素数量
 }
 
-func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue) *Queue {
+func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue, dequeueSize int) *Queue {
 	q := &Queue{
 		redisClient: redisClient,
 		redisKey:    queueConfig.Key,
 		keyType:     queueConfig.KeyType,
 		sendCh:      queue.New[*internal.Packet](1024),
+		dequeueSize: dequeueSize,
 	}
 	if queueConfig.KeyType == "list" {
 		go q.loopSendList()
@@ -89,8 +91,8 @@ func (r *Queue) loopSendList() {
 				Msg("RedisQueue send coroutine is closed")
 		}
 	}()
-	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
-	packets := make([]*internal.Packet, 256)
+	packLimit := max(configs.Config.Customer.ReceivePackLimit, r.dequeueSize*2*1024)
+	packets := make([]*internal.Packet, r.dequeueSize)
 	var size int
 	var i int
 	var count int
@@ -181,8 +183,8 @@ func (r *Queue) loopSendStream() {
 				Msg("RedisQueue send coroutine is closed")
 		}
 	}()
-	packLimit := max(configs.Config.Customer.ReceivePackLimit, 512*1024)
-	packets := make([]*internal.Packet, 256)
+	packLimit := max(configs.Config.Customer.ReceivePackLimit, r.dequeueSize*2*1024)
+	packets := make([]*internal.Packet, r.dequeueSize)
 	var size int
 	var i int
 	var count int
