@@ -368,7 +368,7 @@ func Start() {
 		},
 	}
 	go func() {
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 1)
 		log.Logger.Info().Int("pid", os.Getpid()).Msgf(
 			"Customer websocket start ws://%s%s",
 			configs.Config.Customer.ListenAddress,

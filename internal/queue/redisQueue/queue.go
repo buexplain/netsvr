@@ -117,6 +117,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 				packets[i] = nil
 			}
 			//发送
+			sizeCopy := size //解决闭包引用导致的数据竞争
 			if err := goroutine.DefaultWorkerPool.Submit(func() {
 				defer func() {
 					//归还
@@ -124,7 +125,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 						internal.PacketObjPool.Put(pkg)
 					}
 				}()
-				batchMode(packetsCopy, size)
+				batchMode(packetsCopy, sizeCopy)
 			}); err != nil {
 				//归还
 				for _, pkg := range packetsCopy {

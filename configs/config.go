@@ -347,34 +347,36 @@ func init() {
 		Config.Worker.SendChanCap = 1024
 	}
 	//检查网关的worker服务的监听地址
-	if host, port, err := net.SplitHostPort(Config.Worker.ListenAddress); err != nil {
-		slog.Error("Config Worker.ListenAddress, split failed", "error", err)
-		os.Exit(1)
-	} else {
-		if !utils.IsValidIPv4(host) {
-			//将域名转为内网地址
-			slog.Warn("Config Worker.ListenAddress, host is not a valid ipv4 address", "host", host)
-			ipv4 := utils.GetHostByName(host)
-			if ipv4 == host {
-				slog.Warn("Config Worker.ListenAddress, convert " + host + " to ipv4 failed")
-				os.Exit(1)
+	if Config.Worker.ListenAddress != "" {
+		if host, port, err := net.SplitHostPort(Config.Worker.ListenAddress); err != nil {
+			slog.Error("Config Worker.ListenAddress, split failed", "error", err)
+			os.Exit(1)
+		} else {
+			if !utils.IsValidIPv4(host) {
+				//将域名转为内网地址
+				slog.Warn("Config Worker.ListenAddress, host is not a valid ipv4 address", "host", host)
+				ipv4 := utils.GetHostByName(host)
+				if ipv4 == host {
+					slog.Warn("Config Worker.ListenAddress, convert " + host + " to ipv4 failed")
+					os.Exit(1)
+				}
+				slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
+				Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
+			} else if host == "0.0.0.0" {
+				//转为内网地址
+				ipv4 := utils.GetLocalIPAddress()
+				if ipv4 == "" {
+					slog.Error("Config Worker.ListenAddress, Not allowed to configure 0.0.0.0")
+					os.Exit(1)
+				}
+				slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
+				Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
 			}
-			slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
-			Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
-		} else if host == "0.0.0.0" {
-			//转为内网地址
-			ipv4 := utils.GetLocalIPAddress()
-			if ipv4 == "" {
-				slog.Error("Config Worker.ListenAddress, Not allowed to configure 0.0.0.0")
-				os.Exit(1)
-			}
-			slog.Warn("Config Worker.ListenAddress, convert " + host + " to " + ipv4 + " successful")
-			Config.Worker.ListenAddress = net.JoinHostPort(ipv4, port)
 		}
-	}
-	if len(Config.Worker.HeartbeatMessage) == 0 {
-		slog.Error("Config Worker.HeartbeatMessage is required")
-		os.Exit(1)
+		if len(Config.Worker.HeartbeatMessage) == 0 {
+			slog.Error("Config Worker.HeartbeatMessage is required")
+			os.Exit(1)
+		}
 	}
 	//task配置
 	if Config.Task.ReadDeadline <= 0 {
@@ -418,16 +420,6 @@ func init() {
 	}
 	if len(Config.Task.HeartbeatMessage) == 0 {
 		slog.Error("Config Task.HeartbeatMessage is required")
-		os.Exit(1)
-	}
-	hostWorker, portWorker, _ := net.SplitHostPort(Config.Worker.ListenAddress)
-	hostTask, portTask, _ := net.SplitHostPort(Config.Task.ListenAddress)
-	if hostWorker != hostTask {
-		slog.Error("Config Task.ListenAddress, host is not equal to Worker.ListenAddress")
-		os.Exit(1)
-	}
-	if portWorker == portTask {
-		slog.Error("Config Task.ListenAddress, port is equal to Worker.ListenAddress")
 		os.Exit(1)
 	}
 }

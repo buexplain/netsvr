@@ -28,6 +28,9 @@ import (
 var connIdTemplate [6]byte
 
 func init() {
+	if configs.Config.Worker.ListenAddress == "" {
+		return
+	}
 	host, portStr, _ := net.SplitHostPort(configs.Config.Worker.ListenAddress)
 	port, _ := strconv.Atoi(portStr)
 	ip := net.ParseIP(host)
