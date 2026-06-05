@@ -65,17 +65,32 @@ func Start() {
 	Manager[int(netsvrProtocol.Event_OnMessage)] = makeQueue(redisClientMp, queueMp, configs.Config.RedisQueue.OnMessage)
 	Manager[int(netsvrProtocol.Event_OnClose)] = makeQueue(redisClientMp, queueMp, configs.Config.RedisQueue.OnClose)
 	for _, q := range queueMp {
-		log.Logger.Info().Int("pid", os.Getpid()).Str("redisKey", q.redisKey).Str("keyType", q.keyType).Str("address", q.redisClient.Options().Addr).Msg("RedisQueue start")
+		log.Logger.Info().
+			Int("pid", os.Getpid()).
+			Str("redisKey", q.redisKey).
+			Int("redisDB", q.redisDB).
+			Str("keyType", q.keyType).
+			Str("redisAddress", q.redisClient.Options().Addr).
+			Msg("RedisQueue start")
 	}
 }
 
 // Shutdown 停止redis队列
 func Shutdown() {
 	for _, q := range Manager {
-		if q != nil {
-			q.Close()
-			log.Logger.Info().Int("pid", os.Getpid()).Str("redisKey", q.redisKey).Str("keyType", q.keyType).Str("address", q.redisClient.Options().Addr).Msg("RedisQueue shutdown")
+		if q == nil {
+			continue
 		}
+		if !q.Close() {
+			continue
+		}
+		log.Logger.Info().
+			Int("pid", os.Getpid()).
+			Str("redisKey", q.redisKey).
+			Int("redisDB", q.redisDB).
+			Str("keyType", q.keyType).
+			Str("redisAddress", q.redisClient.Options().Addr).
+			Msg("RedisQueue shutdown")
 	}
 }
 

@@ -43,7 +43,7 @@ func (r *BytesConfigItem) UnmarshalText(text []byte) error {
 }
 
 type RedisQueue struct {
-	//Redis地址
+	//Redis地址 host:port
 	Address string
 	//Redis密码
 	Password string
@@ -122,6 +122,10 @@ type config struct {
 
 	//Redis队列的配置，不需要则不配置
 	RedisQueue struct {
+		//公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
+		//合并逻辑是，如果 OnOpen、OnMessage、OnClose 配置节点有该字段
+		//则使用 OnOpen、OnMessage、OnClose 配置节点的字段，否则使用公共字段
+		RedisQueue
 		//连接打开的Redis队列
 		OnOpen RedisQueue
 		//发送消息的Redis队列
@@ -169,16 +173,22 @@ type config struct {
 		// 1：统计客户连接的打开次数
 		// 2：统计客户连接的关闭次数
 		// 3：统计客户连接的心跳次数
-		// 4：统计客户数据转发到worker的次数
-		// 5：统计客户数据转发到worker的字节数
+		// 4：统计客户数据通过worker转发到业务侧的次数
+		// 5：统计客户数据通过worker转发到业务侧的字节数
 		// 6：统计往客户写入数据成功次数
 		// 7：统计往客户写入数据成功字节数
 		// 8：统计连接打开的限流次数
 		// 9：统计客户消息限流次数
-		// 10：统计worker到business的失败次数
+		// 10：统计客户数据通过worker转发到业务侧的失败次数
 		// 11：统计往客户写入数据失败次数
 		// 12：统计往客户写入数据失败字节数
 		// 13：统计连接消息限流次数
+		// 14：统计客户数据通过redis队列转发到业务侧的次数
+		// 15：统计客户数据通过redis队列转发到业务侧的字节数
+		// 16：统计客户数据通过redis队列转发到业务侧的失败次数
+		// 17：统计客户数据通过http回调转发到业务侧的次数
+		// 18：统计客户数据通过http回调转发到业务侧的字节数
+		// 19：统计客户数据通过http回调转发到业务侧的失败次数
 		Item []int
 	}
 }
@@ -248,6 +258,33 @@ func init() {
 	}
 	//解析配置文件到对象
 	Config = new(config)
+	setRedisQueueDefaultParams := func(queue *RedisQueue, replace bool) {
+		if false {
+			//默认参数
+			queue.DB = -1
+			queue.Password = "锦瑟无端五十弦"
+			return
+		}
+		//配置文件没有配置，则使用默认参数
+		if queue.Address == "" {
+			queue.Address = Config.RedisQueue.Address
+		}
+		if queue.Password == "锦瑟无端五十弦" {
+			queue.Password = Config.RedisQueue.Password
+		}
+		if queue.DB == -1 {
+			queue.DB = Config.RedisQueue.DB
+		}
+		if queue.Key == "" {
+			queue.Key = Config.RedisQueue.Key
+		}
+		if queue.KeyType == "" {
+			queue.KeyType = Config.RedisQueue.KeyType
+		}
+	}
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen, false)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage, false)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose, false)
 	Config.Customer.Multicore = 100
 	if _, err := toml.Decode(string(c), Config); err != nil {
 		slog.Error("Parse netsvr.toml failed", "error", err)
@@ -294,6 +331,12 @@ func init() {
 	if Config.Customer.LimitZeroWindowMaxRequests <= 0 {
 		Config.Customer.LimitZeroWindowMaxRequests = 1000
 	}
+
+	//设置redis队列的默认参数
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen, true)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage, true)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose, true)
+
 	if Config.RedisQueue.OnOpen.KeyType == "" {
 		Config.RedisQueue.OnOpen.KeyType = "list"
 	} else {

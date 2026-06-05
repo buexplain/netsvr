@@ -55,30 +55,22 @@ Timeout = "3s"
 
 # Redis队列的配置，不需要则不配置
 [RedisQueue]
-# 连接打开的Redis队列
-[RedisQueue.OnOpen]
+# 公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
+# 合并逻辑是，如果 OnOpen、OnMessage、OnClose 配置节点有该字段
+# 则使用 OnOpen、OnMessage、OnClose 配置节点的字段，否则使用公共字段
+# Redis地址 host:port
 Address = "127.0.0.1:6379"
+# Redis密码
 Password = ""
+# Redis数据库
 DB = 0
-Key = "netsvr:list:onopenclose"
+Key = "netsvr:queue:onopenclose"
 # Redis队列的key类型，目前支持：stream、list(左侧压入消息)
 KeyType = "list"
 # 发送消息的Redis队列
 [RedisQueue.OnMessage]
-Address = "127.0.0.1:6379"
-Password = ""
-DB = 0
-Key = "netsvr:stream:onmessage"
-# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
+Key = "netsvr:queue:onmessage"
 KeyType = "stream"
-# 连接关闭的Redis队列
-[RedisQueue.OnClose]
-Address = "127.0.0.1:6379"
-Password = ""
-DB = 0
-Key = "netsvr:list:onopenclose"
-# Redis队列的key类型，目前支持：stream、list(左侧压入消息)
-KeyType = "list"
 
 # Worker的tcp服务器配置，不需要则不配置
 [Worker]

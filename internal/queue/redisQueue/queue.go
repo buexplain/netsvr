@@ -43,6 +43,7 @@ type Queue struct {
 	sendCh      *queue.Queue[*internal.Packet]
 	redisClient *redis.Client
 	redisKey    string
+	redisDB     int
 	keyType     string
 	dequeueSize int // 一次从队列中取出的元素数量
 }
@@ -51,6 +52,7 @@ func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue, dequeue
 	q := &Queue{
 		redisClient: redisClient,
 		redisKey:    queueConfig.Key,
+		redisDB:     queueConfig.DB,
 		keyType:     queueConfig.KeyType,
 		sendCh:      queue.New[*internal.Packet](1024),
 		dequeueSize: dequeueSize,
@@ -65,16 +67,17 @@ func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue, dequeue
 	return q
 }
 
-func (r *Queue) Close() {
+func (r *Queue) Close() bool {
 	defer func() {
 		_ = recover()
 	}()
 	if !atomic.CompareAndSwapInt32(&r.closeLock, 0, 1) {
-		return
+		return false
 	}
 	time.AfterFunc(time.Millisecond*100, func() {
 		r.sendCh.Close()
 	})
+	return true
 }
 
 // 循环发送数据

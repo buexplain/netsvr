@@ -24,7 +24,7 @@ TaskHeartbeatMessage = "~6YOt5rW35piO~"
 Address = "127.0.0.1:6379"
 Password = ""
 DB = 0
-Key = "netsvr:list:onopenclose"
+Key = "netsvr:queue:onopenclose"
 # Redis队列的key类型，目前支持：stream、list(左侧压入消息)
 KeyType = "list"
 # 发送消息的Redis队列
@@ -32,7 +32,7 @@ KeyType = "list"
 Address = "127.0.0.1:6379"
 Password = ""
 DB = 0
-Key = "netsvr:stream:onmessage"
+Key = "netsvr:queue:onmessage"
 # Redis队列的key类型，目前支持：stream、list
 KeyType = "stream"
 # 连接关闭的Redis队列
@@ -40,6 +40,6 @@ KeyType = "stream"
 Address = "127.0.0.1:6379"
 Password = ""
 DB = 0
-Key = "netsvr:list:onopenclose"
+Key = "netsvr:queue:onopenclose"
 # Redis队列的key类型，目前支持：stream、list
 KeyType = "list"
