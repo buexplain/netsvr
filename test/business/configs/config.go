@@ -46,6 +46,30 @@ type RedisQueue struct {
 	KeyType string
 }
 
+// AMQP091Queue AMQP队列的配置
+type AMQP091Queue struct {
+	//RabbitMQ服务器地址 host:port
+	Address string
+	//用户名
+	Username string
+	//密码
+	Password string
+	//虚拟主机（默认 /）
+	VHost string
+	//Exchange名称
+	Exchange string
+	//Exchange类型: direct, fanout, topic, headers
+	ExchangeType string
+	//Queue名称（空则不声明Queue，仅发布到Exchange）
+	Queue string
+	//Routing Key
+	RoutingKey string
+	//是否持久化
+	Durable bool
+	//是否自动删除
+	AutoDelete bool
+}
+
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
@@ -74,6 +98,8 @@ type config struct {
 		//连接关闭的Redis队列
 		OnClose RedisQueue
 	}
+	//AMQP队列的配置
+	AMQP091Queue AMQP091Queue
 }
 
 func (r *config) GetLogLevel() zerolog.Level {
@@ -111,7 +137,7 @@ func init() {
 	if Config.Service == "" {
 		Config.Service = "worker"
 	}
-	if Config.Service != "worker" && Config.Service != "queue" && Config.Service != "callback" {
+	if Config.Service != "worker" && Config.Service != "redis" && Config.Service != "amqp091" && Config.Service != "callback" {
 		slog.Error("Invalid service", "service", Config.Service)
 		os.Exit(1)
 	}

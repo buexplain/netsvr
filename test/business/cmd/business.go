@@ -22,14 +22,17 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	_ "github.com/buexplain/netsvr-business-go/v2"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"html/template"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"netsvr/pkg/quit"
 	"netsvr/test/business/assets"
 	"netsvr/test/business/configs"
@@ -49,6 +52,8 @@ func main() {
 	go clientServer()
 	//启动redis队列消费者
 	go redisQueueConsumer()
+	//启动amqp091队列消费者
+	go amqp091QueueConsumer()
 	//启动worker连接
 	if configs.Config.WorkerListenAddress != "" {
 		if mainSocketManager.MainSocketManager.Start() == false {
@@ -202,7 +207,7 @@ func clientServer() {
 // redis队列消费者
 func redisQueueConsumer() {
 	// 定义消费者函数
-	consumeList := func(queueConfig configs.RedisQueue, handler func([]byte)) {
+	consumeList := func(queueConfig configs.RedisQueue, handler func([]byte, string)) {
 		if queueConfig.Address == "" || queueConfig.Key == "" {
 			return
 		}
@@ -253,7 +258,7 @@ func redisQueueConsumer() {
 						}
 						continue
 					} else {
-						handler(unsafe.Slice(unsafe.StringData(str), len(str)))
+						handler(unsafe.Slice(unsafe.StringData(str), len(str)), "redis")
 					}
 				}
 			} else if queueConfig.KeyType == "stream" {
@@ -273,7 +278,7 @@ func redisQueueConsumer() {
 					for _, msg := range stream.Messages {
 						// Stream的Values是map[string]interface{}，网关将数据存储在"data"字段中
 						if data, ok := msg.Values["data"].(string); ok {
-							handler(unsafe.Slice(unsafe.StringData(data), len(data)))
+							handler(unsafe.Slice(unsafe.StringData(data), len(data)), "redis")
 						}
 						// 删除已处理的消息，防止反复消费
 						pipe.XDel(quit.Ctx, queueConfig.Key, msg.ID)
@@ -290,50 +295,238 @@ func redisQueueConsumer() {
 		}
 	}
 
-	// 通用分派函数：从 4 字节 cmd 中解析命令类型，再根据 cmd 反序列化对应的 proto 对象
-	// 网关写入 Redis 的数据格式为 [4字节cmd][proto body]
-	// Redis 队列无需长度字段（list/stream 本身已有边界），仅保留 4 字节 cmd 用于消费者分派
-	// 同一个队列可能包含多种事件类型（如 OnOpen + OnClose 共用一个 Redis key），必须先解析 cmd 再分派
-	dispatchHandler := func(data []byte) {
-		// 只有队列服务才处理数据
-		if configs.Config.Service != "queue" {
-			return
-		}
-		if len(data) < 4 {
-			log.Logger.Error().Int("dataLen", len(data)).Msg("数据长度不足4字节，无法解析cmd")
-			return
-		}
-		currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
-		body := data[4:]
-		switch currentCmd {
-		case netsvrProtocol.Cmd_ConnOpen:
-			co := &netsvrProtocol.ConnOpen{}
-			if err := proto.Unmarshal(body, co); err != nil {
-				log.Logger.Error().Err(err).Msg("解析ConnOpen失败")
-				return
-			}
-			go cmd.EventHandler.OnOpen(co)
-		case netsvrProtocol.Cmd_Transfer:
-			tf := &netsvrProtocol.Transfer{}
-			if err := proto.Unmarshal(body, tf); err != nil {
-				log.Logger.Error().Err(err).Msg("解析Transfer失败")
-				return
-			}
-			go cmd.EventHandler.OnMessage(tf)
-		case netsvrProtocol.Cmd_ConnClose:
-			cc := &netsvrProtocol.ConnClose{}
-			if err := proto.Unmarshal(body, cc); err != nil {
-				log.Logger.Error().Err(err).Msg("解析ConnClose失败")
-				return
-			}
-			go cmd.EventHandler.OnClose(cc)
-		default:
-			log.Logger.Error().Str("cmd", currentCmd.String()).Msg("未知的cmd类型")
-		}
-	}
-
 	// 启动三个队列的消费者
 	go consumeList(configs.Config.RedisQueue.OnOpen, dispatchHandler)
 	go consumeList(configs.Config.RedisQueue.OnMessage, dispatchHandler)
 	go consumeList(configs.Config.RedisQueue.OnClose, dispatchHandler)
+}
+
+// AMQP队列的消费者
+func amqp091QueueConsumer() {
+	if configs.Config.AMQP091Queue.Address == "" || configs.Config.AMQP091Queue.Exchange == "" {
+		return
+	}
+	// 定义AMQP消费者函数
+	consumeAMQP := func(queueConfig configs.AMQP091Queue, handler func([]byte, string)) {
+		if queueConfig.Address == "" || queueConfig.Exchange == "" || queueConfig.Queue == "" {
+			return
+		}
+
+		// URL 编码用户名和密码（处理特殊字符）
+		username := url.QueryEscape(queueConfig.Username)
+		password := url.QueryEscape(queueConfig.Password)
+		urlStr := fmt.Sprintf("amqp://%s:%s@%s%s", username, password, queueConfig.Address, queueConfig.VHost)
+
+		log.Logger.Info().
+			Str("address", queueConfig.Address).
+			Str("exchange", queueConfig.Exchange).
+			Str("queue", queueConfig.Queue).
+			Str("routingKey", queueConfig.RoutingKey).
+			Msg("AMQP091队列消费者启动")
+
+		for {
+			select {
+			case <-quit.Ctx.Done():
+				log.Logger.Info().
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091队列消费者退出")
+				return
+			default:
+			}
+
+			// 建立连接
+			conn, err := amqp.Dial(urlStr)
+			if err != nil {
+				log.Logger.Error().Err(err).
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091连接失败，3秒后重试")
+				time.Sleep(time.Second * 3)
+				continue
+			}
+
+			// 创建通道
+			ch, err := conn.Channel()
+			if err != nil {
+				_ = conn.Close()
+				log.Logger.Error().Err(err).
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091创建通道失败，3秒后重试")
+				time.Sleep(time.Second * 3)
+				continue
+			}
+
+			// 声明队列（确保队列存在）
+			_, err = ch.QueueDeclare(
+				queueConfig.Queue,
+				true,  // durable: 持久化队列
+				false, // autoDelete: 不自动删除
+				false, // exclusive: 非独占
+				false, // noWait: 不等待响应
+				nil,   // arguments
+			)
+			if err != nil {
+				_ = ch.Close()
+				_ = conn.Close()
+				log.Logger.Error().Err(err).
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091声明队列失败，3秒后重试")
+				time.Sleep(time.Second * 3)
+				continue
+			}
+
+			// 设置QoS，每次只预取一条消息
+			err = ch.Qos(
+				1,     // prefetch count
+				0,     // prefetch size
+				false, // global
+			)
+			if err != nil {
+				_ = ch.Close()
+				_ = conn.Close()
+				log.Logger.Error().Err(err).
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091设置QoS失败，3秒后重试")
+				time.Sleep(time.Second * 3)
+				continue
+			}
+
+			// 消费消息
+			msgs, err := ch.Consume(
+				queueConfig.Queue,
+				"",    // consumer: 空字符串表示自动生成消费者标签
+				false, // autoAck: 手动确认
+				false, // exclusive: 非独占
+				false, // noLocal: 允许接收发布者自己的消息
+				false, // noWait: 不等待响应
+				nil,   // args
+			)
+			if err != nil {
+				_ = ch.Close()
+				_ = conn.Close()
+				log.Logger.Error().Err(err).
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091开始消费失败，3秒后重试")
+				time.Sleep(time.Second * 3)
+				continue
+			}
+
+			log.Logger.Info().
+				Str("address", queueConfig.Address).
+				Str("exchange", queueConfig.Exchange).
+				Str("queue", queueConfig.Queue).
+				Msg("AMQP091开始消费消息")
+
+			// 监听连接关闭通知
+			notifyClose := conn.NotifyClose(make(chan *amqp.Error))
+
+			// 消费消息循环
+			consumeLoop := true
+			for consumeLoop {
+				select {
+				case <-quit.Ctx.Done():
+					consumeLoop = false
+				case err := <-notifyClose:
+					log.Logger.Error().Err(err).
+						Str("address", queueConfig.Address).
+						Str("exchange", queueConfig.Exchange).
+						Str("queue", queueConfig.Queue).
+						Msg("AMQP091连接关闭，将重新连接")
+					consumeLoop = false
+				case msg, ok := <-msgs:
+					if !ok {
+						log.Logger.Error().
+							Str("address", queueConfig.Address).
+							Str("exchange", queueConfig.Exchange).
+							Str("queue", queueConfig.Queue).
+							Msg("AMQP091消息通道关闭，将重新连接")
+						consumeLoop = false
+						break
+					}
+					// 处理消息
+					handler(msg.Body, "amqp091")
+					// 手动确认消息
+					if err := msg.Ack(false); err != nil {
+						log.Logger.Error().Err(err).
+							Str("address", queueConfig.Address).
+							Str("exchange", queueConfig.Exchange).
+							Str("queue", queueConfig.Queue).
+							Msg("AMQP091确认消息失败")
+					}
+				}
+			}
+
+			// 关闭连接和通道
+			_ = ch.Close()
+			_ = conn.Close()
+
+			// 如果不是主动退出，则等待后重连
+			select {
+			case <-quit.Ctx.Done():
+				return
+			default:
+				log.Logger.Info().
+					Str("address", queueConfig.Address).
+					Str("exchange", queueConfig.Exchange).
+					Str("queue", queueConfig.Queue).
+					Msg("AMQP091将在3秒后重新连接")
+				time.Sleep(time.Second * 3)
+			}
+		}
+	}
+
+	// 启动三个队列的消费者
+	go consumeAMQP(configs.Config.AMQP091Queue, dispatchHandler)
+}
+
+// 通用分派函数：从 4 字节 cmd 中解析命令类型，再根据 cmd 反序列化对应的 proto 对象
+// 网关写入 队列 的数据格式为 [4字节cmd][proto body]
+// 同一个队列可能包含多种事件类型（如 OnOpen + OnClose 共用一个 Redis key），必须先解析 cmd 再分派
+func dispatchHandler(data []byte, service string) {
+	// 只有队列服务才处理数据
+	if configs.Config.Service != service {
+		return
+	}
+	if len(data) < 4 {
+		log.Logger.Error().Int("dataLen", len(data)).Msg("数据长度不足4字节，无法解析cmd")
+		return
+	}
+	currentCmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(data[0:4]))
+	body := data[4:]
+	switch currentCmd {
+	case netsvrProtocol.Cmd_ConnOpen:
+		co := &netsvrProtocol.ConnOpen{}
+		if err := proto.Unmarshal(body, co); err != nil {
+			log.Logger.Error().Err(err).Msg("解析ConnOpen失败")
+			return
+		}
+		go cmd.EventHandler.OnOpen(co)
+	case netsvrProtocol.Cmd_Transfer:
+		tf := &netsvrProtocol.Transfer{}
+		if err := proto.Unmarshal(body, tf); err != nil {
+			log.Logger.Error().Err(err).Msg("解析Transfer失败")
+			return
+		}
+		go cmd.EventHandler.OnMessage(tf)
+	case netsvrProtocol.Cmd_ConnClose:
+		cc := &netsvrProtocol.ConnClose{}
+		if err := proto.Unmarshal(body, cc); err != nil {
+			log.Logger.Error().Err(err).Msg("解析ConnClose失败")
+			return
+		}
+		go cmd.EventHandler.OnClose(cc)
+	default:
+		log.Logger.Error().Str("cmd", currentCmd.String()).Msg("未知的cmd类型")
+	}
 }

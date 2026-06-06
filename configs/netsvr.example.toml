@@ -56,8 +56,6 @@ Timeout = "3s"
 # Redis队列的配置，不需要则不配置
 [RedisQueue]
 # 公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
-# 合并逻辑是，如果 OnOpen、OnMessage、OnClose 配置节点有该字段
-# 则使用 OnOpen、OnMessage、OnClose 配置节点的字段，否则使用公共字段
 # Redis地址 host:port
 Address = "127.0.0.1:6379"
 # Redis密码
@@ -92,6 +90,10 @@ AutoDelete = false
 Exchange = "netsvr.events"
 Queue = "netsvr.events"
 RoutingKey = "netsvr.events"
+# 发送消息的队列
+[AMQP091Queue.OnMessage]
+Key = "netsvr:queue:onmessage"
+KeyType = "stream"
 
 # Worker的tcp服务器配置，不需要则不配置
 [Worker]

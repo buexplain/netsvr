@@ -147,8 +147,6 @@ type config struct {
 	//Redis队列的配置，不需要则不配置
 	RedisQueue struct {
 		//公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
-		//合并逻辑是，如果 OnOpen、OnMessage、OnClose 配置节点有该字段
-		//则使用 OnOpen、OnMessage、OnClose 配置节点的字段，否则使用公共字段
 		RedisQueue
 		//连接打开的Redis队列
 		OnOpen RedisQueue
