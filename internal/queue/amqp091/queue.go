@@ -114,12 +114,6 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 	amqpChannel, confirmChan := q.channel.getAmqpChannel()
 	if amqpChannel == nil {
 		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(int64(len(packets)))
-		log.Logger.Error().
-			Str("address", q.channel.conn.address).
-			Str("exchange", q.channel.exchange).
-			Str("queue", q.channel.queue).
-			Str("routingKey", q.channel.routingKey).
-			Msg("AMQP091 channel not available")
 		return
 	}
 

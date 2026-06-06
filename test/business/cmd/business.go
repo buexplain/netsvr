@@ -397,7 +397,7 @@ func amqp091QueueConsumer() {
 
 			// 设置QoS，每次只预取一条消息
 			err = ch.Qos(
-				1,     // prefetch count
+				100,   // prefetch count
 				0,     // prefetch size
 				false, // global
 			)
