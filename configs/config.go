@@ -370,7 +370,6 @@ func init() {
 	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen)
 	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage)
 	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose)
-
 	if Config.RedisQueue.OnOpen.KeyType == "" {
 		Config.RedisQueue.OnOpen.KeyType = "list"
 	} else {
@@ -461,7 +460,6 @@ func init() {
 	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnOpen)
 	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnMessage)
 	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnClose)
-
 	if Config.AMQP091Queue.OnOpen.ExchangeType == "" {
 		Config.AMQP091Queue.OnOpen.ExchangeType = "direct"
 	} else {
@@ -495,6 +493,7 @@ func init() {
 			os.Exit(1)
 		}
 	}
+
 	if Config.Worker.ReadDeadline <= 0 {
 		//默认120秒
 		Config.Worker.ReadDeadline = time.Second * 120

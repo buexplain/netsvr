@@ -17,32 +17,22 @@ WorkerHeartbeatMessage = "~6YOt5rW35piO~"
 # business进程向网关的task服务器发送的心跳消息
 TaskHeartbeatMessage = "~6YOt5rW35piO~"
 
-# Redis队列的配置
+# Redis队列的配置，不需要则不配置
 [RedisQueue]
-# 连接打开的Redis队列
-[RedisQueue.OnOpen]
+# 公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
+# Redis地址 host:port
 Address = "127.0.0.1:6379"
+# Redis密码
 Password = ""
+# Redis数据库
 DB = 0
 Key = "netsvr:queue:onopenclose"
 # Redis队列的key类型，目前支持：stream、list(左侧压入消息)
 KeyType = "list"
 # 发送消息的Redis队列
 [RedisQueue.OnMessage]
-Address = "127.0.0.1:6379"
-Password = ""
-DB = 0
 Key = "netsvr:queue:onmessage"
-# Redis队列的key类型，目前支持：stream、list
 KeyType = "stream"
-# 连接关闭的Redis队列
-[RedisQueue.OnClose]
-Address = "127.0.0.1:6379"
-Password = ""
-DB = 0
-Key = "netsvr:queue:onopenclose"
-# Redis队列的key类型，目前支持：stream、list
-KeyType = "list"
 
 # AMQP091队列的配置，不需要则不配置
 [AMQP091Queue]
@@ -55,12 +45,19 @@ Username = "guest"
 Password = "guest"
 # 虚拟主机（默认 /，可省略）
 VHost = "/"
+Exchange = "netsvr.events"
 # Exchange类型: direct, fanout, topic, headers
-ExchangeType = "direct"
+ExchangeType = "topic"
 # 是否持久化
-Durable = false
+Durable = true
 # 是否自动删除
 AutoDelete = false
-Exchange = "netsvr.events"
-Queue = "netsvr.events"
-RoutingKey = "netsvr.events"
+[AMQP091Queue.OnMessage]
+Queue = "business.onmessage"
+RoutingKey = "event.onmessage"
+[AMQP091Queue.OnOpen]
+Queue = "business.onopenclose"
+RoutingKey = "event.onopenclose"
+[AMQP091Queue.OnClose]
+Queue = "business.onopenclose"
+RoutingKey = "event.onopenclose"

@@ -81,19 +81,22 @@ Username = "guest"
 Password = "guest"
 # 虚拟主机（默认 /，可省略）
 VHost = "/"
+Exchange = "netsvr.events"
 # Exchange类型: direct, fanout, topic, headers
-ExchangeType = "direct"
+ExchangeType = "topic"
 # 是否持久化
-Durable = false
+Durable = true
 # 是否自动删除
 AutoDelete = false
-Exchange = "netsvr.events"
-Queue = "netsvr.events"
-RoutingKey = "netsvr.events"
-# 发送消息的队列
 [AMQP091Queue.OnMessage]
-Key = "netsvr:queue:onmessage"
-KeyType = "stream"
+Queue = "business.onmessage"
+RoutingKey = "event.onmessage"
+[AMQP091Queue.OnOpen]
+Queue = "business.onopenclose"
+RoutingKey = "event.onopenclose"
+[AMQP091Queue.OnClose]
+Queue = "business.onopenclose"
+RoutingKey = "event.onopenclose"
 
 # Worker的tcp服务器配置，不需要则不配置
 [Worker]

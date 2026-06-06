@@ -214,8 +214,8 @@ func redisQueueConsumer() {
 
 		client := redis.NewClient(&redis.Options{
 			Addr:     queueConfig.Address,
-			Password: queueConfig.Password,
-			DB:       queueConfig.DB,
+			Password: *queueConfig.Password,
+			DB:       *queueConfig.DB,
 		})
 		defer func(client *redis.Client) {
 			_ = client.Close()
@@ -294,11 +294,24 @@ func redisQueueConsumer() {
 			}
 		}
 	}
-
-	// 启动三个队列的消费者
-	go consumeList(configs.Config.RedisQueue.OnOpen, dispatchHandler)
-	go consumeList(configs.Config.RedisQueue.OnMessage, dispatchHandler)
-	go consumeList(configs.Config.RedisQueue.OnClose, dispatchHandler)
+	queueConfigs := make([]configs.RedisQueue, 0, 3)
+	queueConfigs = append(queueConfigs, configs.Config.RedisQueue.OnOpen)
+	queueConfigs = append(queueConfigs, configs.Config.RedisQueue.OnMessage)
+	queueConfigs = append(queueConfigs, configs.Config.RedisQueue.OnClose)
+	queueIdMap := map[string]bool{}
+	for _, queueConfig := range queueConfigs {
+		queueId := fmt.Sprintf("Address%sDB%dKey%sKeyType%s",
+			queueConfig.Address,
+			queueConfig.DB,
+			queueConfig.Key,
+			queueConfig.KeyType,
+		)
+		if queueIdMap[queueId] {
+			continue
+		}
+		queueIdMap[queueId] = true
+		go consumeList(queueConfig, dispatchHandler)
+	}
 }
 
 // AMQP队列的消费者
@@ -308,20 +321,20 @@ func amqp091QueueConsumer() {
 	}
 	// 定义AMQP消费者函数
 	consumeAMQP := func(queueConfig configs.AMQP091Queue, handler func([]byte, string)) {
-		if queueConfig.Address == "" || queueConfig.Exchange == "" || queueConfig.Queue == "" {
+		if queueConfig.Address == "" || queueConfig.Exchange == "" || *queueConfig.Queue == "" {
 			return
 		}
 
 		// URL 编码用户名和密码（处理特殊字符）
 		username := url.QueryEscape(queueConfig.Username)
 		password := url.QueryEscape(queueConfig.Password)
-		urlStr := fmt.Sprintf("amqp://%s:%s@%s%s", username, password, queueConfig.Address, queueConfig.VHost)
+		urlStr := fmt.Sprintf("amqp://%s:%s@%s%s", username, password, queueConfig.Address, *queueConfig.VHost)
 
 		log.Logger.Info().
 			Str("address", queueConfig.Address).
 			Str("exchange", queueConfig.Exchange).
-			Str("queue", queueConfig.Queue).
-			Str("routingKey", queueConfig.RoutingKey).
+			Str("queue", *queueConfig.Queue).
+			Str("routingKey", *queueConfig.RoutingKey).
 			Msg("AMQP091队列消费者启动")
 
 		for {
@@ -330,7 +343,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Info().
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091队列消费者退出")
 				return
 			default:
@@ -342,7 +355,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Error().Err(err).
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091连接失败，3秒后重试")
 				time.Sleep(time.Second * 3)
 				continue
@@ -355,7 +368,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Error().Err(err).
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091创建通道失败，3秒后重试")
 				time.Sleep(time.Second * 3)
 				continue
@@ -363,7 +376,7 @@ func amqp091QueueConsumer() {
 
 			// 声明队列（确保队列存在）
 			_, err = ch.QueueDeclare(
-				queueConfig.Queue,
+				*queueConfig.Queue,
 				true,  // durable: 持久化队列
 				false, // autoDelete: 不自动删除
 				false, // exclusive: 非独占
@@ -376,7 +389,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Error().Err(err).
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091声明队列失败，3秒后重试")
 				time.Sleep(time.Second * 3)
 				continue
@@ -394,7 +407,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Error().Err(err).
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091设置QoS失败，3秒后重试")
 				time.Sleep(time.Second * 3)
 				continue
@@ -402,7 +415,7 @@ func amqp091QueueConsumer() {
 
 			// 消费消息
 			msgs, err := ch.Consume(
-				queueConfig.Queue,
+				*queueConfig.Queue,
 				"",    // consumer: 空字符串表示自动生成消费者标签
 				false, // autoAck: 手动确认
 				false, // exclusive: 非独占
@@ -416,7 +429,7 @@ func amqp091QueueConsumer() {
 				log.Logger.Error().Err(err).
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091开始消费失败，3秒后重试")
 				time.Sleep(time.Second * 3)
 				continue
@@ -425,7 +438,7 @@ func amqp091QueueConsumer() {
 			log.Logger.Info().
 				Str("address", queueConfig.Address).
 				Str("exchange", queueConfig.Exchange).
-				Str("queue", queueConfig.Queue).
+				Str("queue", *queueConfig.Queue).
 				Msg("AMQP091开始消费消息")
 
 			// 监听连接关闭通知
@@ -441,7 +454,7 @@ func amqp091QueueConsumer() {
 					log.Logger.Error().Err(err).
 						Str("address", queueConfig.Address).
 						Str("exchange", queueConfig.Exchange).
-						Str("queue", queueConfig.Queue).
+						Str("queue", *queueConfig.Queue).
 						Msg("AMQP091连接关闭，将重新连接")
 					consumeLoop = false
 				case msg, ok := <-msgs:
@@ -449,7 +462,7 @@ func amqp091QueueConsumer() {
 						log.Logger.Error().
 							Str("address", queueConfig.Address).
 							Str("exchange", queueConfig.Exchange).
-							Str("queue", queueConfig.Queue).
+							Str("queue", *queueConfig.Queue).
 							Msg("AMQP091消息通道关闭，将重新连接")
 						consumeLoop = false
 						break
@@ -461,7 +474,7 @@ func amqp091QueueConsumer() {
 						log.Logger.Error().Err(err).
 							Str("address", queueConfig.Address).
 							Str("exchange", queueConfig.Exchange).
-							Str("queue", queueConfig.Queue).
+							Str("queue", *queueConfig.Queue).
 							Msg("AMQP091确认消息失败")
 					}
 				}
@@ -479,15 +492,30 @@ func amqp091QueueConsumer() {
 				log.Logger.Info().
 					Str("address", queueConfig.Address).
 					Str("exchange", queueConfig.Exchange).
-					Str("queue", queueConfig.Queue).
+					Str("queue", *queueConfig.Queue).
 					Msg("AMQP091将在3秒后重新连接")
 				time.Sleep(time.Second * 3)
 			}
 		}
 	}
-
-	// 启动三个队列的消费者
-	go consumeAMQP(configs.Config.AMQP091Queue, dispatchHandler)
+	queueConfigs := make([]configs.AMQP091Queue, 0, 3)
+	queueConfigs = append(queueConfigs, configs.Config.AMQP091Queue.OnOpen)
+	queueConfigs = append(queueConfigs, configs.Config.AMQP091Queue.OnMessage)
+	queueConfigs = append(queueConfigs, configs.Config.AMQP091Queue.OnClose)
+	queueIdMap := map[string]bool{}
+	for _, queueConfig := range queueConfigs {
+		queueId := fmt.Sprintf("Address%sExchange%sQueue%sRoutingKey%s",
+			queueConfig.Address,
+			queueConfig.Exchange,
+			*queueConfig.Queue,
+			*queueConfig.RoutingKey,
+		)
+		if queueIdMap[queueId] {
+			continue
+		}
+		queueIdMap[queueId] = true
+		go consumeAMQP(queueConfig, dispatchHandler)
+	}
 }
 
 // 通用分派函数：从 4 字节 cmd 中解析命令类型，再根据 cmd 反序列化对应的 proto 对象
