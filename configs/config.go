@@ -46,9 +46,9 @@ type RedisQueue struct {
 	//Redis地址 host:port
 	Address string
 	//Redis密码
-	Password string
+	Password *string
 	//Redis数据库
-	DB int
+	DB *int
 	//Redis队列的key
 	Key string
 	//Redis队列的key类型，目前支持：stream、list(左侧压入消息)
@@ -297,33 +297,6 @@ func init() {
 	}
 	//解析配置文件到对象
 	Config = new(config)
-	setRedisQueueDefaultParams := func(queue *RedisQueue, replace bool) {
-		if false {
-			//默认参数
-			queue.DB = -1
-			queue.Password = "锦瑟无端五十弦"
-			return
-		}
-		//配置文件没有配置，则使用默认参数
-		if queue.Address == "" {
-			queue.Address = Config.RedisQueue.Address
-		}
-		if queue.Password == "锦瑟无端五十弦" {
-			queue.Password = Config.RedisQueue.Password
-		}
-		if queue.DB == -1 {
-			queue.DB = Config.RedisQueue.DB
-		}
-		if queue.Key == "" {
-			queue.Key = Config.RedisQueue.Key
-		}
-		if queue.KeyType == "" {
-			queue.KeyType = Config.RedisQueue.KeyType
-		}
-	}
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen, false)
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage, false)
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose, false)
 	Config.Customer.Multicore = 100
 	if _, err := toml.Decode(string(c), Config); err != nil {
 		slog.Error("Parse netsvr.toml failed", "error", err)
@@ -372,9 +345,33 @@ func init() {
 	}
 
 	//设置redis队列的默认参数
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen, true)
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage, true)
-	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose, true)
+	setRedisQueueDefaultParams := func(queue *RedisQueue) {
+		//配置文件没有配置，则使用默认参数
+		if queue.Address == "" {
+			queue.Address = Config.RedisQueue.Address
+		}
+		if queue.Password == nil {
+			queue.Password = Config.RedisQueue.Password
+			if queue.Password == nil {
+				queue.Password = new(string)
+			}
+		}
+		if queue.DB == nil {
+			queue.DB = Config.RedisQueue.DB
+			if queue.DB == nil {
+				queue.DB = new(int)
+			}
+		}
+		if queue.Key == "" {
+			queue.Key = Config.RedisQueue.Key
+		}
+		if queue.KeyType == "" {
+			queue.KeyType = Config.RedisQueue.KeyType
+		}
+	}
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnOpen)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnMessage)
+	setRedisQueueDefaultParams(&Config.RedisQueue.OnClose)
 
 	if Config.RedisQueue.OnOpen.KeyType == "" {
 		Config.RedisQueue.OnOpen.KeyType = "list"

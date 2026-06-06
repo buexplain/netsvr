@@ -52,7 +52,7 @@ func newQueue(redisClient *redis.Client, queueConfig configs.RedisQueue, dequeue
 	q := &Queue{
 		redisClient: redisClient,
 		redisKey:    queueConfig.Key,
-		redisDB:     queueConfig.DB,
+		redisDB:     *queueConfig.DB,
 		keyType:     queueConfig.KeyType,
 		sendCh:      queue.New[*internal.Packet](1024),
 		dequeueSize: dequeueSize,

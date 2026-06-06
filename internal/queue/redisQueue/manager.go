@@ -117,8 +117,8 @@ func makeRedisClient(redisClientMp map[string]*redis.Client, queueConfig configs
 	}
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     queueConfig.Address,
-		Password: queueConfig.Password,
-		DB:       queueConfig.DB,
+		Password: *queueConfig.Password,
+		DB:       *queueConfig.DB,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*300)
 	defer cancel()
