@@ -67,6 +67,13 @@ const (
 	// ItemCallbackToBusinessFailedCount 统计客户数据通过http回调转发到业务侧的失败次数
 	ItemCallbackToBusinessFailedCount
 
+	// ItemAMQP091ToBusinessSucceedCount 统计客户数据通过amqp091队列转发到业务侧的次数
+	ItemAMQP091ToBusinessSucceedCount
+	// ItemAMQP091ToBusinessSucceedByte 统计客户数据通过amqp091队列转发到业务侧的字节数
+	ItemAMQP091ToBusinessSucceedByte
+	// ItemAMQP091ToBusinessFailedCount 统计客户数据通过amqp091队列转发到业务侧的失败次数
+	ItemAMQP091ToBusinessFailedCount
+
 	//结束符
 	itemLen
 )

@@ -25,6 +25,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -77,21 +78,30 @@ func Start() {
 
 // Shutdown 停止redis队列
 func Shutdown() {
+	wg := sync.WaitGroup{}
 	for _, q := range Manager {
 		if q == nil {
 			continue
 		}
-		if !q.Close() {
-			continue
-		}
-		log.Logger.Info().
-			Int("pid", os.Getpid()).
-			Str("redisKey", q.redisKey).
-			Int("redisDB", q.redisDB).
-			Str("keyType", q.keyType).
-			Str("redisAddress", q.redisClient.Options().Addr).
-			Msg("RedisQueue shutdown")
+		wg.Add(1)
+		go func(q *Queue) {
+			defer func() {
+				wg.Done()
+			}()
+			if !q.Close() {
+				return
+			}
+			log.Logger.Info().
+				Int("pid", os.Getpid()).
+				Str("redisKey", q.redisKey).
+				Int("redisDB", q.redisDB).
+				Str("keyType", q.keyType).
+				Str("redisAddress", q.redisClient.Options().Addr).
+				Msg("RedisQueue shutdown")
+
+		}(q)
 	}
+	wg.Wait()
 }
 
 // makeRedisClient 创建一个redis客户端

@@ -22,6 +22,7 @@ import (
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/log"
+	"netsvr/internal/queue/amqp091"
 	"netsvr/internal/queue/redisQueue"
 	"netsvr/internal/task"
 	"netsvr/internal/worker"
@@ -33,6 +34,7 @@ import (
 func main() {
 	pprof()
 	redisQueue.Start()
+	amqp091.Start()
 	if configs.Config.Autobahn {
 		go customer.StartAutobahn()
 	} else {
@@ -59,6 +61,8 @@ func main() {
 		worker.Shutdown()
 		//关闭redis队列
 		redisQueue.Shutdown()
+		//关闭amqp队列
+		amqp091.Shutdown()
 		task.Shutdown()
 		//关闭customer服务器
 		customer.Shutdown()

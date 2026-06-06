@@ -72,6 +72,27 @@ KeyType = "list"
 Key = "netsvr:queue:onmessage"
 KeyType = "stream"
 
+# AMQP091队列的配置，不需要则不配置
+[AMQP091Queue]
+# 公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
+# RabbitMQ服务器地址 host:port
+Address = "localhost:5672"
+# 用户名
+Username = "guest"
+# 密码
+Password = "guest"
+# 虚拟主机（默认 /，可省略）
+VHost = "/"
+# Exchange类型: direct, fanout, topic, headers
+ExchangeType = "direct"
+# 是否持久化
+Durable = false
+# 是否自动删除
+AutoDelete = false
+Exchange = "netsvr.events"
+Queue = "netsvr.events"
+RoutingKey = "netsvr.events"
+
 # Worker的tcp服务器配置，不需要则不配置
 [Worker]
 # 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
@@ -126,4 +147,7 @@ HeartbeatMessage = "~6YOt5rW35piO~"
 # 17：统计客户数据通过http回调转发到业务侧的次数
 # 18：统计客户数据通过http回调转发到业务侧的字节数
 # 19：统计客户数据通过http回调转发到业务侧的失败次数
-Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+# 20：统计客户数据通过amqp091队列转发到业务侧的次数
+# 21：统计客户数据通过amqp091队列转发到业务侧的字节数
+# 22：统计客户数据通过amqp091队列转发到业务侧的失败次数
+Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]

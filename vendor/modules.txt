@@ -105,6 +105,9 @@ github.com/panjf2000/gnet/v2/pkg/pool/goroutine
 github.com/panjf2000/gnet/v2/pkg/pool/ringbuffer
 github.com/panjf2000/gnet/v2/pkg/queue
 github.com/panjf2000/gnet/v2/pkg/socket
+# github.com/rabbitmq/amqp091-go v1.11.0
+## explicit; go 1.20
+github.com/rabbitmq/amqp091-go
 # github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
 ## explicit
 github.com/rcrowley/go-metrics

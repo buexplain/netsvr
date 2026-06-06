@@ -40,6 +40,7 @@ import (
 	"netsvr/internal/log"
 	"netsvr/internal/metrics"
 	"netsvr/internal/objPool"
+	"netsvr/internal/queue/amqp091"
 	"netsvr/internal/queue/redisQueue"
 	"netsvr/internal/timer"
 	"netsvr/internal/worker"
@@ -203,6 +204,10 @@ func Start() {
 						WriteClose(conn, ws.StatusGoingAway, errors.New("heartbeat timeout"))
 					}
 				})
+				//将连接打开的消息转发给amqp091队列
+				if currentQueue := amqp091.Manager.Get(netsvrProtocol.Event_OnOpen); currentQueue != nil {
+					currentQueue.Send(co, netsvrProtocol.Cmd_ConnOpen)
+				}
 				//将连接打开的消息转发给redis队列
 				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnOpen); currentQueue != nil {
 					currentQueue.Send(co, netsvrProtocol.Cmd_ConnOpen)
@@ -247,6 +252,10 @@ func Start() {
 				//将连接关闭的消息转发给后端接口
 				if configs.Config.Callback.OnCloseApi != "" {
 					callback.OnClose(cl)
+				}
+				//将连接关闭的消息转发给amqp091队列
+				if currentQueue := amqp091.Manager.Get(netsvrProtocol.Event_OnClose); currentQueue != nil {
+					currentQueue.Send(cl, netsvrProtocol.Cmd_ConnClose)
 				}
 				//将连接关闭的消息转发给redis队列
 				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnClose); currentQueue != nil {
@@ -349,6 +358,10 @@ func Start() {
 				//将连接发来的消息转发给后端接口
 				if configs.Config.Callback.OnMessageApi != "" {
 					callback.OnMessage(tf)
+				}
+				//将连接发来的消息转发给amqp091队列
+				if currentQueue := amqp091.Manager.Get(netsvrProtocol.Event_OnMessage); currentQueue != nil {
+					currentQueue.Send(tf, netsvrProtocol.Cmd_Transfer)
 				}
 				//将连接发来的消息转发给redis队列
 				if currentQueue := redisQueue.Manager.Get(netsvrProtocol.Event_OnMessage); currentQueue != nil {

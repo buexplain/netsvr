@@ -138,7 +138,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 				log.Logger.Error().Err(err).
 					Str("redisKey", r.redisKey).
 					Str("keyType", r.keyType).
-					Msg("RedisQueue send redisQueue failed")
+					Msg("RedisQueue submit to worker pool failed")
 			}
 		} else {
 			//整批数据大于单个数据包大小的限制，改为循环单个发送，避免突破单个数据包限制的大小，给redis造成压力
@@ -156,7 +156,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 					log.Logger.Error().Err(err).
 						Str("redisKey", r.redisKey).
 						Str("keyType", r.keyType).
-						Msg("RedisQueue send redisQueue failed")
+						Msg("RedisQueue submit to worker pool failed")
 				}
 				//清空
 				packets[i] = nil

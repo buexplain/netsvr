@@ -55,6 +55,30 @@ type RedisQueue struct {
 	KeyType string
 }
 
+// AMQP091Queue AMQP队列的配置
+type AMQP091Queue struct {
+	//RabbitMQ服务器地址 host:port
+	Address string
+	//用户名
+	Username string
+	//密码
+	Password string
+	//虚拟主机（默认 /）
+	VHost *string
+	//Exchange名称
+	Exchange string
+	//Exchange类型: direct, fanout, topic, headers
+	ExchangeType string
+	//Queue名称（空则不声明Queue，仅发布到Exchange）
+	Queue *string
+	//Routing Key
+	RoutingKey *string
+	//是否持久化
+	Durable *bool
+	//是否自动删除
+	AutoDelete *bool
+}
+
 type config struct {
 	//日志级别 debug、info、warn、error
 	LogLevel string
@@ -134,6 +158,18 @@ type config struct {
 		OnClose RedisQueue
 	}
 
+	//AMQP091Queue队列的配置，不需要则不配置
+	AMQP091Queue struct {
+		//公共配置，会合并到 OnOpen、OnMessage、OnClose 配置节点中
+		AMQP091Queue
+		//连接打开的AMQP队列
+		OnOpen AMQP091Queue
+		//发送消息的AMQP队列
+		OnMessage AMQP091Queue
+		//连接关闭的AMQP队列
+		OnClose AMQP091Queue
+	}
+
 	//Worker的tcp服务器配置，不需要则不配置
 	Worker struct {
 		// 监听的地址，ipv4:port，这个地址必须是内网ipv4地址，外网不允许访问，如果配置的是域名:端口，则会尝试获取域名对应的内网ipv4地址，并打印告警日志
@@ -189,6 +225,9 @@ type config struct {
 		// 17：统计客户数据通过http回调转发到业务侧的次数
 		// 18：统计客户数据通过http回调转发到业务侧的字节数
 		// 19：统计客户数据通过http回调转发到业务侧的失败次数
+		// 20：统计客户数据通过amqp队列转发到业务侧的次数
+		// 21：统计客户数据通过amqp队列转发到业务侧的字节数
+		// 22：统计客户数据通过amqp队列转发到业务侧的失败次数
 		Item []int
 	}
 }
@@ -370,6 +409,95 @@ func init() {
 		case "stream":
 		default:
 			slog.Error("Config RedisQueue.OnMessage.KeyType is invalid")
+		}
+	}
+
+	//设置amqp091队列的默认参数
+	setAMQP091QueueDefaultParams := func(queue *AMQP091Queue) {
+		if queue.Address == "" {
+			queue.Address = Config.AMQP091Queue.Address
+		}
+		if queue.Username == "" {
+			queue.Username = Config.AMQP091Queue.Username
+		}
+		if queue.Password == "" {
+			queue.Password = Config.AMQP091Queue.Password
+		}
+		if queue.VHost == nil {
+			queue.VHost = Config.AMQP091Queue.VHost
+			if queue.VHost == nil {
+				queue.VHost = new(string)
+			}
+			if *queue.VHost == "" {
+				*queue.VHost = "/"
+			}
+		}
+		if queue.Exchange == "" {
+			queue.Exchange = Config.AMQP091Queue.Exchange
+		}
+		if queue.ExchangeType == "" {
+			queue.ExchangeType = Config.AMQP091Queue.ExchangeType
+		}
+		if queue.Queue == nil {
+			queue.Queue = Config.AMQP091Queue.Queue
+			if queue.Queue == nil {
+				queue.Queue = new(string)
+			}
+		}
+		if queue.RoutingKey == nil {
+			queue.RoutingKey = Config.AMQP091Queue.RoutingKey
+			if queue.RoutingKey == nil {
+				queue.RoutingKey = new(string)
+			}
+		}
+		if queue.Durable == nil {
+			queue.Durable = Config.AMQP091Queue.Durable
+			if queue.Durable == nil {
+				queue.Durable = new(bool)
+			}
+		}
+		if queue.AutoDelete == nil {
+			queue.AutoDelete = Config.AMQP091Queue.AutoDelete
+			if queue.AutoDelete == nil {
+				queue.AutoDelete = new(bool)
+			}
+		}
+	}
+	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnOpen)
+	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnMessage)
+	setAMQP091QueueDefaultParams(&Config.AMQP091Queue.OnClose)
+
+	if Config.AMQP091Queue.OnOpen.ExchangeType == "" {
+		Config.AMQP091Queue.OnOpen.ExchangeType = "direct"
+	} else {
+		Config.AMQP091Queue.OnOpen.ExchangeType = strings.ToLower(Config.AMQP091Queue.OnOpen.ExchangeType)
+		switch Config.AMQP091Queue.OnOpen.ExchangeType {
+		case "direct", "fanout", "topic", "headers":
+		default:
+			slog.Error("Config AMQP091Queue.OnOpen.ExchangeType is invalid")
+			os.Exit(1)
+		}
+	}
+	if Config.AMQP091Queue.OnMessage.ExchangeType == "" {
+		Config.AMQP091Queue.OnMessage.ExchangeType = "direct"
+	} else {
+		Config.AMQP091Queue.OnMessage.ExchangeType = strings.ToLower(Config.AMQP091Queue.OnMessage.ExchangeType)
+		switch Config.AMQP091Queue.OnMessage.ExchangeType {
+		case "direct", "fanout", "topic", "headers":
+		default:
+			slog.Error("Config AMQP091Queue.OnMessage.ExchangeType is invalid")
+			os.Exit(1)
+		}
+	}
+	if Config.AMQP091Queue.OnClose.ExchangeType == "" {
+		Config.AMQP091Queue.OnClose.ExchangeType = "direct"
+	} else {
+		Config.AMQP091Queue.OnClose.ExchangeType = strings.ToLower(Config.AMQP091Queue.OnClose.ExchangeType)
+		switch Config.AMQP091Queue.OnClose.ExchangeType {
+		case "direct", "fanout", "topic", "headers":
+		default:
+			slog.Error("Config AMQP091Queue.OnClose.ExchangeType is invalid")
+			os.Exit(1)
 		}
 	}
 	if Config.Worker.ReadDeadline <= 0 {
