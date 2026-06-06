@@ -113,7 +113,7 @@ func (q *Queue) loopSend() {
 func (q *Queue) sendBatch(packets []*internal.Packet) {
 	amqpChannel, confirmChan := q.channel.getAmqpChannel()
 	if amqpChannel == nil {
-		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(int64(len(packets)))
+		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(len(packets)))
 		return
 	}
 
@@ -180,7 +180,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedByte].Meter.Mark(int64(succeedByte))
 	}
 	if failedCount > 0 {
-		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(int64(failedCount))
+		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
 	}
 }
 
