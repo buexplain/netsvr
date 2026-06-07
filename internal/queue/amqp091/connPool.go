@@ -121,7 +121,6 @@ func (cm *connPool) getAmqpConnection() *amqp.Connection {
 			socket := cm.createAmpqConn()
 			if socket == nil || socket.IsClosed() {
 				cm.size <- struct{}{}
-				log.Logger.Error().Str("address", cm.address).Msg("AMQP091 cannot establish new connection")
 				return nil
 			} else {
 				log.Logger.Info().Str("address", cm.address).Msg("AMQP091 establish new connection")

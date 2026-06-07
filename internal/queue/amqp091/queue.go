@@ -233,7 +233,7 @@ func (q *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 		return
 	}
 	internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
-	log.Logger.Error().
+	internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
 		Str("address", q.channelPool.connPool.address).
 		Str("exchange", q.exchange).
 		Str("routingKey", q.routingKey).

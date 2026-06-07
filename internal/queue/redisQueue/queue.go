@@ -18,14 +18,11 @@
 package redisQueue
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/gobwas/ws"
 	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
 	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/log"
@@ -198,7 +195,7 @@ func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 	}
 	//写入失败：统计指标
 	internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
-	r.formatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
+	internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).Err(errors.New("send to blocking channel failed")).
 		Str("redisKey", r.redisKey).
 		Str("keyType", r.keyType).
 		Msg("RedisQueue send failed and discard message")
@@ -319,45 +316,4 @@ func (r *Queue) sendStreamSingleMode(pkg *internal.Packet) {
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedCount].Meter.Mark(1)
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedByte].Meter.Mark(int64(len(pkg.Message)))
 	}
-}
-
-func (r *Queue) formatSendToBusinessData(cmdBytes []byte, body []byte, event *zerolog.Event) *zerolog.Event {
-	cmd := netsvrProtocol.Cmd(binary.BigEndian.Uint32(cmdBytes))
-	if cmd == netsvrProtocol.Cmd_Transfer {
-		tf := &netsvrProtocol.Transfer{}
-		if err := proto.Unmarshal(body, tf); err != nil {
-			return event
-		}
-		event = event.Str("cmd", cmd.String()).Str("uniqId", tf.UniqId).
-			Str("session", tf.Session).
-			Str("customerId", tf.CustomerId).
-			Strs("topics", tf.Topics)
-		if configs.Config.Customer.SendMessageType == ws.OpText {
-			return event.Str("data", string(tf.Data))
-		}
-		return event.Hex("dataHex", tf.Data)
-	}
-	if cmd == netsvrProtocol.Cmd_ConnOpen {
-		co := &netsvrProtocol.ConnOpen{}
-		if err := proto.Unmarshal(body, co); err != nil {
-			return event
-		}
-		return event.Str("cmd", cmd.String()).Str("uniqId", co.UniqId).
-			Str("rawQuery", co.RawQuery).
-			Str("xForwardedFor", co.XForwardedFor).
-			Str("xRealIp", co.XRealIp).
-			Str("remoteAddr", co.RemoteAddr)
-	}
-	if cmd == netsvrProtocol.Cmd_ConnClose {
-		cc := &netsvrProtocol.ConnClose{}
-		if err := proto.Unmarshal(body, cc); err != nil {
-			return event
-		}
-		return event.Str("cmd", cmd.String()).Str("uniqId", cc.UniqId).
-			Str("customerId", cc.CustomerId).
-			Str("session", cc.Session).
-			Strs("topics", cc.Topics)
-	}
-	//非客户端的命令，只打印cmd
-	return event.Str("cmd", cmd.String())
 }

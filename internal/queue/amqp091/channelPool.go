@@ -153,9 +153,6 @@ func (cm *channelPool) getAmqpChannel() *amqpChInfo {
 			socket := cm.createChannel()
 			if socket == nil || socket.channel.IsClosed() {
 				cm.size <- struct{}{}
-				log.Logger.Error().
-					Str("address", cm.connPool.address).
-					Msg("AMQP091 cannot establish new channel")
 				return nil
 			} else {
 				log.Logger.Info().
