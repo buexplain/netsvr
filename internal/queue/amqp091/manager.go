@@ -57,12 +57,18 @@ func init() {
 // Start 启动AMQP队列
 func Start() {
 	connChannelPoolMap := make(map[string]*channelPool)
+	topologyMap := make(map[string]bool)
 	queueMap := make(map[string]*Queue)
 	dequeueSize := 256
 	// 为每个唯一的 URL 创建 connPool与channelPool
 	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnOpen, dequeueSize)
 	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnMessage, dequeueSize)
 	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnClose, dequeueSize)
+
+	// 创建拓扑结构
+	makeTopology(connChannelPoolMap, topologyMap, configs.Config.AMQP091Queue.OnOpen)
+	makeTopology(connChannelPoolMap, topologyMap, configs.Config.AMQP091Queue.OnMessage)
+	makeTopology(connChannelPoolMap, topologyMap, configs.Config.AMQP091Queue.OnClose)
 
 	// 创建队列
 	Manager[int(netsvrProtocol.Event_OnOpen)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnOpen, 256)
@@ -77,9 +83,8 @@ func Start() {
 		log.Logger.Info().
 			Int("pid", os.Getpid()).
 			Str("address", q.channelPool.connPool.address).
-			Str("exchange", q.channelPool.exchange).
-			Str("queue", q.channelPool.queue).
-			Str("routingKey", q.channelPool.routingKey).
+			Str("exchange", q.exchange).
+			Str("routingKey", q.routingKey).
 			Msg("AMQP091 Queue start")
 	}
 }
@@ -102,9 +107,8 @@ func Shutdown() {
 			log.Logger.Info().
 				Int("pid", os.Getpid()).
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 Queue shutdown")
 		}(q)
 	}
@@ -130,7 +134,7 @@ func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig con
 	poolSize := min(max(runtime.NumCPU()/4, 1), 5) // 连接池大小，32核CPU的机器最多创建5个连接
 	if conn := newConnPool(urlStr, queueConfig.Address, poolSize); conn != nil {
 		poolSize = poolSize * 10 // 通道池大小，32核CPU的机器最多创建50个通道
-		pool := newChannelPool(conn, queueConfig, poolSize, dequeueSize)
+		pool := newChannelPool(conn, poolSize, dequeueSize)
 		if pool == nil {
 			return
 		}
@@ -138,17 +142,110 @@ func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig con
 	}
 }
 
+// makeTopology 创建一个拓扑结构
+func makeTopology(connPoolMap map[string]*channelPool, topologyMap map[string]bool, queueConfig configs.AMQP091Queue) {
+	if queueConfig.Address == "" || queueConfig.Exchange == "" {
+		// 没有配置
+		return
+	}
+
+	topologyId := fmt.Sprintf("Address%sExchange%sQueue%sRoutingKey%s",
+		queueConfig.Address,
+		queueConfig.Exchange,
+		*queueConfig.Queue,
+		*queueConfig.RoutingKey,
+	)
+	if topologyMap[topologyId] {
+		return
+	}
+
+	// 使用 Address、Username  作为 key 查找 connChannelPool
+	connChannelPoolId := fmt.Sprintf("Address%sUsername%s", queueConfig.Address, queueConfig.Username)
+	chPool := connPoolMap[connChannelPoolId]
+	if chPool == nil {
+		return
+	}
+	amqpChannel := chPool.getAmqpChannel()
+	if amqpChannel == nil {
+		return
+	}
+	defer chPool.release(amqpChannel)
+	// 声明 Exchange
+	if err := amqpChannel.channel.ExchangeDeclare(
+		queueConfig.Exchange,
+		queueConfig.ExchangeType,
+		true,                    // durable: 持久化交换机
+		*queueConfig.AutoDelete, // autoDelete: 自动删除
+		false,                   // internal: 内部交换机
+		false,                   // noWait: 不等待响应
+		nil,                     // arguments
+	); err != nil {
+		log.Logger.Error().Err(err).
+			Str("address", chPool.connPool.address).
+			Str("exchange", queueConfig.Exchange).
+			Str("queue", *queueConfig.Queue).
+			Str("routingKey", *queueConfig.RoutingKey).
+			Msg("AMQP091 declare exchange failed")
+		return
+	}
+
+	// 如果配置了 Queue 名称，则声明队列并绑定
+	if *queueConfig.Queue != "" {
+		_, err := amqpChannel.channel.QueueDeclare(
+			*queueConfig.Queue,
+			true,                    // durable: 持久化队列
+			*queueConfig.AutoDelete, // autoDelete: 自动删除
+			false,                   // exclusive: 非独占
+			false,                   // noWait: 不等待响应
+			nil,                     // arguments
+		)
+		if err != nil {
+			log.Logger.Error().Err(err).
+				Str("address", chPool.connPool.address).
+				Str("exchange", queueConfig.Exchange).
+				Str("queue", *queueConfig.Queue).
+				Str("routingKey", *queueConfig.RoutingKey).
+				Msg("AMQP091 declare queue failed")
+			return
+		}
+
+		if err := amqpChannel.channel.QueueBind(
+			*queueConfig.Queue,
+			*queueConfig.RoutingKey,
+			queueConfig.Exchange,
+			false, // noWait: 不等待响应
+			nil,   // arguments
+		); err != nil {
+			log.Logger.Error().Err(err).
+				Str("address", chPool.connPool.address).
+				Str("exchange", queueConfig.Exchange).
+				Str("queue", *queueConfig.Queue).
+				Str("routingKey", *queueConfig.RoutingKey).
+				Msg("AMQP091 bind queue failed")
+			return
+		}
+	}
+
+	log.Logger.Info().
+		Str("address", chPool.connPool.address).
+		Str("exchange", queueConfig.Exchange).
+		Str("queue", *queueConfig.Queue).
+		Str("routingKey", *queueConfig.RoutingKey).
+		Msg("AMQP091 topology declared")
+
+	topologyMap[topologyId] = true
+}
+
 // makeQueue 创建一个队列
-func makeQueue(connPoolMap map[string]*channelPool, queueMap map[string]*Queue, queueConfig configs.AMQP091Queue, dequeueSize int) *Queue {
+func makeQueue(connChannelPoolMap map[string]*channelPool, queueMap map[string]*Queue, queueConfig configs.AMQP091Queue, dequeueSize int) *Queue {
 	if queueConfig.Address == "" || queueConfig.Exchange == "" {
 		// 没有配置
 		return nil
 	}
 
-	queueId := fmt.Sprintf("Address%sExchange%sQueue%sRoutingKey%s",
+	queueId := fmt.Sprintf("Address%sExchange%sRoutingKey%s",
 		queueConfig.Address,
 		queueConfig.Exchange,
-		*queueConfig.Queue,
 		*queueConfig.RoutingKey,
 	)
 	if queueMap[queueId] != nil {
@@ -158,11 +255,11 @@ func makeQueue(connPoolMap map[string]*channelPool, queueMap map[string]*Queue, 
 
 	// 使用 Address、Username  作为 key 查找 connChannelPool
 	connChannelPoolId := fmt.Sprintf("Address%sUsername%s", queueConfig.Address, queueConfig.Username)
-	conn := connPoolMap[connChannelPoolId]
-	if conn == nil {
+	chPool := connChannelPoolMap[connChannelPoolId]
+	if chPool == nil {
 		return nil
 	}
-	q := newQueue(conn, *queueConfig.Durable, dequeueSize)
+	q := newQueue(chPool, queueConfig, dequeueSize)
 	queueMap[queueId] = q
 	return q
 }

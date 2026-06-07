@@ -18,7 +18,6 @@ package amqp091
 
 import (
 	amqp "github.com/rabbitmq/amqp091-go"
-	"netsvr/configs"
 	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"time"
@@ -31,30 +30,21 @@ type amqpChInfo struct {
 
 // channelPool 管理 AMQP Channel
 type channelPool struct {
-	connPool     *connPool
-	exchange     string
-	exchangeType string
-	queue        string
-	routingKey   string
-	autoDelete   bool // 是否自动删除
-	dequeueSize  int
-	pool         chan *amqpChInfo
-	size         chan struct{}
-	waitTimeout  time.Duration
+	connPool    *connPool
+	dequeueSize int
+	pool        chan *amqpChInfo
+	size        chan struct{}
+	waitTimeout time.Duration
 }
 
 // newChannelPool 创建 Channel 管理器
-func newChannelPool(conn *connPool, config configs.AMQP091Queue, poolSize int, dequeueSize int) *channelPool {
+func newChannelPool(conn *connPool, poolSize int, dequeueSize int) *channelPool {
 	c := &channelPool{
-		connPool:     conn,
-		exchange:     config.Exchange,
-		exchangeType: config.ExchangeType,
-		queue:        *config.Queue,
-		routingKey:   *config.RoutingKey,
-		dequeueSize:  dequeueSize,
-		size:         make(chan struct{}, poolSize),
-		pool:         make(chan *amqpChInfo, poolSize),
-		waitTimeout:  time.Second * 3,
+		connPool:    conn,
+		dequeueSize: dequeueSize,
+		size:        make(chan struct{}, poolSize),
+		pool:        make(chan *amqpChInfo, poolSize),
+		waitTimeout: time.Second * 3,
 	}
 	for i := 0; i < poolSize; i++ {
 		c.size <- struct{}{}
@@ -64,11 +54,8 @@ func newChannelPool(conn *connPool, config configs.AMQP091Queue, poolSize int, d
 		return nil
 	}
 	defer c.release(socket)
-	if c.topologyDeclare(socket.channel) {
-		go c.loopHeartbeat()
-		return c
-	}
-	return nil
+	go c.loopHeartbeat()
+	return c
 }
 
 func (cm *channelPool) loopHeartbeat() {
@@ -76,16 +63,10 @@ func (cm *channelPool) loopHeartbeat() {
 		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
 				Str("address", cm.connPool.address).
-				Str("exchange", cm.exchange).
-				Str("queue", cm.queue).
-				Str("routingKey", cm.routingKey).
 				Msg("AMQP091 channel heartbeat coroutine is closed")
 		} else {
 			log.Logger.Debug().
 				Str("address", cm.connPool.address).
-				Str("exchange", cm.exchange).
-				Str("queue", cm.queue).
-				Str("routingKey", cm.routingKey).
 				Msg("AMQP091 channel heartbeat coroutine is closed")
 		}
 	}()
@@ -113,10 +94,7 @@ func (cm *channelPool) heartbeat() {
 				cm.release(nil)
 				log.Logger.Error().
 					Str("address", cm.connPool.address).
-					Str("exchange", cm.exchange).
-					Str("queue", cm.queue).
-					Str("routingKey", cm.routingKey).
-					Msg("AMQP091 channel is closed.")
+					Msg("AMQP091 channel is closed")
 			}
 		default:
 			continue
@@ -134,9 +112,6 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 	if err != nil {
 		log.Logger.Error().Err(err).
 			Str("address", cm.connPool.address).
-			Str("exchange", cm.exchange).
-			Str("queue", cm.queue).
-			Str("routingKey", cm.routingKey).
 			Msg("AMQP091 create channelPool failed")
 		return nil
 	}
@@ -145,9 +120,6 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 		_ = ch.Close()
 		log.Logger.Error().Err(err).
 			Str("address", cm.connPool.address).
-			Str("exchange", cm.exchange).
-			Str("queue", cm.queue).
-			Str("routingKey", cm.routingKey).
 			Msg("AMQP091 enable channelPool confirm failed")
 		return nil
 	}
@@ -164,9 +136,6 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 				//mq服务器主动通知关闭
 				log.Logger.Error().Err(notify).
 					Str("address", cm.connPool.address).
-					Str("exchange", cm.exchange).
-					Str("queue", cm.queue).
-					Str("routingKey", cm.routingKey).
 					Msg("AMQP091 channel is closed")
 			}
 			//检测连接状态
@@ -186,17 +155,11 @@ func (cm *channelPool) getAmqpChannel() *amqpChInfo {
 				cm.size <- struct{}{}
 				log.Logger.Error().
 					Str("address", cm.connPool.address).
-					Str("exchange", cm.exchange).
-					Str("queue", cm.queue).
-					Str("routingKey", cm.routingKey).
 					Msg("AMQP091 cannot establish new channel")
 				return nil
 			} else {
 				log.Logger.Info().
 					Str("address", cm.connPool.address).
-					Str("exchange", cm.exchange).
-					Str("queue", cm.queue).
-					Str("routingKey", cm.routingKey).
 					Msg("AMQP091 establish new channel")
 				return socket
 			}
@@ -216,9 +179,6 @@ wait:
 	case <-timeout.C:
 		log.Logger.Error().
 			Str("address", cm.connPool.address).
-			Str("exchange", cm.exchange).
-			Str("queue", cm.queue).
-			Str("routingKey", cm.routingKey).
 			Msg("AMQP091 cannot establish new channel before wait_timeout")
 		return nil
 	}
@@ -230,72 +190,4 @@ func (cm *channelPool) release(socket *amqpChInfo) {
 		return
 	}
 	cm.pool <- socket
-}
-
-// topologyDeclare 声明 AMQP 拓扑结构（Exchange、Queue、Binding）
-func (cm *channelPool) topologyDeclare(amqpChannel *amqp.Channel) bool {
-	// 声明 Exchange
-	if err := amqpChannel.ExchangeDeclare(
-		cm.exchange,
-		cm.exchangeType,
-		true,          // durable: 持久化交换机
-		cm.autoDelete, // autoDelete: 自动删除
-		false,         // internal: 内部交换机
-		false,         // noWait: 不等待响应
-		nil,           // arguments
-	); err != nil {
-		log.Logger.Error().Err(err).
-			Str("address", cm.connPool.address).
-			Str("exchange", cm.exchange).
-			Str("queue", cm.queue).
-			Str("routingKey", cm.routingKey).
-			Msg("AMQP091 declare exchange failed")
-		return false
-	}
-
-	// 如果配置了 Queue 名称，则声明队列并绑定
-	if cm.queue != "" {
-		_, err := amqpChannel.QueueDeclare(
-			cm.queue,
-			true,          // durable: 持久化队列
-			cm.autoDelete, // autoDelete: 自动删除
-			false,         // exclusive: 非独占
-			false,         // noWait: 不等待响应
-			nil,           // arguments
-		)
-		if err != nil {
-			log.Logger.Error().Err(err).
-				Str("address", cm.connPool.address).
-				Str("exchange", cm.exchange).
-				Str("queue", cm.queue).
-				Str("routingKey", cm.routingKey).
-				Msg("AMQP091 declare queue failed")
-			return false
-		}
-
-		if err := amqpChannel.QueueBind(
-			cm.queue,
-			cm.routingKey,
-			cm.exchange,
-			false, // noWait: 不等待响应
-			nil,   // arguments
-		); err != nil {
-			log.Logger.Error().Err(err).
-				Str("address", cm.connPool.address).
-				Str("exchange", cm.exchange).
-				Str("queue", cm.queue).
-				Str("routingKey", cm.routingKey).
-				Msg("AMQP091 bind queue failed")
-			return false
-		}
-	}
-
-	log.Logger.Info().
-		Str("address", cm.connPool.address).
-		Str("exchange", cm.exchange).
-		Str("queue", cm.queue).
-		Str("routingKey", cm.routingKey).
-		Msg("AMQP091 topology declared")
-
-	return true
 }

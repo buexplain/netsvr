@@ -85,7 +85,7 @@ func (cm *connPool) heartbeat() {
 				cm.pool <- socket
 			} else {
 				cm.release(nil)
-				log.Logger.Error().Str("address", cm.address).Msg("AMQP091 connection is closed.")
+				log.Logger.Error().Str("address", cm.address).Msg("AMQP091 connection is closed")
 			}
 		default:
 			continue

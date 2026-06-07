@@ -17,6 +17,7 @@
 package amqp091
 
 import (
+	"netsvr/configs"
 	"sync/atomic"
 
 	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
@@ -37,16 +38,20 @@ type Queue struct {
 	channelPool  *channelPool // Channel 管理器
 	dequeueSize  int
 	deliveryMode uint8 // 1: 持久化，2: 临时
+	exchange     string
+	routingKey   string
 }
 
-func newQueue(channel *channelPool, durable bool, dequeueSize int) *Queue {
+func newQueue(channel *channelPool, queueConfig configs.AMQP091Queue, dequeueSize int) *Queue {
 	// 处理指针字段
 	q := &Queue{
 		sendCh:      queue.New[*internal.Packet](1024),
 		channelPool: channel,
 		dequeueSize: dequeueSize,
+		exchange:    queueConfig.Exchange,
+		routingKey:  *queueConfig.RoutingKey,
 	}
-	if durable {
+	if *queueConfig.Durable {
 		q.deliveryMode = amqp.Persistent
 	} else {
 		q.deliveryMode = amqp.Transient
@@ -61,16 +66,14 @@ func (q *Queue) loopSend() {
 		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 send coroutine is closed")
 		} else {
 			log.Logger.Debug().
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 send coroutine is closed")
 		}
 	}()
@@ -101,9 +104,8 @@ func (q *Queue) loopSend() {
 			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(count))
 			log.Logger.Error().Err(err).
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 submit to worker pool failed")
 		}
 	}
@@ -126,8 +128,8 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		seqNo := amqpChannel.channel.GetNextPublishSeqNo()
 		// 发布消息
 		err := amqpChannel.channel.Publish(
-			q.channelPool.exchange,
-			q.channelPool.routingKey,
+			q.exchange,
+			q.routingKey,
 			false, // mandatory: 找不到队列时是否返回错误
 			false, // immediate: 没有消费者时是否返回错误
 			amqp.Publishing{
@@ -141,9 +143,8 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
 			log.Logger.Error().Err(err).
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 publish failed")
 		} else {
 			// 记录已发布的消息大小
@@ -161,9 +162,8 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 			// Channel 已关闭
 			log.Logger.Error().
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 confirm amqpChInfo closed")
 			failedCount += i
 			break
@@ -210,9 +210,8 @@ func (q *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
 				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.channelPool.exchange).
-				Str("queue", q.channelPool.queue).
-				Str("routingKey", q.channelPool.routingKey).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
 				Msg("AMQP091 send sendCh failed")
 		}
 		// 仍持有 pkg 时统一归还
@@ -225,9 +224,8 @@ func (q *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 	if err != nil {
 		log.Logger.Error().Err(err).
 			Str("address", q.channelPool.connPool.address).
-			Str("exchange", q.channelPool.exchange).
-			Str("queue", q.channelPool.queue).
-			Str("routingKey", q.channelPool.routingKey).
+			Str("exchange", q.exchange).
+			Str("routingKey", q.routingKey).
 			Msg("AMQP091 proto.Marshal failed")
 	}
 	if q.sendCh.Enqueue(pkg) {
@@ -237,8 +235,7 @@ func (q *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 	internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
 	log.Logger.Error().
 		Str("address", q.channelPool.connPool.address).
-		Str("exchange", q.channelPool.exchange).
-		Str("queue", q.channelPool.queue).
-		Str("routingKey", q.channelPool.routingKey).
+		Str("exchange", q.exchange).
+		Str("routingKey", q.routingKey).
 		Msg("AMQP091 send failed and discard message")
 }
