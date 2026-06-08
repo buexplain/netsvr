@@ -122,6 +122,8 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 	// 发布消息
 	for _, pkg := range packets {
 		seqNo := amqpChannel.channel.GetNextPublishSeqNo()
+		// 发送之前先记录消息大小
+		amqpChannel.publishedCh <- published{seqNo: seqNo, size: len(pkg.Message)}
 		// 发布消息
 		err := amqpChannel.channel.Publish(
 			q.exchange,
@@ -136,6 +138,8 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		)
 		// 发布失败
 		if err != nil {
+			//发送失败，撤销刚才的消息大小记录
+			amqpChannel.publishedCh <- published{seqNo: seqNo, size: 0}
 			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
 			internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
 				Err(err).
@@ -143,9 +147,6 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 				Str("exchange", q.exchange).
 				Str("routingKey", q.routingKey).
 				Msg("AMQP091 publish failed and discard message")
-		} else {
-			// 记录已发布的消息大小
-			amqpChannel.publishedCh <- published{seqNo: seqNo, size: len(pkg.Message)}
 		}
 	}
 }

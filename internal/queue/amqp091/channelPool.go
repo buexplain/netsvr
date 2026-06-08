@@ -42,15 +42,17 @@ type channelPool struct {
 	pool        chan *amqpChInfo
 	size        chan struct{}
 	waitTimeout time.Duration
+	dequeueSize int // 批量发送消息的大小
 }
 
 // newChannelPool 创建 Channel 管理器
-func newChannelPool(conn *connPool, poolSize int) *channelPool {
+func newChannelPool(conn *connPool, poolSize int, dequeueSize int) *channelPool {
 	c := &channelPool{
 		connPool:    conn,
 		size:        make(chan struct{}, poolSize),
 		pool:        make(chan *amqpChInfo, poolSize),
 		waitTimeout: time.Second * 3,
+		dequeueSize: dequeueSize,
 	}
 	for i := 0; i < poolSize; i++ {
 		c.size <- struct{}{}
@@ -132,7 +134,7 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 
 	ret := &amqpChInfo{
 		channel:     ch,
-		publishedCh: make(chan published, 16),
+		publishedCh: make(chan published, cm.dequeueSize*2),
 	}
 	go cm.monitor(ret)
 	return ret
@@ -140,7 +142,7 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 
 func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 	// 记录已发布的消息大小
-	publishedMp := make(map[uint64]int, 8)
+	publishedMp := make(map[uint64]int, cm.dequeueSize)
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
@@ -151,7 +153,13 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 				Str("address", cm.connPool.address).
 				Msg("AMQP091 channel monitor is closed")
 		}
-		failedCount := len(publishedMp)
+		failedCount := 0
+		for _, size := range publishedMp {
+			if size > 0 {
+				//有消息大小的才是发送成功的消息
+				failedCount++
+			}
+		}
 		if failedCount > 0 {
 			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
 		}
@@ -159,7 +167,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 	// 监听 channel是否关闭
 	errCh := amqpChInfo.channel.NotifyClose(make(chan *amqp.Error, 1))
 	// 监听 channel是否发布成功
-	confirmCh := amqpChInfo.channel.NotifyPublish(make(chan amqp.Confirmation, 8))
+	confirmCh := amqpChInfo.channel.NotifyPublish(make(chan amqp.Confirmation, cm.dequeueSize*2))
 	for {
 		select {
 		case notify, ok := <-errCh:
@@ -173,8 +181,13 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 			cm.heartbeat()
 			return
 		case pb := <-amqpChInfo.publishedCh:
-			//记录已发布的消息大小
-			publishedMp[pb.seqNo] = pb.size
+			if pb.size > 0 {
+				//记录已发布的消息大小
+				publishedMp[pb.seqNo] = pb.size
+			} else {
+				//撤销已记录的消息大小
+				delete(publishedMp, pb.seqNo)
+			}
 		case confirm, ok := <-confirmCh:
 			if !ok {
 				return
