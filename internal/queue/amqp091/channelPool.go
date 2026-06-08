@@ -19,29 +19,35 @@ package amqp091
 import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"netsvr/internal/log"
+	internalMetrics "netsvr/internal/metrics"
 	"netsvr/pkg/quit"
 	"time"
 )
 
+type published struct {
+	seqNo uint64 // 消息编号
+	size  int    // 消息大小
+}
+
 type amqpChInfo struct {
+	// AMQP Channel
 	channel *amqp.Channel
-	confirm chan amqp.Confirmation
+	// 已发布的消息
+	publishedCh chan published
 }
 
 // channelPool 管理 AMQP Channel
 type channelPool struct {
 	connPool    *connPool
-	dequeueSize int
 	pool        chan *amqpChInfo
 	size        chan struct{}
 	waitTimeout time.Duration
 }
 
 // newChannelPool 创建 Channel 管理器
-func newChannelPool(conn *connPool, poolSize int, dequeueSize int) *channelPool {
+func newChannelPool(conn *connPool, poolSize int) *channelPool {
 	c := &channelPool{
 		connPool:    conn,
-		dequeueSize: dequeueSize,
 		size:        make(chan struct{}, poolSize),
 		pool:        make(chan *amqpChInfo, poolSize),
 		waitTimeout: time.Second * 3,
@@ -112,7 +118,7 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 	if err != nil {
 		log.Logger.Error().Err(err).
 			Str("address", cm.connPool.address).
-			Msg("AMQP091 create channelPool failed")
+			Msg("AMQP091 create channel failed")
 		return nil
 	}
 	// 启用 Publisher Confirm
@@ -120,18 +126,43 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 		_ = ch.Close()
 		log.Logger.Error().Err(err).
 			Str("address", cm.connPool.address).
-			Msg("AMQP091 enable channelPool confirm failed")
+			Msg("AMQP091 enable channel confirm failed")
 		return nil
 	}
 
 	ret := &amqpChInfo{
-		channel: ch,
-		confirm: ch.NotifyPublish(make(chan amqp.Confirmation, cm.dequeueSize)),
+		channel:     ch,
+		publishedCh: make(chan published, 16),
 	}
+	go cm.monitor(ret)
+	return ret
+}
 
-	go func(ch *amqp.Channel) {
-		for {
-			notify, ok := <-ch.NotifyClose(make(chan *amqp.Error, 1))
+func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
+	// 记录已发布的消息大小
+	publishedMp := make(map[uint64]int, 8)
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
+				Str("address", cm.connPool.address).
+				Msg("AMQP091 channel monitor is closed")
+		} else {
+			log.Logger.Info().
+				Str("address", cm.connPool.address).
+				Msg("AMQP091 channel monitor is closed")
+		}
+		failedCount := len(publishedMp)
+		if failedCount > 0 {
+			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
+		}
+	}()
+	// 监听 channel是否关闭
+	errCh := amqpChInfo.channel.NotifyClose(make(chan *amqp.Error, 1))
+	// 监听 channel是否发布成功
+	confirmCh := amqpChInfo.channel.NotifyPublish(make(chan amqp.Confirmation, 8))
+	for {
+		select {
+		case notify, ok := <-errCh:
 			if ok {
 				//mq服务器主动通知关闭
 				log.Logger.Error().Err(notify).
@@ -141,9 +172,23 @@ func (cm *channelPool) createChannel() *amqpChInfo {
 			//检测连接状态
 			cm.heartbeat()
 			return
+		case pb := <-amqpChInfo.publishedCh:
+			//记录已发布的消息大小
+			publishedMp[pb.seqNo] = pb.size
+		case confirm, ok := <-confirmCh:
+			if !ok {
+				return
+			}
+			if confirm.Ack {
+				size := publishedMp[confirm.DeliveryTag]
+				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(1)
+				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedByte].Meter.Mark(int64(size))
+			} else {
+				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
+			}
+			delete(publishedMp, confirm.DeliveryTag)
 		}
-	}(ret.channel)
-	return ret
+	}
 }
 
 func (cm *channelPool) getAmqpChannel() *amqpChInfo {

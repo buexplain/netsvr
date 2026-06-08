@@ -217,10 +217,6 @@ func (r *Queue) sendListBatchMode(packets []*internal.Packet, size int) {
 		return
 	}
 	//写入失败：统计指标
-	log.Logger.Error().Err(err).
-		Str("redisKey", r.redisKey).
-		Str("keyType", r.keyType).
-		Msg("RedisQueue send redisQueue failed")
 	var failedCount int64
 	var succeedSize int
 	for j, cmder := range cmderList {
@@ -228,6 +224,12 @@ func (r *Queue) sendListBatchMode(packets []*internal.Packet, size int) {
 			succeedSize += len(packets[j].Message)
 		} else {
 			failedCount++
+			//应该是下标对应的数据包，但我不确定
+			internal.FormatSendToBusinessData(packets[j].Message[0:4], packets[j].Message[4:], log.Logger.Error()).
+				Err(err).
+				Str("redisKey", r.redisKey).
+				Str("keyType", r.keyType).
+				Msg("RedisQueue send list failed and discard message")
 		}
 	}
 	internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(failedCount)
@@ -243,10 +245,11 @@ func (r *Queue) sendListSingleMode(pkg *internal.Packet) {
 	if err := r.redisClient.LPush(quit.Ctx, r.redisKey, pkg.Message).Err(); err != nil {
 		//写入失败：统计指标
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
-		log.Logger.Error().Err(err).
+		internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
+			Err(err).
 			Str("redisKey", r.redisKey).
 			Str("keyType", r.keyType).
-			Msg("RedisQueue send redisQueue failed")
+			Msg("RedisQueue send list failed and discard message")
 	} else {
 		//写入成功：统计指标
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedCount].Meter.Mark(1)
@@ -275,10 +278,6 @@ func (r *Queue) sendStreamBatchMode(packets []*internal.Packet, size int) {
 		return
 	}
 	//写入失败：统计指标
-	log.Logger.Error().Err(err).
-		Str("redisKey", r.redisKey).
-		Str("keyType", r.keyType).
-		Msg("RedisQueue send redisQueue failed")
 	var failedCount int64
 	var succeedSize int
 	for j, cmder := range cmderList {
@@ -286,6 +285,12 @@ func (r *Queue) sendStreamBatchMode(packets []*internal.Packet, size int) {
 			succeedSize += len(packets[j].Message)
 		} else {
 			failedCount++
+			//应该是下标对应的数据包，但我不确定
+			internal.FormatSendToBusinessData(packets[j].Message[0:4], packets[j].Message[4:], log.Logger.Error()).
+				Err(err).
+				Str("redisKey", r.redisKey).
+				Str("keyType", r.keyType).
+				Msg("RedisQueue send stream failed and discard message")
 		}
 	}
 	internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(failedCount)
@@ -307,10 +312,11 @@ func (r *Queue) sendStreamSingleMode(pkg *internal.Packet) {
 	if err := r.redisClient.XAdd(quit.Ctx, args).Err(); err != nil {
 		//写入失败：统计指标
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
-		log.Logger.Error().Err(err).
+		internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
+			Err(err).
 			Str("redisKey", r.redisKey).
 			Str("keyType", r.keyType).
-			Msg("RedisQueue send redisQueue failed")
+			Msg("RedisQueue send stream failed and discard message")
 	} else {
 		//写入成功：统计指标
 		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessSucceedCount].Meter.Mark(1)

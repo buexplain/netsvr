@@ -61,9 +61,9 @@ func Start() {
 	queueMap := make(map[string]*Queue)
 	dequeueSize := 256
 	// 为每个唯一的 URL 创建 connPool与channelPool
-	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnOpen, dequeueSize)
-	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnMessage, dequeueSize)
-	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnClose, dequeueSize)
+	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnOpen)
+	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnMessage)
+	makeConnChannel(connChannelPoolMap, configs.Config.AMQP091Queue.OnClose)
 
 	// 创建拓扑结构
 	makeTopology(connChannelPoolMap, topologyMap, configs.Config.AMQP091Queue.OnOpen)
@@ -71,9 +71,9 @@ func Start() {
 	makeTopology(connChannelPoolMap, topologyMap, configs.Config.AMQP091Queue.OnClose)
 
 	// 创建队列
-	Manager[int(netsvrProtocol.Event_OnOpen)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnOpen, 256)
-	Manager[int(netsvrProtocol.Event_OnMessage)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnMessage, 256)
-	Manager[int(netsvrProtocol.Event_OnClose)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnClose, 256)
+	Manager[int(netsvrProtocol.Event_OnOpen)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnOpen, dequeueSize)
+	Manager[int(netsvrProtocol.Event_OnMessage)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnMessage, dequeueSize)
+	Manager[int(netsvrProtocol.Event_OnClose)] = makeQueue(connChannelPoolMap, queueMap, configs.Config.AMQP091Queue.OnClose, dequeueSize)
 
 	// 打印启动日志
 	for _, q := range queueMap {
@@ -116,7 +116,7 @@ func Shutdown() {
 }
 
 // makeConnChannel 创建一个连接管理器
-func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig configs.AMQP091Queue, dequeueSize int) {
+func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig configs.AMQP091Queue) {
 	if queueConfig.Address == "" || queueConfig.Exchange == "" {
 		// 没有配置
 		return
@@ -134,7 +134,7 @@ func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig con
 	poolSize := min(max(runtime.NumCPU()/4, 1), 5) // 连接池大小，32核CPU的机器最多创建5个连接
 	if conn := newConnPool(urlStr, queueConfig.Address, poolSize); conn != nil {
 		poolSize = poolSize * 10 // 通道池大小，32核CPU的机器最多创建50个通道
-		pool := newChannelPool(conn, poolSize, dequeueSize)
+		pool := newChannelPool(conn, poolSize)
 		if pool == nil {
 			return
 		}

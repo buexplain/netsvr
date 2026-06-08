@@ -119,11 +119,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		return
 	}
 	defer q.channelPool.release(amqpChannel)
-
-	// 记录已发布的消息大小
-	published := make(map[uint64]int, len(packets))
-
-	// 批量发布消息
+	// 发布消息
 	for _, pkg := range packets {
 		seqNo := amqpChannel.channel.GetNextPublishSeqNo()
 		// 发布消息
@@ -141,47 +137,16 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		// 发布失败
 		if err != nil {
 			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
-			log.Logger.Error().Err(err).
+			internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
+				Err(err).
 				Str("address", q.channelPool.connPool.address).
 				Str("exchange", q.exchange).
 				Str("routingKey", q.routingKey).
-				Msg("AMQP091 publish failed")
+				Msg("AMQP091 publish failed and discard message")
 		} else {
 			// 记录已发布的消息大小
-			published[seqNo] = len(pkg.Message)
+			amqpChannel.publishedCh <- published{seqNo: seqNo, size: len(pkg.Message)}
 		}
-	}
-
-	// 等待所有消息的 ACK
-	failedCount := 0  // 失败的消息数量
-	succeedCount := 0 // 成功发布的消息数量
-	succeedByte := 0  // 成功发布的消息大小
-	for i := len(published); i > 0; i-- {
-		confirm, ok := <-amqpChannel.confirm
-		if !ok {
-			// Channel 已关闭
-			log.Logger.Error().
-				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.exchange).
-				Str("routingKey", q.routingKey).
-				Msg("AMQP091 confirm amqpChInfo closed")
-			failedCount += i
-			break
-		}
-		if confirm.Ack {
-			succeedByte += published[confirm.DeliveryTag]
-			succeedCount++
-		} else {
-			failedCount++
-		}
-	}
-	//统计指标
-	if succeedCount > 0 {
-		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(int64(succeedCount))
-		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedByte].Meter.Mark(int64(succeedByte))
-	}
-	if failedCount > 0 {
-		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
 	}
 }
 
