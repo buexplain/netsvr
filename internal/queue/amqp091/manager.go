@@ -131,10 +131,9 @@ func makeConnChannel(connChannelPoolMap map[string]*channelPool, queueConfig con
 	username := url.QueryEscape(queueConfig.Username)
 	password := url.QueryEscape(queueConfig.Password)
 	urlStr := fmt.Sprintf("amqp://%s:%s@%s%s", username, password, queueConfig.Address, *queueConfig.VHost)
-	poolSize := min(max(runtime.NumCPU()/4, 1), 5) // 连接池大小，32核CPU的机器最多创建5个连接
-	if conn := newConnPool(urlStr, queueConfig.Address, poolSize); conn != nil {
-		poolSize = poolSize * 10 // 通道池大小，32核CPU的机器最多创建50个通道
-		pool := newChannelPool(conn, poolSize, dequeueSize)
+	connPoolSize, channelPoolSize := getPoolSize(runtime.NumCPU())
+	if conn := newConnPool(urlStr, queueConfig.Address, connPoolSize); conn != nil {
+		pool := newChannelPool(conn, channelPoolSize, dequeueSize)
 		if pool == nil {
 			return
 		}
@@ -262,4 +261,24 @@ func makeQueue(connChannelPoolMap map[string]*channelPool, queueMap map[string]*
 	q := newQueue(chPool, queueConfig, dequeueSize)
 	queueMap[queueId] = q
 	return q
+}
+
+// 根据cpu核数计算mq的tcp连接总数以及channel总数
+func getPoolSize(cpu int) (connPoolSize int, channelPoolSize int) {
+	var offset int
+	if cpu <= 8 {
+		offset = 1
+	} else if cpu <= 16 {
+		offset = 2
+	} else if cpu <= 32 {
+		offset = 3
+	} else {
+		offset = 5
+	}
+	connPoolSize = max(cpu/4, 1) + offset
+	if cpu < 4 {
+		connPoolSize = 1
+	}
+	channelPoolSize = connPoolSize * 12
+	return
 }
