@@ -193,6 +193,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 			}
 		case confirm, ok := <-confirmCh:
 			if !ok {
+				//confirmCh已经被close
 				goto delayEnd
 			}
 			if confirm.Ack {
@@ -206,7 +207,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 		}
 	}
 delayEnd:
-	//延迟一段时间再结束协程，继续消费，确保发送端不会死锁
+	//延迟一段时间再结束协程，继续消费，确保publishedCh发送端不会因为没有消费者而死锁
 	delay := time.NewTimer(time.Second * 3)
 	defer func() {
 		delay.Stop()
@@ -225,13 +226,28 @@ retry:
 				delete(publishedMp, pb.seqNo)
 			}
 		case <-delay.C:
-			//检测引用计数
-			if atomic.LoadInt32(&amqpChInfo.refCount) == 0 {
-				//释放
+			if atomic.LoadInt32(&amqpChInfo.refCount) == 0 && len(amqpChInfo.publishedCh) == 0 {
+				//没有活跃生产者，publishedCh中也没有残留，执行释放逻辑
+				for {
+					//confirmCh中可能还有数据，需要处理
+					confirm, ok := <-confirmCh
+					if !ok {
+						break
+					}
+					if confirm.Ack {
+						size := publishedMp[confirm.DeliveryTag]
+						internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedCount].Meter.Mark(1)
+						internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessSucceedByte].Meter.Mark(int64(size))
+					} else {
+						internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
+					}
+					delete(publishedMp, confirm.DeliveryTag)
+				}
+				//释放逻辑结束
 				return
 			}
-			//再次检测消息
-			delay.Reset(time.Second * 3)
+			//继续监听 publishedCh
+			delay.Reset(time.Second * 2)
 			goto retry
 		}
 	}
@@ -259,12 +275,15 @@ func (cm *channelPool) getAmqpChannel() *amqpChInfo {
 	}
 wait:
 	if cm.waitTimeout == 0 {
-		return <-cm.pool
+		socket := <-cm.pool
+		atomic.AddInt32(&socket.refCount, 1)
+		return socket
 	}
 	timeout := time.NewTimer(cm.waitTimeout)
 	defer timeout.Stop()
 	select {
 	case socket := <-cm.pool:
+		atomic.AddInt32(&socket.refCount, 1)
 		return socket
 	case <-timeout.C:
 		log.Logger.Error().
