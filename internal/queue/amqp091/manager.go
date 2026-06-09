@@ -80,8 +80,11 @@ func Start() {
 		if q == nil {
 			continue
 		}
+		connPoolSize, channelPoolSize := getPoolSize(runtime.NumCPU())
 		log.Logger.Info().
 			Int("pid", os.Getpid()).
+			Int("connPoolSize", connPoolSize).
+			Int("channelPoolSize", channelPoolSize).
 			Str("address", q.channelPool.connPool.address).
 			Str("exchange", q.exchange).
 			Str("routingKey", q.routingKey).
@@ -104,8 +107,11 @@ func Shutdown() {
 			if !queue.close() {
 				return
 			}
+			connPoolSize, channelPoolSize := getPoolSize(runtime.NumCPU())
 			log.Logger.Info().
 				Int("pid", os.Getpid()).
+				Int("connPoolSize", connPoolSize).
+				Int("channelPoolSize", channelPoolSize).
 				Str("address", q.channelPool.connPool.address).
 				Str("exchange", q.exchange).
 				Str("routingKey", q.routingKey).

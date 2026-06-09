@@ -120,6 +120,8 @@ func (cm *connPool) getAmqpConnection() *amqp.Connection {
 		case <-cm.size:
 			socket := cm.createAmpqConn()
 			if socket == nil || socket.IsClosed() {
+				// 等待3秒的时间再释放重连机会，否则会频繁创建连接
+				time.Sleep(time.Second * 3)
 				cm.size <- struct{}{}
 				return nil
 			} else {
@@ -140,7 +142,6 @@ wait:
 	case socket := <-cm.pool:
 		return socket
 	case <-timeout.C:
-		log.Logger.Error().Str("address", cm.address).Msg("AMQP091 cannot establish new connection before wait_timeout")
 		return nil
 	}
 }

@@ -123,6 +123,13 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 	amqpChannel := q.channelPool.getAmqpChannel()
 	if amqpChannel == nil {
 		internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(len(packets)))
+		for _, pkg := range packets {
+			internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
+				Str("address", q.channelPool.connPool.address).
+				Str("exchange", q.exchange).
+				Str("routingKey", q.routingKey).
+				Msg("AMQP091 cannot establish new channel and discard message")
+		}
 		return
 	}
 	defer q.channelPool.release(amqpChannel)

@@ -103,9 +103,6 @@ func (cm *channelPool) heartbeat() {
 				cm.pool <- socket
 			} else {
 				cm.release(nil)
-				log.Logger.Error().
-					Str("address", cm.connPool.address).
-					Msg("AMQP091 channel is closed")
 			}
 		default:
 			continue
@@ -152,7 +149,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 				Str("address", cm.connPool.address).
 				Msg("AMQP091 channel monitor is closed")
 		} else {
-			log.Logger.Info().
+			log.Logger.Debug().
 				Str("address", cm.connPool.address).
 				Msg("AMQP091 channel monitor is closed")
 		}
@@ -180,8 +177,6 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 					Str("address", cm.connPool.address).
 					Msg("AMQP091 channel is closed")
 			}
-			//检测连接状态
-			cm.heartbeat()
 			goto delayEnd
 		case pb := <-amqpChInfo.publishedCh:
 			if pb.size > 0 {
@@ -207,8 +202,10 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 		}
 	}
 delayEnd:
+	//检测连接状态，将已经关闭的amqp channel 从连接池中移除
+	cm.heartbeat()
 	//延迟一段时间再结束协程，继续消费，确保publishedCh发送端不会因为没有消费者而死锁
-	delay := time.NewTimer(time.Second * 3)
+	delay := time.NewTimer(time.Second * 5)
 	defer func() {
 		delay.Stop()
 	}()
@@ -247,7 +244,7 @@ retry:
 				return
 			}
 			//继续监听 publishedCh
-			delay.Reset(time.Second * 2)
+			delay.Reset(time.Second * 5)
 			goto retry
 		}
 	}
@@ -259,6 +256,8 @@ func (cm *channelPool) getAmqpChannel() *amqpChInfo {
 		case <-cm.size:
 			socket := cm.createChannel()
 			if socket == nil || socket.channel.IsClosed() {
+				// 等待3秒的时间再释放重连机会，否则会频繁创建连接
+				time.Sleep(time.Second * 3)
 				cm.size <- struct{}{}
 				return nil
 			} else {
@@ -286,9 +285,6 @@ wait:
 		atomic.AddInt32(&socket.refCount, 1)
 		return socket
 	case <-timeout.C:
-		log.Logger.Error().
-			Str("address", cm.connPool.address).
-			Msg("AMQP091 cannot establish new channel before wait_timeout")
 		return nil
 	}
 }
