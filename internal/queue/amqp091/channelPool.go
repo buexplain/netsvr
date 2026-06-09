@@ -21,6 +21,7 @@ import (
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"netsvr/pkg/quit"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,6 +35,8 @@ type amqpChInfo struct {
 	channel *amqp.Channel
 	// 已发布的消息
 	publishedCh chan published
+	//引用计数
+	refCount int32
 }
 
 // channelPool 管理 AMQP Channel
@@ -179,7 +182,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 			}
 			//检测连接状态
 			cm.heartbeat()
-			return
+			goto delayEnd
 		case pb := <-amqpChInfo.publishedCh:
 			if pb.size > 0 {
 				//记录已发布的消息大小
@@ -190,7 +193,7 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 			}
 		case confirm, ok := <-confirmCh:
 			if !ok {
-				return
+				goto delayEnd
 			}
 			if confirm.Ack {
 				size := publishedMp[confirm.DeliveryTag]
@@ -200,6 +203,36 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
 			}
 			delete(publishedMp, confirm.DeliveryTag)
+		}
+	}
+delayEnd:
+	//延迟一段时间再结束协程，继续消费，确保发送端不会死锁
+	delay := time.NewTimer(time.Second * 3)
+	defer func() {
+		delay.Stop()
+	}()
+retry:
+	for {
+		select {
+		case <-quit.Ctx.Done():
+			return
+		case pb := <-amqpChInfo.publishedCh:
+			if pb.size > 0 {
+				//记录已发布的消息大小
+				publishedMp[pb.seqNo] = pb.size
+			} else {
+				//撤销已记录的消息大小
+				delete(publishedMp, pb.seqNo)
+			}
+		case <-delay.C:
+			//检测引用计数
+			if atomic.LoadInt32(&amqpChInfo.refCount) == 0 {
+				//释放
+				return
+			}
+			//再次检测消息
+			delay.Reset(time.Second * 3)
+			goto retry
 		}
 	}
 }
@@ -216,6 +249,8 @@ func (cm *channelPool) getAmqpChannel() *amqpChInfo {
 				log.Logger.Info().
 					Str("address", cm.connPool.address).
 					Msg("AMQP091 establish new channel")
+				//引用计数加1
+				atomic.AddInt32(&socket.refCount, 1)
 				return socket
 			}
 		default:
@@ -240,7 +275,13 @@ wait:
 }
 
 func (cm *channelPool) release(socket *amqpChInfo) {
-	if socket == nil || socket.channel.IsClosed() {
+	if socket == nil {
+		cm.size <- struct{}{}
+		return
+	}
+	//引用计数减1
+	atomic.AddInt32(&socket.refCount, -1)
+	if socket.channel.IsClosed() {
 		cm.size <- struct{}{}
 		return
 	}

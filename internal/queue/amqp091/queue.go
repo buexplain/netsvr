@@ -90,6 +90,13 @@ func (q *Queue) loopSend() {
 		}
 		if err := goroutine.DefaultWorkerPool.Submit(func() {
 			defer func() {
+				if panicErr := recover(); panicErr != nil {
+					log.Logger.Error().Stack().Err(nil).Any("panic", panicErr).
+						Str("address", q.channelPool.connPool.address).
+						Str("exchange", q.exchange).
+						Str("routingKey", q.routingKey).
+						Msg("AMQP091 send batch worker is closed")
+				}
 				// 归还所有 Packet
 				for _, pkg := range packetsCopy {
 					internal.PacketObjPool.Put(pkg)
@@ -120,7 +127,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 	}
 	defer q.channelPool.release(amqpChannel)
 	// 发布消息
-	for _, pkg := range packets {
+	for i, pkg := range packets {
 		seqNo := amqpChannel.channel.GetNextPublishSeqNo()
 		// 发送之前先记录消息大小
 		amqpChannel.publishedCh <- published{seqNo: seqNo, size: len(pkg.Message)}
@@ -140,13 +147,32 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 		if err != nil {
 			//发送失败，撤销刚才的消息大小记录
 			amqpChannel.publishedCh <- published{seqNo: seqNo, size: 0}
-			internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
-			internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
-				Err(err).
-				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.exchange).
-				Str("routingKey", q.routingKey).
-				Msg("AMQP091 publish failed and discard message")
+			//判断amqp的channel是否关闭
+			if amqpChannel.channel.IsClosed() {
+				//计算剩余数量，统计到失败指标中
+				failedCount := 1 + len(packets) - i
+				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
+				//当前发送失败的，加上剩余未发送的，都记录到日志中
+				for i := i; i < len(packets); i++ {
+					internal.FormatSendToBusinessData(packets[i].Message[0:4], packets[i].Message[4:], log.Logger.Error()).
+						Err(err).
+						Str("address", q.channelPool.connPool.address).
+						Str("exchange", q.exchange).
+						Str("routingKey", q.routingKey).
+						Msg("AMQP091 publish failed and discard message")
+				}
+				// 不再循环发送数据
+				break
+			} else {
+				//amqp的channel未关闭，统计失败指标，打印日志，继续循环发送数据
+				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(1)
+				internal.FormatSendToBusinessData(pkg.Message[0:4], pkg.Message[4:], log.Logger.Error()).
+					Err(err).
+					Str("address", q.channelPool.connPool.address).
+					Str("exchange", q.exchange).
+					Str("routingKey", q.routingKey).
+					Msg("AMQP091 publish failed and discard message")
+			}
 		}
 	}
 }
