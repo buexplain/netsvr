@@ -202,6 +202,8 @@ func (cm *channelPool) monitor(amqpChInfo *amqpChInfo) {
 		}
 	}
 delayEnd:
+	//确保关闭channel
+	amqpChInfo.channel.Close()
 	//检测连接状态，将已经关闭的amqp channel 从连接池中移除
 	cm.heartbeat()
 	//延迟一段时间再结束协程，继续消费，确保publishedCh发送端不会因为没有消费者而死锁

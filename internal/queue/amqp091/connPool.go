@@ -100,16 +100,15 @@ func (cm *connPool) createAmpqConn() *amqp.Connection {
 		return nil
 	}
 	go func(socket *amqp.Connection) {
-		for {
-			notify, ok := <-socket.NotifyClose(make(chan *amqp.Error, 1))
-			if ok {
-				//mq服务器主动通知关闭
-				log.Logger.Error().Err(notify).Str("address", cm.address).Msg("AMQP091 connection is closed")
-			}
-			//检测连接状态
-			cm.heartbeat()
-			return
+		notify, ok := <-socket.NotifyClose(make(chan *amqp.Error, 1))
+		if ok {
+			//mq服务器主动通知关闭
+			log.Logger.Error().Err(notify).Str("address", cm.address).Msg("AMQP091 connection is closed")
 		}
+		//确保关闭连接
+		_ = socket.Close()
+		//检测连接状态
+		cm.heartbeat()
 	}(socket)
 	return socket
 }
