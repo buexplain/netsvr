@@ -157,7 +157,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 			//判断amqp的channel是否关闭
 			if amqpChannel.channel.IsClosed() {
 				//计算剩余数量，统计到失败指标中
-				failedCount := 1 + len(packets) - i
+				failedCount := len(packets) - i
 				internalMetrics.Registry[internalMetrics.ItemAMQP091ToBusinessFailedCount].Meter.Mark(int64(failedCount))
 				//当前发送失败的，加上剩余未发送的，都记录到日志中
 				for i := i; i < len(packets); i++ {
