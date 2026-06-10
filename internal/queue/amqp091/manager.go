@@ -112,9 +112,9 @@ func Shutdown() {
 				Int("pid", os.Getpid()).
 				Int("connPoolSize", connPoolSize).
 				Int("channelPoolSize", channelPoolSize).
-				Str("address", q.channelPool.connPool.address).
-				Str("exchange", q.exchange).
-				Str("routingKey", q.routingKey).
+				Str("address", queue.channelPool.connPool.address).
+				Str("exchange", queue.exchange).
+				Str("routingKey", queue.routingKey).
 				Msg("AMQP091 Queue shutdown")
 		}(q)
 	}
