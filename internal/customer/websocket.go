@@ -29,7 +29,6 @@ import (
 	"github.com/rs/zerolog"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/callback"
@@ -107,7 +106,7 @@ func Start() {
 					Str("rawQuery", req.URL.RawQuery).
 					Str("xForwardedFor", req.Header.Get("X-Forwarded-For")).
 					Str("xRealIp", req.Header.Get("X-Real-IP")).
-					Str("remoteAddr", req.RemoteAddr).
+					Str("remoteAddr", conn.RemoteAddrOnSafe()).
 					Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 					Msg("open rate limited")
 				return ws.StatusCode(1013), errors.New("open rate limited, try again later")
@@ -124,14 +123,24 @@ func Start() {
 				if conn.IsClosedOnSafe() {
 					return
 				}
-				remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 				co := objPool.ConnOpen.Get()
 				defer objPool.ConnOpen.Put(co)
 				co.UniqId = conn.GetUniqIdOnSafe()
 				co.RawQuery = req.URL.RawQuery
 				co.XForwardedFor = req.Header.Get("X-Forwarded-For")
 				co.XRealIp = req.Header.Get("X-Real-IP")
-				co.RemoteAddr = remoteAddr
+				co.RemoteAddr = conn.RemoteAddrOnSafe()
+				//记录所有请求日志
+				if configs.Config.LogLevel == "debug" {
+					log.Logger.Debug().
+						Str("uniqId", co.UniqId).
+						Str("rawQuery", co.RawQuery).
+						Str("xForwardedFor", co.XForwardedFor).
+						Str("xRealIp", co.XRealIp).
+						Str("remoteAddr", co.RemoteAddr).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Msg("websocket on open")
+				}
 				var connOpenResp *netsvrProtocol.ConnOpenResp
 				var err error
 				//将连接打开的消息转发给后端接口
@@ -249,6 +258,17 @@ func Start() {
 				cl.CustomerId = customerId
 				cl.Session = customerSession
 				cl.Topics = topics
+				//记录所有请求日志
+				if configs.Config.LogLevel == "debug" {
+					log.Logger.Debug().
+						Str("uniqId", uniqId).
+						Str("customerId", customerId).
+						Strs("topics", topics).
+						Str("customerSession", customerSession).
+						Str("remoteAddr", conn.RemoteAddrOnSafe()).
+						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
+						Msg("websocket on close")
+				}
 				//将连接关闭的消息转发给后端接口
 				if configs.Config.Callback.OnCloseApi != "" {
 					callback.OnClose(cl)
@@ -304,8 +324,9 @@ func Start() {
 					log.Logger.Info().
 						Str("uniqId", uniqId).
 						Str("customerId", customerId).
+						Strs("topics", topics).
 						Str("customerSession", customerSession).
-						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("remoteAddr", conn.RemoteAddrOnSafe()).
 						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 						Msg("message too large")
 					return
@@ -317,8 +338,9 @@ func Start() {
 					formatCustomerData(data, log.Logger.Error()).
 						Str("uniqId", uniqId).
 						Str("customerId", customerId).
+						Strs("topics", topics).
 						Str("customerSession", customerSession).
-						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("remoteAddr", conn.RemoteAddrOnSafe()).
 						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 						Msg("connection message rate limited")
 					return
@@ -331,8 +353,9 @@ func Start() {
 					formatCustomerData(data, log.Logger.Error()).
 						Str("uniqId", uniqId).
 						Str("customerId", customerId).
+						Strs("topics", topics).
 						Str("customerSession", customerSession).
-						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("remoteAddr", conn.RemoteAddrOnSafe()).
 						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
 						Msg("message rate limited")
 					return
@@ -342,10 +365,11 @@ func Start() {
 					formatCustomerData(data, log.Logger.Debug()).
 						Str("uniqId", uniqId).
 						Str("customerId", customerId).
+						Strs("topics", topics).
 						Str("customerSession", customerSession).
-						Str("remoteAddr", conn.RemoteAddrOnSafe().String()).
+						Str("remoteAddr", conn.RemoteAddrOnSafe()).
 						Str("customerListenAddress", configs.Config.Customer.ListenAddress).
-						Send()
+						Msg("websocket on message")
 				}
 				//编码数据成business需要的格式
 				tf := objPool.Transfer.Get()

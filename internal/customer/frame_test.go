@@ -320,10 +320,6 @@ func TestFrame_HeaderSize_Boundary65536(t *testing.T) {
 func TestFrame_WriteTo_ClosedConnection(t *testing.T) {
 	conn := createTestWsConn(1)
 
-	// 先关闭连接
-	mockGnetConn := conn.RemoteAddrOnSafe().(*mockAddrFrame)
-	_ = mockGnetConn
-
 	// 通过 wsServer.Conn 的方法关闭
 	conn.CloseOnSafe()
 

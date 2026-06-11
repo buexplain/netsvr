@@ -36,8 +36,9 @@ func (r *Conn) AsyncWriteOnSafe(buf []byte) error {
 	return r.conn.AsyncWrite(buf, nil)
 }
 
-func (r *Conn) RemoteAddrOnSafe() net.Addr {
-	return r.conn.RemoteAddr()
+func (r *Conn) RemoteAddrOnSafe() string {
+	remoteAddr, _, _ := net.SplitHostPort(r.conn.RemoteAddr().String())
+	return remoteAddr
 }
 
 func NewConn(conn gnet.Conn) *Conn {
