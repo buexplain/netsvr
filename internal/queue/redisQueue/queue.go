@@ -131,7 +131,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 				for _, pkg := range packetsCopy {
 					internal.PacketObjPool.Put(pkg)
 				}
-				internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
+				internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(int64(count))
 				log.Logger.Error().Err(err).
 					Str("redisKey", r.redisKey).
 					Str("keyType", r.keyType).
@@ -217,6 +217,11 @@ func (r *Queue) sendListBatchMode(packets []*internal.Packet, size int) {
 		return
 	}
 	//写入失败：统计指标
+	if len(cmderList) != len(packets) {
+		//下标不一致，算作全部失败
+		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(int64(len(packets)))
+		return
+	}
 	var failedCount int64
 	var succeedSize int
 	for j, cmder := range cmderList {
@@ -278,6 +283,11 @@ func (r *Queue) sendStreamBatchMode(packets []*internal.Packet, size int) {
 		return
 	}
 	//写入失败：统计指标
+	if len(cmderList) != len(packets) {
+		//下标不一致，算作全部失败
+		internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(int64(len(packets)))
+		return
+	}
 	var failedCount int64
 	var succeedSize int
 	for j, cmder := range cmderList {
