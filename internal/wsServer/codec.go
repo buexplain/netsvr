@@ -128,6 +128,18 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 		return nil, gnet.Close
 	}
 
+	//没有Upgrade头，说明无须升级协议，响应一个正常的http ok
+	if _, ok := req.Header["Upgrade"]; ok == false {
+		resp := http.Response{
+			StatusCode: http.StatusOK,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Body:       io.NopCloser(strings.NewReader("Hello netsvr")),
+		}
+		_ = resp.Write(c)
+		return nil, gnet.Close
+	}
+
 	//判断请求方法
 	if req.Method != "GET" {
 		//响应 HTTP 405
@@ -141,17 +153,8 @@ func (r *codec) upgrade(onUpgradeCheck func(req *http.Request) *http.Response, c
 		return nil, gnet.Close
 	}
 
-	//没有Upgrade头，说明无须升级协议，响应一个正常的http ok
-	if _, ok := req.Header["Upgrade"]; ok == false {
-		resp := http.Response{
-			StatusCode: http.StatusOK,
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-			Body:       io.NopCloser(strings.NewReader("Hello netsvr")),
-		}
-		_ = resp.Write(c)
-		return nil, gnet.Close
-	}
+	//设置请求的远程地址
+	req.RemoteAddr = c.RemoteAddr().String()
 
 	//握手之前验证
 	if resp := onUpgradeCheck(req); resp != nil {

@@ -62,7 +62,7 @@ func (server *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 
 func (server *Server) OnClose(c gnet.Conn, _ error) (action gnet.Action) {
 	conn, ok := c.Context().(*Conn)
-	if ok {
+	if ok && conn.isUpgraded() {
 		//当客户端异常断开（不发送 Close 帧）时：
 		//gnet 直接调用 OnClose
 		//closed 字段保持为 0

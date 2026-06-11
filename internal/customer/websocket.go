@@ -124,7 +124,7 @@ func Start() {
 				if conn.IsClosedOnSafe() {
 					return
 				}
-				remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddrOnSafe().String())
+				remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 				co := objPool.ConnOpen.Get()
 				defer objPool.ConnOpen.Put(co)
 				co.UniqId = conn.GetUniqIdOnSafe()
