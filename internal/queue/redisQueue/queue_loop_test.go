@@ -45,7 +45,7 @@ func TestLoopSendListBatchMode(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_list_batch",
 		KeyType: "list",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -74,9 +74,7 @@ func TestLoopSendListBatchMode(t *testing.T) {
 			uniqId: string(rune('A' + i)),
 		}
 
-		if size := q.Send(msg, netsvrProtocol.Cmd_ConnOpen); size <= 0 {
-			t.Fatalf("第%d条消息发送失败", i)
-		}
+		q.Send(msg, netsvrProtocol.Cmd_ConnOpen)
 	}
 
 	time.Sleep(300 * time.Millisecond)
@@ -157,7 +155,7 @@ func TestLoopSendListSingleMode(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_list_single",
 		KeyType: "list",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -192,11 +190,7 @@ func TestLoopSendListSingleMode(t *testing.T) {
 			CustomerId: expectedList[i].customerId,
 			Data:       expectedList[i].data,
 		}
-		size := q.Send(msg, netsvrProtocol.Cmd_Transfer)
-		if size <= 0 {
-			t.Fatalf("第%d条大消息发送失败", i)
-		}
-		t.Logf("第%d条消息发送大小: %d字节 (%.2fKB)", i, size, float64(size)/1024)
+		q.Send(msg, netsvrProtocol.Cmd_Transfer)
 	}
 
 	t.Logf("总消息数: %d, dequeueSize: 2", msgCount)
@@ -300,7 +294,7 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_stream_batch",
 		KeyType: "stream",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -325,9 +319,7 @@ func TestLoopSendStreamBatchMode(t *testing.T) {
 			UniqId:     expectedList[i].uniqId,
 			CustomerId: expectedList[i].customerId,
 		}
-		if size := q.Send(msg, netsvrProtocol.Cmd_ConnClose); size <= 0 {
-			t.Fatalf("第%d条消息发送失败", i)
-		}
+		q.Send(msg, netsvrProtocol.Cmd_ConnClose)
 	}
 
 	time.Sleep(300 * time.Millisecond)
@@ -428,7 +420,7 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_stream_single",
 		KeyType: "stream",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -463,9 +455,7 @@ func TestLoopSendStreamSingleMode(t *testing.T) {
 			CustomerId: expectedList[i].customerId,
 			Data:       expectedList[i].data,
 		}
-		if size := q.Send(msg, netsvrProtocol.Cmd_Transfer); size <= 0 {
-			t.Fatalf("第%d条大消息发送失败", i)
-		}
+		q.Send(msg, netsvrProtocol.Cmd_Transfer)
 	}
 
 	time.Sleep(1000 * time.Millisecond)
@@ -570,7 +560,7 @@ func TestLoopSendListQueueClose(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_list_close",
 		KeyType: "list",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -602,7 +592,7 @@ func TestLoopSendStreamQueueClose(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_stream_close",
 		KeyType: "stream",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)
@@ -637,7 +627,7 @@ func TestLoopSendMixedSizes(t *testing.T) {
 		Address: redisAddr,
 		Key:     "test_mixed",
 		KeyType: "list",
-		DB:      0,
+		DB:      new(int),
 	}
 	rdb.Del(quit.Ctx, queueConfig.Key)
 	defer rdb.Del(quit.Ctx, queueConfig.Key)

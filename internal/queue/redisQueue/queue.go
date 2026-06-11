@@ -162,7 +162,7 @@ func (r *Queue) loopSend(batchMode func(packets []*internal.Packet, size int), s
 	}
 }
 
-func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
+func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 	var pkg *internal.Packet
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
@@ -185,13 +185,12 @@ func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 			Str("redisKey", r.redisKey).
 			Str("keyType", r.keyType).
 			Msg("RedisQueue proto.Marshal failed")
-		return 0
+		return
 	}
 	//发送出去
-	n := len(pkg.Message) // 入队列前计算一下数据包大小，避免入队列后计算，产生数据竞争
 	if r.sendCh.Enqueue(pkg) {
 		pkg = nil // 所有权已转移到 loopSendList，避免 defer 重复归还
-		return n
+		return
 	}
 	//写入失败：统计指标
 	internalMetrics.Registry[internalMetrics.ItemRedisQueueToBusinessFailedCount].Meter.Mark(1)
@@ -199,7 +198,6 @@ func (r *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) int {
 		Str("redisKey", r.redisKey).
 		Str("keyType", r.keyType).
 		Msg("RedisQueue send failed and discard message")
-	return 0
 }
 
 // sendListBatchMode 批量数据发送
