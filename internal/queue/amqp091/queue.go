@@ -134,6 +134,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 	}
 	defer q.channelPool.release(amqpChannel)
 	// 发布消息
+	currentTime := time.Now()
 	for i, pkg := range packets {
 		seqNo := amqpChannel.channel.GetNextPublishSeqNo()
 		// 发送之前先记录消息大小
@@ -146,6 +147,7 @@ func (q *Queue) sendBatch(packets []*internal.Packet) {
 			false, // immediate: 没有消费者时是否返回错误
 			amqp.Publishing{
 				ContentType:  "application/octet-stream",
+				Timestamp:    currentTime,
 				Body:         pkg.Message,
 				DeliveryMode: q.deliveryMode,
 			},
