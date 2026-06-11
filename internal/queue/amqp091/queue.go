@@ -226,6 +226,7 @@ func (q *Queue) Send(message proto.Message, cmd netsvrProtocol.Cmd) {
 			Str("exchange", q.exchange).
 			Str("routingKey", q.routingKey).
 			Msg("AMQP091 proto.Marshal failed")
+		return
 	}
 	if q.sendCh.Enqueue(pkg) {
 		pkg = nil // 所有权已转移
