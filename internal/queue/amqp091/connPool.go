@@ -17,10 +17,11 @@
 package amqp091
 
 import (
-	amqp "github.com/rabbitmq/amqp091-go"
 	"netsvr/internal/log"
 	"netsvr/pkg/quit"
 	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // connPool 管理 AMQP 连接和重连逻辑
@@ -114,24 +115,24 @@ func (cm *connPool) createAmpqConn() *amqp.Connection {
 }
 
 func (cm *connPool) getAmqpConnection() *amqp.Connection {
-	if len(cm.pool) == 0 {
-		select {
-		case <-cm.size:
-			socket := cm.createAmpqConn()
-			if socket == nil || socket.IsClosed() {
-				// 等待3秒的时间再释放重连机会，否则会频繁创建连接
-				time.Sleep(time.Second * 3)
-				cm.size <- struct{}{}
-				return nil
-			} else {
-				log.Logger.Info().Str("address", cm.address).Msg("AMQP091 establish new connection")
-				return socket
-			}
-		default:
-			goto wait
-		}
+	select {
+	case socket := <-cm.pool:
+		return socket
+	default:
 	}
-wait:
+	select {
+	case <-cm.size:
+		socket := cm.createAmpqConn()
+		if socket == nil || socket.IsClosed() {
+			// 等待3秒的时间再释放重连机会，否则会频繁创建连接
+			time.Sleep(time.Second * 3)
+			cm.size <- struct{}{}
+			return nil
+		}
+		log.Logger.Info().Str("address", cm.address).Msg("AMQP091 establish new connection")
+		return socket
+	default:
+	}
 	if cm.waitTimeout == 0 {
 		return <-cm.pool
 	}

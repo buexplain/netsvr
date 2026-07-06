@@ -17,12 +17,13 @@
 package amqp091
 
 import (
-	amqp "github.com/rabbitmq/amqp091-go"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"netsvr/pkg/quit"
 	"sync/atomic"
 	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type published struct {
@@ -253,28 +254,29 @@ retry:
 }
 
 func (cm *channelPool) getAmqpChannel() *amqpChInfo {
-	if len(cm.pool) == 0 {
-		select {
-		case <-cm.size:
-			socket := cm.createChannel()
-			if socket == nil || socket.channel.IsClosed() {
-				// 等待3秒的时间再释放重连机会，否则会频繁创建连接
-				time.Sleep(time.Second * 3)
-				cm.size <- struct{}{}
-				return nil
-			} else {
-				log.Logger.Info().
-					Str("address", cm.connPool.address).
-					Msg("AMQP091 establish new channel")
-				//引用计数加1
-				atomic.AddInt32(&socket.refCount, 1)
-				return socket
-			}
-		default:
-			goto wait
-		}
+	select {
+	case socket := <-cm.pool:
+		atomic.AddInt32(&socket.refCount, 1)
+		return socket
+	default:
 	}
-wait:
+	select {
+	case <-cm.size:
+		socket := cm.createChannel()
+		if socket == nil || socket.channel.IsClosed() {
+			// 等待3秒的时间再释放重连机会，否则会频繁创建连接
+			time.Sleep(time.Second * 3)
+			cm.size <- struct{}{}
+			return nil
+		}
+		log.Logger.Info().
+			Str("address", cm.connPool.address).
+			Msg("AMQP091 establish new channel")
+		//引用计数加1
+		atomic.AddInt32(&socket.refCount, 1)
+		return socket
+	default:
+	}
 	if cm.waitTimeout == 0 {
 		socket := <-cm.pool
 		atomic.AddInt32(&socket.refCount, 1)
