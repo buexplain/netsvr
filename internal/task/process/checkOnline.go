@@ -17,11 +17,12 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // checkOnline 检查网关中是否包含某几个uniqId

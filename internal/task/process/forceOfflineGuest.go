@@ -18,15 +18,16 @@ package process
 
 import (
 	"errors"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/gobwas/ws"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/timer"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/gobwas/ws"
+	"google.golang.org/protobuf/proto"
 )
 
 // forceOfflineGuest 强制关闭某个空session值的连接

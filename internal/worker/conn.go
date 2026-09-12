@@ -19,10 +19,6 @@ package worker
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/gobwas/ws"
-	"github.com/rs/zerolog"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
@@ -30,6 +26,11 @@ import (
 	"netsvr/pkg/queue"
 	"sync/atomic"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/gobwas/ws"
+	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 )
 
 type Conn struct {

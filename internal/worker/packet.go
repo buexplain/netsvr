@@ -18,11 +18,12 @@ package worker
 
 import (
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
-	"google.golang.org/protobuf/proto"
 	"sync"
 	"unsafe"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
+	"google.golang.org/protobuf/proto"
 )
 
 type packet struct {

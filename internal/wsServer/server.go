@@ -19,12 +19,13 @@ package wsServer
 import (
 	"context"
 	"errors"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/panjf2000/gnet/v2"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"github.com/panjf2000/gnet/v2"
 )
 
 type Server struct {

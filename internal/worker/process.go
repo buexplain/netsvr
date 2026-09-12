@@ -20,14 +20,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 func process(workerConn *Conn) {

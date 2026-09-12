@@ -17,13 +17,14 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/wsServer"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // topicCustomerIdCount 获取网关中目标topic的customerId数量
@@ -36,7 +37,8 @@ func topicCustomerIdCount(param []byte, taskConn net.Conn) {
 	ret := &netsvrProtocol.TopicCustomerIdCountResp{}
 	ret.Items = map[string]int32{}
 	var topicConnList map[string][]*wsServer.Conn
-	if payload.CountAll == true {
+	//topics 为空则统计网关中全部主题
+	if len(payload.Topics) == 0 {
 		topicConnList = topic.Topic.GetConnList()
 	} else {
 		topicConnList = topic.Topic.GetConnListByTopics(payload.Topics)

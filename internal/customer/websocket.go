@@ -20,13 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	gTimer "github.com/antlabs/timer"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/gobwas/ws"
-	"github.com/panjf2000/gnet/v2"
-	"github.com/panjf2000/gnet/v2/pkg/logging"
-	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
-	"github.com/rs/zerolog"
 	"io"
 	"math"
 	"net/http"
@@ -49,6 +42,14 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	gTimer "github.com/antlabs/timer"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/gobwas/ws"
+	"github.com/panjf2000/gnet/v2"
+	"github.com/panjf2000/gnet/v2/pkg/logging"
+	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
+	"github.com/rs/zerolog"
 )
 
 var server *wsServer.Server

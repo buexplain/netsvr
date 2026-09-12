@@ -17,13 +17,14 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // topicUnsubscribe 取消订阅

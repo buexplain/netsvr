@@ -17,13 +17,13 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
-	"netsvr/internal/wsServer"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // singleCastBulk 批量单播
@@ -34,51 +34,25 @@ func singleCastBulk(param []byte) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.singleCastBulk failed")
 		return
 	}
-	//当业务进程传递的uniqIds的uniqId数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个uniqId
-	if len(payload.UniqIds) == 1 && len(payload.Data) > 1 {
-		//根据uniqId获得对应的连接
-		conn := manager.Manager.Get(payload.UniqIds[0])
-		if conn == nil {
-			return
-		}
-		//迭代所有数据
-		var index int
-		for index = range payload.Data {
-			if len(payload.Data[index]) == 0 {
-				continue
-			}
-			//将当前数据写入到连接中
-			if !customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data[index]) {
-				//写入失败，直接退出，不必再处理剩余数据
-				return
-			}
-		}
-		return
-	}
-	//当业务进程传递的uniqIds的uniqId数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的uniqId
-	if len(payload.UniqIds) > 0 && len(payload.UniqIds) == len(payload.Data) {
-		//迭代所有数据
-		var conn *wsServer.Conn
-		var index int
-		for index = range payload.Data {
+	//迭代每一项：本项内每一条数据按顺序发给本项内每一个目标
+	for _, item := range payload.Items {
+		for _, data := range item.GetData() {
 			//判断数据是否有效
-			if len(payload.Data[index]) == 0 {
+			if len(data) == 0 {
 				continue
 			}
-			//获得数据对应的index下标的uniqId对应的连接
-			conn = manager.Manager.Get(payload.UniqIds[index])
-			if conn == nil {
-				continue
+			for _, uniqId := range item.GetUniqIds() {
+				//根据uniqId获得对应的连接
+				conn := manager.Manager.Get(uniqId)
+				if conn == nil {
+					continue
+				}
+				//将数据写入到连接中
+				if !customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, data) {
+					//写入失败，直接退出，不必再处理剩余数据
+					return
+				}
 			}
-			//将数据写入到连接中
-			customer.WriteMessage(conn, configs.Config.Customer.SendMessageType, payload.Data[index])
 		}
-		return
-	}
-	if len(payload.UniqIds) > 0 && len(payload.UniqIds) != len(payload.Data) {
-		log.Logger.Warn().
-			Int("uniqIdsLen", len(payload.UniqIds)).
-			Int("dataLen", len(payload.Data)).
-			Msg("singleCastBulk: length mismatch, message dropped")
 	}
 }

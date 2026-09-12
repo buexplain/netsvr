@@ -17,12 +17,13 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // topicCustomerIdList 获取网关中某几个主题的customerId

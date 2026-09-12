@@ -17,11 +17,12 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // topicUniqIdCount 获取网关中的主题包含的连接数
@@ -32,7 +33,8 @@ func topicUniqIdCount(param []byte, taskConn net.Conn) {
 		return
 	}
 	ret := &netsvrProtocol.TopicUniqIdCountResp{}
-	if payload.CountAll == true {
+	//topics 为空则统计网关中全部主题
+	if len(payload.Topics) == 0 {
 		ret.Items = topic.Topic.CountConn()
 	} else {
 		ret.Items = topic.Topic.CountConnByTopic(payload.Topics)

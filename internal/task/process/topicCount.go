@@ -17,9 +17,10 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"net"
 	"netsvr/internal/customer/topic"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // topicCount 获取网关中的主题数量

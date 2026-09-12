@@ -17,11 +17,12 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"netsvr/internal/customer/binder"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // connInfoByCustomerId 获取customerId的连接信息

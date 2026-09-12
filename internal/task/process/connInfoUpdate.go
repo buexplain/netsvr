@@ -17,7 +17,6 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
@@ -25,6 +24,8 @@ import (
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // connInfoUpdate 更新连接的info信息

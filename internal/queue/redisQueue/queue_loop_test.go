@@ -18,14 +18,15 @@ package redisQueue
 
 import (
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	internalMetrics "netsvr/internal/metrics"
 	"netsvr/pkg/quit"
 	"testing"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 )
 
 // TestLoopSendListBatchMode 测试loopSendList的批量发送分支（size < packLimit）

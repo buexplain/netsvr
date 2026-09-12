@@ -17,10 +17,11 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"net"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/objPool"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // uniqIdCount 获取网关中uniqId的数量

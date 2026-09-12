@@ -17,12 +17,13 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // topicPublishBulk 批量发布
@@ -33,48 +34,28 @@ func topicPublishBulk(param []byte) {
 		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.topicPublishBulk failed")
 		return
 	}
-	//当业务进程传递的topics的topic数量只有一个，data的datum数量是一个以上时，网关必须将所有的datum都发送给这个topic
-	if len(payload.Topics) == 1 && len(payload.Data) > 1 {
-		//先根据主题，获得主题下的所有连接
-		connList := topic.Topic.GetConnListByTopic(payload.Topics[0], objPool.ConnSlice)
-		if connList == nil {
-			return
-		}
-		defer objPool.ConnSlice.Put(connList)
-		connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
-		for _, data := range payload.Data {
+	//迭代每一项：本项内每一条数据按顺序发布给本项内每一个主题
+	for _, item := range payload.Items {
+		for _, data := range item.GetData() {
+			//判断数据是否有效
+			if len(data) == 0 {
+				continue
+			}
 			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, data)
-			for _, conn := range connListAlias {
-				msg.WriteTo(conn)
+			for _, currentTopic := range item.GetTopics() {
+				//获得当前主题下的所有连接
+				connList := topic.Topic.GetConnListByTopic(currentTopic, objPool.ConnSlice)
+				if connList == nil {
+					continue
+				}
+				connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
+				for _, conn := range connListAlias {
+					msg.WriteTo(conn)
+				}
+				//将connList归还给内存池
+				objPool.ConnSlice.Put(connList)
 			}
 			customer.FrameObjPool.Put(msg)
-		}
-		return
-	}
-	//当业务进程传递的topics的topic数量与data的datum数量一致时，网关必须将同一下标的datum，发送给同一下标的topic
-	if len(payload.Topics) > 0 && len(payload.Topics) == len(payload.Data) {
-		var index int
-		var currentTopic string
-		//迭代所有的主题
-		for index, currentTopic = range payload.Topics {
-			//判断当前迭代的主题对应的数据是否有效
-			if len(payload.Data[index]) == 0 {
-				continue
-			}
-			//获得当前迭代的主题下的所有uniqId
-			connList := topic.Topic.GetConnListByTopic(currentTopic, objPool.ConnSlice)
-			if connList == nil {
-				continue
-			}
-			connListAlias := *connList //搞个别名，避免循环中解指针，提高性能
-			msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data[index])
-			for _, conn := range connListAlias {
-				//将当前迭代的主题对应的数据写入到该连接
-				msg.WriteTo(conn)
-			}
-			customer.FrameObjPool.Put(msg)
-			//将connList归还给内存池
-			objPool.ConnSlice.Put(connList)
 		}
 	}
 }

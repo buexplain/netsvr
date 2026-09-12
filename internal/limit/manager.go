@@ -19,10 +19,11 @@
 package limit
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"golang.org/x/time/rate"
 	"netsvr/configs"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"golang.org/x/time/rate"
 )
 
 // 数组大小基于协议中最大的 Event 枚举值

@@ -18,12 +18,13 @@ package worker
 
 import (
 	"context"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"google.golang.org/protobuf/proto"
 	"net"
 	internalMetrics "netsvr/internal/metrics"
 	"testing"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // mockNetConn 模拟 net.Conn 用于测试

@@ -19,13 +19,14 @@ package amqp091
 
 import (
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"net/url"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"os"
 	"runtime"
 	"sync"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // 数组大小基于协议中最大的 Event 枚举值

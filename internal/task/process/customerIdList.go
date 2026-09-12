@@ -17,9 +17,10 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"net"
 	"netsvr/internal/customer/binder"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // customerIdList 获取全部的customerId

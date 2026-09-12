@@ -17,8 +17,9 @@
 package objPool
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"sync"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 type uniqIdCountResp struct {

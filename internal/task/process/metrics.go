@@ -17,9 +17,10 @@
 package process
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"net"
 	internalMetrics "netsvr/internal/metrics"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // metrics 返回网关统计的服务状态

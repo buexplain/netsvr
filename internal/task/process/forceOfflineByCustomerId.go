@@ -18,13 +18,14 @@ package process
 
 import (
 	"errors"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/gobwas/ws"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	"netsvr/internal/customer/binder"
 	"netsvr/internal/log"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/gobwas/ws"
+	"google.golang.org/protobuf/proto"
 )
 
 // forceOfflineByCustomerId 将连接强制关闭

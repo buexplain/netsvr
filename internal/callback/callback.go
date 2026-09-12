@@ -20,15 +20,16 @@ package callback
 import (
 	"bytes"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"unsafe"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
+	"google.golang.org/protobuf/proto"
 )
 
 var httpClient *http.Client

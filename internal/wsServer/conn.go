@@ -17,8 +17,9 @@
 package wsServer
 
 import (
-	"github.com/panjf2000/gnet/v2"
 	"net"
+
+	"github.com/panjf2000/gnet/v2"
 )
 
 // Conn 封装gnet.Conn, 添加了Info和Codec

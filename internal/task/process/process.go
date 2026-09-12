@@ -20,10 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
-	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"netsvr/configs"
@@ -31,6 +27,11 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/byteslice"
+	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
+	"google.golang.org/protobuf/proto"
 )
 
 type GetCallback func(data []byte, taskConn net.Conn)
@@ -43,14 +44,9 @@ var getCallback map[netsvrProtocol.Cmd]GetCallback
 func init() {
 	postNonBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
 		netsvrProtocol.Cmd_TopicPublishBulk:           topicPublishBulk,
-		netsvrProtocol.Cmd_SingleCastByCustomerId:     singleCastByCustomerId,
 		netsvrProtocol.Cmd_SingleCastBulk:             singleCastBulk,
 		netsvrProtocol.Cmd_SingleCastBulkByCustomerId: singleCastBulkByCustomerId,
-		netsvrProtocol.Cmd_Broadcast:                  broadcast,
-		netsvrProtocol.Cmd_Multicast:                  multicast,
-		netsvrProtocol.Cmd_TopicPublish:               topicPublish,
-		netsvrProtocol.Cmd_SingleCast:                 singleCast,
-		netsvrProtocol.Cmd_MulticastByCustomerId:      multicastByCustomerId,
+		netsvrProtocol.Cmd_BroadcastBulk:              broadcastBulk,
 	}
 	postBlockingCallback = map[netsvrProtocol.Cmd]PostCallback{
 		netsvrProtocol.Cmd_ConnInfoUpdate:           connInfoUpdate,

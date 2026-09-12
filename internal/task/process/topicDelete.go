@@ -17,13 +17,14 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	customerTopic "netsvr/internal/customer/topic"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
 	"netsvr/internal/wsServer"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // topicDelete 删除主题

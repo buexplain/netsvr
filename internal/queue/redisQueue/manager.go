@@ -20,13 +20,14 @@ package redisQueue
 import (
 	"context"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/redis/go-redis/v9"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/redis/go-redis/v9"
 )
 
 // 数组大小基于协议中最大的 Event 枚举值

@@ -17,30 +17,31 @@
 package objPool
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"sync"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
-type singleCast struct {
+type broadcastBulk struct {
 	pool *sync.Pool
 }
 
-var SingleCast *singleCast
+var BroadcastBulk *broadcastBulk
 
-func (r *singleCast) Get() *netsvrProtocol.SingleCast {
-	return r.pool.Get().(*netsvrProtocol.SingleCast)
+func (r *broadcastBulk) Get() *netsvrProtocol.BroadcastBulk {
+	return r.pool.Get().(*netsvrProtocol.BroadcastBulk)
 }
 
-func (r *singleCast) Put(singleCast *netsvrProtocol.SingleCast) {
-	singleCast.Reset()
-	r.pool.Put(singleCast)
+func (r *broadcastBulk) Put(broadcastBulk *netsvrProtocol.BroadcastBulk) {
+	broadcastBulk.Reset()
+	r.pool.Put(broadcastBulk)
 }
 
 func init() {
-	SingleCast = &singleCast{
+	BroadcastBulk = &broadcastBulk{
 		pool: &sync.Pool{
 			New: func() any {
-				return &netsvrProtocol.SingleCast{}
+				return &netsvrProtocol.BroadcastBulk{}
 			},
 		},
 	}

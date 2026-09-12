@@ -17,36 +17,42 @@
 package process
 
 import (
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/customer"
 	customerManager "netsvr/internal/customer/manager"
 	"netsvr/internal/log"
 	"netsvr/internal/objPool"
+
+	"google.golang.org/protobuf/proto"
 )
 
-// broadcast 广播
-func broadcast(param []byte) {
-	payload := objPool.Broadcast.Get()
-	defer objPool.Broadcast.Put(payload)
+// broadcastBulk 批量广播
+func broadcastBulk(param []byte) {
+	payload := objPool.BroadcastBulk.Get()
+	defer objPool.BroadcastBulk.Put(payload)
 	if err := proto.Unmarshal(param, payload); err != nil {
-		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.broadcast failed")
+		log.Logger.Error().Err(err).Msg("Proto unmarshal netsvrProtocol.broadcastBulk failed")
 		return
 	}
 	if len(payload.Data) == 0 {
 		return
 	}
-	msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, payload.Data)
-	defer customer.FrameObjPool.Put(msg)
 	//取出所有的连接
 	connections := customerManager.Manager.GetConnections(objPool.ConnSlice)
 	if connections == nil {
 		return
 	}
 	defer objPool.ConnSlice.Put(connections)
-	//循环所有的连接，挨个发送出去
 	connectionsAlias := *connections //搞个别名，避免循环中解指针，提高性能
-	for _, conn := range connectionsAlias {
-		msg.WriteTo(conn)
+	//按顺序依次将每一条数据广播给全部连接
+	for _, data := range payload.Data {
+		if len(data) == 0 {
+			continue
+		}
+		msg := customer.FrameObjPool.Get(configs.Config.Customer.SendMessageType, data)
+		for _, conn := range connectionsAlias {
+			msg.WriteTo(conn)
+		}
+		customer.FrameObjPool.Put(msg)
 	}
 }

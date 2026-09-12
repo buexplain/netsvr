@@ -17,11 +17,12 @@
 package worker
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"math/rand/v2"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	"sync"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // 数组大小基于协议中最大的 Event 枚举值

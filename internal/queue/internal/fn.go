@@ -18,11 +18,12 @@ package internal
 
 import (
 	"encoding/binary"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"netsvr/configs"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"github.com/gobwas/ws"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
-	"netsvr/configs"
 )
 
 func FormatSendToBusinessData(cmdBytes []byte, body []byte, event *zerolog.Event) *zerolog.Event {

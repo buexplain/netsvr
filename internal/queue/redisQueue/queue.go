@@ -20,10 +20,6 @@ package redisQueue
 import (
 	"errors"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 	"netsvr/configs"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
@@ -32,6 +28,11 @@ import (
 	"netsvr/pkg/quit"
 	"sync/atomic"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 )
 
 // Queue Redis队列

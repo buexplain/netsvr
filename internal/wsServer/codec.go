@@ -22,15 +22,16 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"github.com/gobwas/httphead"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsflate"
-	"github.com/panjf2000/gnet/v2"
 	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"unicode/utf8"
+
+	"github.com/gobwas/httphead"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsflate"
+	"github.com/panjf2000/gnet/v2"
 )
 
 type codec struct {

@@ -17,12 +17,13 @@
 package wsServer
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/configs"
 	"netsvr/internal/wsServer/uniqIdGen"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 // info 保持客户连接的信息的结构体

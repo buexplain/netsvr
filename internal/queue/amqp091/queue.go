@@ -20,15 +20,16 @@ import (
 	"netsvr/configs"
 	"sync/atomic"
 
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"google.golang.org/protobuf/proto"
 	"netsvr/internal/log"
 	internalMetrics "netsvr/internal/metrics"
 	"netsvr/internal/queue/internal"
 	"netsvr/pkg/queue"
 	"time"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	"github.com/panjf2000/gnet/v2/pkg/pool/goroutine"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"google.golang.org/protobuf/proto"
 )
 
 // Queue AMQP队列
