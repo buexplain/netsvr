@@ -17,9 +17,9 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
@@ -50,14 +50,14 @@ func init() {
 func (r topic) RequestTopicCount(tf *netsvrProtocol.Transfer, _ string) {
 	resp := netBus.NetBus.TopicCount()
 	msg := map[string]interface{}{"count": resp.Count()}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCount, map[string]interface{}{"code": 0, "message": "获取网关中的主题数量成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCount, map[string]interface{}{"code": 0, "message": "获取网关中的主题数量成功", "data": msg}))
 }
 
 // RequestTopicList 获取网关中的主题
 func (topic) RequestTopicList(tf *netsvrProtocol.Transfer, _ string) {
 	resp := netBus.NetBus.TopicList()
 	msg := map[string]interface{}{"topics": resp.Data}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicList, map[string]interface{}{"code": 0, "message": "获取网关中的主题成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicList, map[string]interface{}{"code": 0, "message": "获取网关中的主题成功", "data": msg}))
 }
 
 // TopicUniqIdCountParam 获取网关中的某几个主题的连接数
@@ -73,9 +73,14 @@ func (topic) RequestTopicUniqIdCount(tf *netsvrProtocol.Transfer, param string) 
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse TopicUniqIdCountParam failed")
 		return
 	}
-	resp := netBus.NetBus.TopicUniqIdCount(payload.Topics, payload.CountAll)
+	//CountAll 为 true 时传空 topics，网关会统计全部主题
+	var topics []string
+	if !payload.CountAll {
+		topics = payload.Topics
+	}
+	resp := netBus.NetBus.TopicUniqIdCount(topics)
 	//将结果单播给客户端
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicUniqIdCount, map[string]interface{}{"code": 0, "message": "获取网关中主题的连接数成功", "data": resp.Data}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicUniqIdCount, map[string]interface{}{"code": 0, "message": "获取网关中主题的连接数成功", "data": resp.Data}))
 }
 
 type TopicUniqIdListParam struct {
@@ -92,7 +97,7 @@ func (topic) RequestTopicUniqIdList(tf *netsvrProtocol.Transfer, param string) {
 	}
 	resp := netBus.NetBus.TopicUniqIdList(payload.Topics)
 	//将结果单播给客户端
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicUniqIdList, map[string]interface{}{"code": 0, "message": "获取网关中的主题的uniqId成功", "data": resp.Data}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicUniqIdList, map[string]interface{}{"code": 0, "message": "获取网关中的主题的uniqId成功", "data": resp.Data}))
 }
 
 // RequestTopicCustomerListParam 获取网关中某几个主题的customerId
@@ -112,7 +117,7 @@ func (topic) RequestTopicCustomerList(tf *netsvrProtocol.Transfer, param string)
 	msg := map[string]interface{}{
 		"list": resp.Data,
 	}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdList, map[string]interface{}{"code": 0, "message": "获取主题的customerId成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdList, map[string]interface{}{"code": 0, "message": "获取主题的customerId成功", "data": msg}))
 }
 
 // RequestTopicCustomerIdToUniqIdsListParam 获取网关中某几个主题的customerId以及对应的uniqId列表
@@ -132,7 +137,7 @@ func (topic) RequestTopicCustomerIdToUniqIdsList(tf *netsvrProtocol.Transfer, pa
 	msg := map[string]interface{}{
 		"list": resp.Data,
 	}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdToUniqIdsList, map[string]interface{}{"code": 0, "message": "获取主题的customerId以及对应的uniqId列表成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdToUniqIdsList, map[string]interface{}{"code": 0, "message": "获取主题的customerId以及对应的uniqId列表成功", "data": msg}))
 }
 
 // RequestTopicCustomerCountParam 获取网关中某几个主题的customerId
@@ -147,12 +152,12 @@ func (topic) RequestTopicCustomerCount(tf *netsvrProtocol.Transfer, param string
 		log.Logger.Error().Err(err).Str("param", param).Msg("Parse RequestTopicCustomerCountParam failed")
 		return
 	}
-	resp := netBus.NetBus.TopicCustomerIdCount(payload.Topics, false)
+	resp := netBus.NetBus.TopicCustomerIdCount(payload.Topics)
 	//将结果单播给客户端
 	msg := map[string]interface{}{
 		"list": resp.Data,
 	}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdCount, map[string]interface{}{"code": 0, "message": "获取主题的customerId数量成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterTopicCustomerIdCount, map[string]interface{}{"code": 0, "message": "获取主题的customerId数量成功", "data": msg}))
 }
 
 // TopicSubscribeParam 客户端发送的订阅信息
@@ -216,7 +221,7 @@ func (topic) RequestTopicPublish(tf *netsvrProtocol.Transfer, param string) {
 		fromUser = currentUser.Name
 	}
 	msg := map[string]interface{}{"fromUser": fromUser, "message": target.Message}
-	netBus.NetBus.TopicPublish(target.Topics, testUtils.NewResponse(protocol.RouterTopicPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	netBus.NetBus.PublishToTopics(target.Topics, testUtils.NewResponse(protocol.RouterTopicPublish, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }
 
 // TopicPublishBulkParam 客户端发送的批量发布信息
@@ -240,13 +245,25 @@ func (topic) RequestTopicPublishBulk(tf *netsvrProtocol.Transfer, param string) 
 	} else {
 		fromUser = currentUser.Name
 	}
-	bulkData := make([][]byte, 0, len(target.Message))
-	for _, data := range target.Message {
+	items := make([]*netsvrProtocol.TopicPublishBulkItem, 0, len(target.Message))
+	for index, data := range target.Message {
+		//单个主题时，所有消息都发给该主题；否则按顺序一一对应
+		var topics []string
+		if len(target.Topics) == 1 {
+			topics = target.Topics
+		} else if index < len(target.Topics) {
+			topics = []string{target.Topics[index]}
+		} else {
+			break
+		}
 		//这里message拼接上topic，方便界面上识别
 		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
-		bulkData = append(bulkData, testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+		items = append(items, &netsvrProtocol.TopicPublishBulkItem{
+			Topics: topics,
+			Data:   [][]byte{testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})},
+		})
 	}
-	netBus.NetBus.TopicPublishBulk(target.Topics, bulkData)
+	netBus.NetBus.TopicPublishBulk(items)
 }
 
 // TopicDeleteParam 客户端发送要删除的主题

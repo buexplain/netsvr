@@ -19,12 +19,13 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
+
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 type singleCastBulk struct{}
@@ -56,18 +57,35 @@ func (singleCastBulk) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	} else {
 		fromUser = currentUser.Name
 	}
-	//构建批量单播数据
-	bulkData := make([][]byte, 0, len(payload.UniqIds))
-	for _, data := range payload.Message {
+	//按 uniqId 归集数据后构建批量单播的 items
+	itemData := make(map[string][][]byte)
+	var itemOrder []string
+	for index, data := range payload.Message {
 		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
-		bulkData = append(bulkData, testUtils.NewResponse(protocol.RouterSingleCastBulk, map[string]interface{}{
+		//单个uniqId时，所有消息都发给该uniqId；否则按顺序一一对应
+		var uniqId string
+		if len(payload.UniqIds) == 1 {
+			uniqId = payload.UniqIds[0]
+		} else if index < len(payload.UniqIds) {
+			uniqId = payload.UniqIds[index]
+		} else {
+			break
+		}
+		if _, ok := itemData[uniqId]; !ok {
+			itemOrder = append(itemOrder, uniqId)
+		}
+		itemData[uniqId] = append(itemData[uniqId], testUtils.NewResponse(protocol.RouterSingleCastBulk, map[string]interface{}{
 			"code":    0,
 			"message": "收到一条信息",
 			"data":    msg,
 		}))
 	}
+	items := make([]*netsvrProtocol.SingleCastBulkItem, 0, len(itemOrder))
+	for _, uniqId := range itemOrder {
+		items = append(items, &netsvrProtocol.SingleCastBulkItem{UniqIds: []string{uniqId}, Data: itemData[uniqId]})
+	}
 	//发到网关
-	netBus.NetBus.SingleCastBulk(payload.UniqIds, bulkData)
+	netBus.NetBus.SingleCastBulk(items)
 }
 
 // SingleCastBulkByCustomerIdParam 客户端发送的单播信息
@@ -90,12 +108,29 @@ func (singleCastBulk) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 	} else {
 		fromUser = currentUser.Name
 	}
-	//构建批量单播数据
-	bulkData := make([][]byte, 0, len(payload.Message))
-	for _, data := range payload.Message {
+	//按 customerId 归集数据后构建批量单播的 items
+	itemData := make(map[string][][]byte)
+	var itemOrder []string
+	for index, data := range payload.Message {
 		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
-		bulkData = append(bulkData, testUtils.NewResponse(protocol.RouterSingleCastBulkByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+		//单个customerId时，所有消息都发给该customerId；否则按顺序一一对应
+		var customerId string
+		if len(payload.CustomerIds) == 1 {
+			customerId = payload.CustomerIds[0]
+		} else if index < len(payload.CustomerIds) {
+			customerId = payload.CustomerIds[index]
+		} else {
+			break
+		}
+		if _, ok := itemData[customerId]; !ok {
+			itemOrder = append(itemOrder, customerId)
+		}
+		itemData[customerId] = append(itemData[customerId], testUtils.NewResponse(protocol.RouterSingleCastBulkByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	}
+	items := make([]*netsvrProtocol.SingleCastBulkByCustomerIdItem, 0, len(itemOrder))
+	for _, customerId := range itemOrder {
+		items = append(items, &netsvrProtocol.SingleCastBulkByCustomerIdItem{CustomerIds: []string{customerId}, Data: itemData[customerId]})
 	}
 	//发到网关
-	netBus.NetBus.SingleCastBulkByCustomerId(payload.CustomerIds, bulkData)
+	netBus.NetBus.SingleCastBulkByCustomerId(items)
 }

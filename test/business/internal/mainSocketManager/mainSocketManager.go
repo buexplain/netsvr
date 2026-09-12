@@ -1,13 +1,14 @@
 package mainSocketManager
 
 import (
-	"github.com/buexplain/netsvr-business-go/v2/contract"
-	"github.com/buexplain/netsvr-business-go/v2/mainSocket"
-	"github.com/buexplain/netsvr-business-go/v2/socket"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/configs"
 	"netsvr/test/business/internal/cmd"
 	"time"
+
+	"github.com/buexplain/netsvr-business-go/v3/contract"
+	"github.com/buexplain/netsvr-business-go/v3/mainSocket"
+	"github.com/buexplain/netsvr-business-go/v3/socket"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 )
 
 var MainSocketManager *mainSocket.Manager

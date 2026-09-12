@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
 	"netsvr/test/pkg/protocol"
@@ -42,7 +42,7 @@ func (connSwitch) ConnOpen(payload *netsvrProtocol.ConnOpen) {
 		},
 	})
 	//发送到网关
-	netBus.NetBus.SingleCast(payload.UniqId, data)
+	netBus.NetBus.SendToUniqId(payload.UniqId, data)
 }
 
 // ConnClose 客户端关闭连接

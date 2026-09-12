@@ -17,8 +17,8 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
@@ -47,5 +47,5 @@ func (checkOnline) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	}
 	resp := netBus.NetBus.CheckOnline(payload.UniqIds)
 	//将结果单播给客户端
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterCheckOnline, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.Data}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterCheckOnline, map[string]interface{}{"code": 0, "message": "检查某几个连接是否在线成功", "data": resp.Data}))
 }

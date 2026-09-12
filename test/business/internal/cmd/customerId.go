@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -39,7 +39,7 @@ func (customerId) RequestList(tf *netsvrProtocol.Transfer, _ string) {
 	msg := map[string]interface{}{
 		"customerIds": resp.Data,
 	}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterCustomerIdList, map[string]interface{}{"code": 0, "message": "获取网关所有的customerId成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterCustomerIdList, map[string]interface{}{"code": 0, "message": "获取网关所有的customerId成功", "data": msg}))
 }
 
 // RequestCount 获取网关中customerId的数量
@@ -49,5 +49,5 @@ func (customerId) RequestCount(tf *netsvrProtocol.Transfer, _ string) {
 	msg := map[string]interface{}{
 		"count": resp.Data,
 	}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterCustomerIdCount, map[string]interface{}{"code": 0, "message": "获取网关中customerId的数量成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterCustomerIdCount, map[string]interface{}{"code": 0, "message": "获取网关中customerId的数量成功", "data": msg}))
 }

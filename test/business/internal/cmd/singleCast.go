@@ -17,9 +17,9 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
 	"fmt"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
@@ -58,7 +58,7 @@ func (singleCast) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 		fromUser = currentUser.Name
 	}
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
-	netBus.NetBus.SingleCastByCustomerId(payload.CustomerId, testUtils.NewResponse(protocol.RouterSingleCastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	netBus.NetBus.SendToCustomerId(payload.CustomerId, testUtils.NewResponse(protocol.RouterSingleCastByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }
 
 // SingleCastParam 客户端发送的单播信息
@@ -84,5 +84,5 @@ func (singleCast) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	//构建单播数据
 	msg := map[string]interface{}{"fromUser": fromUser, "message": payload.Message}
 	//发到网关
-	netBus.NetBus.SingleCast(payload.UniqId, testUtils.NewResponse(protocol.RouterSingleCast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
+	netBus.NetBus.SendToUniqId(payload.UniqId, testUtils.NewResponse(protocol.RouterSingleCast, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 }

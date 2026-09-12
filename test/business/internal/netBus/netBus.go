@@ -1,10 +1,11 @@
 package netBus
 
 import (
-	netsvrBusiness "github.com/buexplain/netsvr-business-go/v2"
-	"github.com/buexplain/netsvr-business-go/v2/taskSocket"
 	"netsvr/test/business/configs"
 	"time"
+
+	netsvrBusiness "github.com/buexplain/netsvr-business-go/v3"
+	"github.com/buexplain/netsvr-business-go/v3/taskSocket"
 )
 
 var NetBus *netsvrBusiness.NetBus

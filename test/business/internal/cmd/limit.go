@@ -17,8 +17,8 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
@@ -53,7 +53,7 @@ func (limit) Request(tf *netsvrProtocol.Transfer, param string) {
 	req.OnMessage = payload.OnMessage
 	resp := netBus.NetBus.Limit(&req, "")
 	//将结果单播给客户端
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterLimit, map[string]interface{}{
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterLimit, map[string]interface{}{
 		"code":    0,
 		"message": "获取网关中的限流配置的真实情况成功",
 		"data":    resp.Data,

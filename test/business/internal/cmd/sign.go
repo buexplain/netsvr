@@ -17,8 +17,8 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/business/internal/userDb"
@@ -107,14 +107,14 @@ func (sign) SignIn(tf *netsvrProtocol.Transfer, param string) {
 	}
 	//校验参数
 	if login.Username == "" || login.Password == "" {
-		netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "请输入账号、密码", "data": nil}))
+		netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "请输入账号、密码", "data": nil}))
 		return
 	}
 	//查找用户
 	user := userDb.Collect.GetUser(login.Username)
 	//校验账号密码，判断是否登录成功
 	if user == nil || user.Password != login.Password {
-		netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误", "data": nil}))
+		netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterSignIn, map[string]interface{}{"code": 1, "message": "登录失败，账号或密码错误", "data": nil}))
 		return
 	}
 	//将当前登录信息存储到网关

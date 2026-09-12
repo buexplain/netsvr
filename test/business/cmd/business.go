@@ -23,11 +23,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	_ "github.com/buexplain/netsvr-business-go/v2"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 	"html/template"
 	"io"
 	"net"
@@ -45,6 +40,12 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	_ "github.com/buexplain/netsvr-business-go/v3"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 )
 
 func main() {
@@ -59,9 +60,9 @@ func main() {
 		if mainSocketManager.MainSocketManager.Start() == false {
 			log.Logger.Error().Msg("注册到worker服务器失败")
 			os.Exit(1)
-		} else {
-			log.Logger.Debug().Msg("注册到worker服务器成功")
 		}
+
+		log.Logger.Debug().Msg("注册到worker服务器成功")
 	}
 	//处理关闭信号
 	quit.Wg.Add(1)

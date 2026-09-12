@@ -17,7 +17,7 @@
 package cmd
 
 import (
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
 	testUtils "netsvr/test/pkg/utils"
@@ -87,5 +87,5 @@ func (metrics) Request(tf *netsvrProtocol.Transfer, _ string) {
 	sort.Slice(data, func(i, j int) bool {
 		return data[i].sortBy < data[j].sortBy
 	})
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的信息成功", "data": data}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterMetrics, map[string]interface{}{"code": 0, "message": "获取网关状态的信息成功", "data": data}))
 }

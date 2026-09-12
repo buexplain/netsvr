@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
-	"github.com/buexplain/netsvr-business-go/v2/contract"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
+	"github.com/buexplain/netsvr-business-go/v3/contract"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
@@ -27,7 +27,7 @@ func (e eventHandler) OnOpen(connOpen *netsvrProtocol.ConnOpen) {
 func (e eventHandler) OnMessage(transfer *netsvrProtocol.Transfer) {
 	//如果开始与结尾的字符不是花括号，说明不是有效的json字符串，则把数据原样echo回去
 	if l := len(transfer.Data); l > 0 && (transfer.Data[0] == 123 && transfer.Data[l-1] == 125) == false {
-		netBus.NetBus.SingleCast(transfer.UniqId, transfer.Data)
+		netBus.NetBus.SendToUniqId(transfer.UniqId, transfer.Data)
 		return
 	}
 	clientRoute := new(protocol.ClientRouter)

@@ -17,8 +17,8 @@
 package cmd
 
 import (
+	"github.com/buexplain/netsvr-protocol-go/v7/netsvrProtocol"
 	"encoding/json"
-	"github.com/buexplain/netsvr-protocol-go/v6/netsvrProtocol"
 	"netsvr/test/business/internal/log"
 	"netsvr/test/business/internal/netBus"
 	"netsvr/test/pkg/protocol"
@@ -38,7 +38,7 @@ func init() {
 func (connInfo) RequestConnInfo(tf *netsvrProtocol.Transfer, _ string) {
 	resp := netBus.NetBus.ConnInfo([]string{tf.UniqId}, true, true, true)
 	msg := map[string]interface{}{"connInfo": resp.Data}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfo, map[string]interface{}{"code": 0, "message": "获取我的连接信息成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfo, map[string]interface{}{"code": 0, "message": "获取我的连接信息成功", "data": msg}))
 }
 
 // ConnInfoByCustomerIdParam 强制踢下线某个用户
@@ -55,5 +55,5 @@ func (connInfo) RequestConnInfoByCustomerId(tf *netsvrProtocol.Transfer, param s
 	}
 	resp := netBus.NetBus.ConnInfoByCustomerId(payload.CustomerIds, true, true, true)
 	msg := map[string]interface{}{"connInfo": resp.Data}
-	netBus.NetBus.SingleCast(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfoByCustomerId, map[string]interface{}{"code": 0, "message": "获取customerId的连接信息成功", "data": msg}))
+	netBus.NetBus.SendToUniqId(tf.UniqId, testUtils.NewResponse(protocol.RouterConnInfoByCustomerId, map[string]interface{}{"code": 0, "message": "获取customerId的连接信息成功", "data": msg}))
 }
