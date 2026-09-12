@@ -5,8 +5,8 @@ go 1.25.0
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/antlabs/timer v0.1.4
-	github.com/buexplain/netsvr-business-go/v2 v2.0.3
-	github.com/buexplain/netsvr-protocol-go/v6 v6.0.1
+	github.com/buexplain/netsvr-business-go/v3 v3.0.0
+	github.com/buexplain/netsvr-protocol-go/v7 v7.0.0
 	github.com/gobwas/httphead v0.1.0
 	github.com/gobwas/ws v1.4.0
 	github.com/google/gops v0.3.29
