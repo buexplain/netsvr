@@ -256,11 +256,15 @@ func (topic) RequestTopicPublishBulk(tf *netsvrProtocol.Transfer, param string) 
 		} else {
 			break
 		}
-		//这里message拼接上topic，方便界面上识别
-		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
+		//空消息按空数据下发，网关会跳过零长度的数据项
+		var body []byte
+		if data != "" {
+			msg := map[string]interface{}{"fromUser": fromUser, "message": data}
+			body = testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})
+		}
 		items = append(items, &netsvrProtocol.TopicPublishBulkItem{
 			Topics: topics,
-			Data:   [][]byte{testUtils.NewResponse(protocol.RouterTopicPublishBulk, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg})},
+			Data:   [][]byte{body},
 		})
 	}
 	netBus.NetBus.TopicPublishBulk(items)

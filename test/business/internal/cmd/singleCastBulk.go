@@ -61,7 +61,6 @@ func (singleCastBulk) UniqId(tf *netsvrProtocol.Transfer, param string) {
 	itemData := make(map[string][][]byte)
 	var itemOrder []string
 	for index, data := range payload.Message {
-		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		//单个uniqId时，所有消息都发给该uniqId；否则按顺序一一对应
 		var uniqId string
 		if len(payload.UniqIds) == 1 {
@@ -74,6 +73,12 @@ func (singleCastBulk) UniqId(tf *netsvrProtocol.Transfer, param string) {
 		if _, ok := itemData[uniqId]; !ok {
 			itemOrder = append(itemOrder, uniqId)
 		}
+		//空消息按空数据下发，网关会跳过零长度的数据项
+		if data == "" {
+			itemData[uniqId] = append(itemData[uniqId], nil)
+			continue
+		}
+		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		itemData[uniqId] = append(itemData[uniqId], testUtils.NewResponse(protocol.RouterSingleCastBulk, map[string]interface{}{
 			"code":    0,
 			"message": "收到一条信息",
@@ -112,7 +117,6 @@ func (singleCastBulk) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 	itemData := make(map[string][][]byte)
 	var itemOrder []string
 	for index, data := range payload.Message {
-		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		//单个customerId时，所有消息都发给该customerId；否则按顺序一一对应
 		var customerId string
 		if len(payload.CustomerIds) == 1 {
@@ -125,6 +129,12 @@ func (singleCastBulk) CustomerId(tf *netsvrProtocol.Transfer, param string) {
 		if _, ok := itemData[customerId]; !ok {
 			itemOrder = append(itemOrder, customerId)
 		}
+		//空消息按空数据下发，网关会跳过零长度的数据项
+		if data == "" {
+			itemData[customerId] = append(itemData[customerId], nil)
+			continue
+		}
+		msg := map[string]interface{}{"fromUser": fromUser, "message": data}
 		itemData[customerId] = append(itemData[customerId], testUtils.NewResponse(protocol.RouterSingleCastBulkByCustomerId, map[string]interface{}{"code": 0, "message": "收到一条信息", "data": msg}))
 	}
 	items := make([]*netsvrProtocol.SingleCastBulkByCustomerIdItem, 0, len(itemOrder))

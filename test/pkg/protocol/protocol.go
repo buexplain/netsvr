@@ -52,6 +52,7 @@ const (
 	RouterMulticast
 	RouterMulticastByCustomerId
 	RouterBroadcast
+	RouterBroadcastBulk
 	RouterTopicSubscribe
 	RouterTopicUnsubscribe
 	RouterTopicDelete
@@ -92,6 +93,7 @@ var CmdName = map[Cmd]string{
 	RouterMulticast:                    "RouterMulticast",                    //组播给多个uniqId
 	RouterMulticastByCustomerId:        "RouterMulticastByCustomerId",        //组播给多个customerId
 	RouterBroadcast:                    "RouterBroadcast",                    //广播给所有用户
+	RouterBroadcastBulk:                "RouterBroadcastBulk",                //批量广播给所有用户
 	RouterTopicSubscribe:               "RouterTopicSubscribe",               //订阅
 	RouterTopicUnsubscribe:             "RouterTopicUnsubscribe",             //取消订阅
 	RouterTopicDelete:                  "RouterTopicDelete",                  //删除主题

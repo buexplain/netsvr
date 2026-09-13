@@ -386,6 +386,25 @@
             <button onclick="send(this,routerCmd.broadcast)">广播</button>
         </div>
 
+        <div class="case line-center">
+            <div class="m-r-5">
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要广播的信息"
+                           value="我是一条批量广播信息1">
+                </label>
+                <br>
+                <label>
+                    <input class="input-max" type="text" name="message[]" data-processor="processorToString"
+                           placeholder="请输入要广播的信息"
+                           value="我是一条批量广播信息2">
+                </label>
+            </div>
+            <button onclick="send(this,routerCmd.broadcastBulk)"
+                    title="将多条消息按顺序广播给全部连接">批量广播
+            </button>
+        </div>
+
         <div class="case">
             <label>
                 <input class="input-max" type="text" name="topics" data-processor="processorToStringArr"
@@ -511,6 +530,7 @@
         multicast: parseInt("{!.RouterMulticast!}"), //组播给多个uniqId
         multicastByCustomerId: parseInt("{!.RouterMulticastByCustomerId!}"), //组播给多个customerId
         broadcast: parseInt("{!.RouterBroadcast!}"), //广播
+        broadcastBulk: parseInt("{!.RouterBroadcastBulk!}"), //批量广播
         topicSubscribe: parseInt("{!.RouterTopicSubscribe!}"), //订阅
         topicUnsubscribe: parseInt("{!.RouterTopicUnsubscribe!}"), //取消订阅
         topicDelete: parseInt("{!.RouterTopicDelete!}"), //删除主题
@@ -867,6 +887,7 @@
                     || resp.cmd === routerCmd.multicast
                     || resp.cmd === routerCmd.multicastByCustomerId
                     || resp.cmd === routerCmd.broadcast
+                    || resp.cmd === routerCmd.broadcastBulk
                     || resp.cmd === routerCmd.topicPublish
                     || resp.cmd === routerCmd.topicPublishBulk
                 ) {

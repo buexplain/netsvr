@@ -1,0 +1,52 @@
+# 集成测试专用网关配置。
+# 端口与 test/integration/harness_test.go 里的 customerAddr/workerAddr/taskAddr 常量必须保持一致。
+# 这里刻意与开发默认配置（6060/6061/6062）错开，避免和本机正在运行的网关互相干扰。
+LogLevel = "warn"
+# 空字符串表示输出到控制台，由测试进程收集
+LogFile = ""
+ShutdownWaitTime = "2s"
+# 集成测试不需要 gops/pprof
+PprofListenAddress = ""
+Autobahn = false
+
+# 限流器：0 表示不启用。这里刻意配成非 0，因为以 0 启动的网关用的是空壳限流器，
+# 之后再下发限流配置不会生效，限流的读写就无从验证。数值取得足够大，不会影响其它用例。
+[Limit]
+OnOpen = 10000
+OnMessage = 50000
+
+[Customer]
+# 0 表示 gnet 使用默认的单个引擎，减少资源占用
+Multicore = 0
+ListenAddress = "127.0.0.1:6160"
+HandlePattern = "/netsvr"
+AllowOrigin = []
+HeartbeatInterval = "120s"
+MaxOnlineNum = 100000
+ReceivePackLimit = 2097152
+SendMessageType = 1
+HeartbeatMessage = "~6YOt5rW35piO~"
+CompressionLevel = 0
+LimitWindowSize = "1s"
+LimitWindowMaxRequests = 100
+LimitZeroWindowMaxRequests = 1000
+
+[Worker]
+ListenAddress = "127.0.0.1:6161"
+ReadDeadline = "120s"
+SendDeadline = "10s"
+ReceivePackLimit = 2097152
+ReadBufferSize = 4096
+SendChanCap = 1024
+HeartbeatMessage = "~6YOt5rW35piO~"
+
+[Task]
+ListenAddress = "127.0.0.1:6162"
+ReadDeadline = "120s"
+SendDeadline = "10s"
+ReceivePackLimit = 2097152
+ReadBufferSize = 65536
+HeartbeatMessage = "~6YOt5rW35piO~"
+
+[Metrics]
+Item = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]

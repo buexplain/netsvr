@@ -2,6 +2,8 @@
 *netsvr.toml
 *business.toml
 *stress.toml
+# 上三条是为了避免把真实部署配置提交进仓库；集成测试的固定夹具配置需要入库
+!test/integration/configs/*.toml
 build
 netSvr.log
 rsa.cert

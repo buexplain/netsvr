@@ -1,0 +1,20 @@
+# 集成测试专用业务进程配置。
+# 端口与 test/integration/configs/netsvr.toml 必须一致。
+# Service = worker：业务进程以 worker 的长连接接入网关，事件的收发都走这条连接，
+# 与手工测试页（test/business/assets/client.html）使用的模式完全一致。
+LogLevel = "warn"
+Service = "worker"
+# 业务进程注册到网关 worker 服务的地址
+WorkerListenAddress = "127.0.0.1:6161"
+# 业务进程向网关 task 服务发起请求的地址
+TaskListenAddress = "127.0.0.1:6162"
+# 手工测试页（client.html）的 http 服务监听地址，自动化用例不需要它，保留是为了同环境下手动复核
+ClientListenAddress = "127.0.0.1:6164"
+# 客户连接网关的 websocket 地址（手工测试页会用它作为默认连接地址）
+CustomerWsAddress = "ws://127.0.0.1:6160/netsvr"
+# 客户端 websocket 发送的心跳消息
+CustomerHeartbeatMessage = "~6YOt5rW35piO~"
+# 业务进程向网关的 worker 服务器发送的心跳消息
+WorkerHeartbeatMessage = "~6YOt5rW35piO~"
+# 业务进程向网关的 task 服务器发送的心跳消息
+TaskHeartbeatMessage = "~6YOt5rW35piO~"
