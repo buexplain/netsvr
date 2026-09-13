@@ -29,7 +29,7 @@ var RootPath string
 func init() {
 	dir, err := os.Getwd()
 	if err != nil {
-		slog.Error("GetCustomerIds process working directory failed：%s", err)
+		slog.Error("Get current working directory failed", "error", err)
 		os.Exit(1)
 	}
 	RootPath = strings.TrimSuffix(filepath.ToSlash(dir), "/") + "/"
