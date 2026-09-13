@@ -41,7 +41,9 @@ type UniqIdListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关包含的uniqId
+	// 当前网关中全部的uniqId
+	// 单网关部署：结果即为全部在线连接
+	// 多网关部署：一个连接只属于一个网关，各网关返回的列表直接合并即为全部在线连接，不会重复
 	UniqIds []string `protobuf:"bytes,1,rep,name=uniqIds,proto3" json:"uniqIds,omitempty"`
 }
 

@@ -41,7 +41,9 @@ type ConnInfoByCustomerIdResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// key是customerId,value是其在网关中存储的数据
+	// key是customerId，value是其在当前网关中的连接信息
+	// 单网关部署：结果即为命中的全部连接信息
+	// 多网关部署：同一个客户可能有多台设备分别连接到不同网关，把各网关返回的同一customerId的连接列表合并，才是该客户的全部连接
 	Items map[string]*ConnInfoByCustomerIdRespItems `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

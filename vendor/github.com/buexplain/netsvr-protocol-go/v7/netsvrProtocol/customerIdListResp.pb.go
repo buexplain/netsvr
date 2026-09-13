@@ -41,7 +41,9 @@ type CustomerIdListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关包含的customerId
+	// 当前网关中全部去重后的customerId
+	// 单网关部署：结果即为全部在线customerId
+	// 多网关部署：同一个客户可能有多台设备分别连接到不同网关，各网关返回的列表合并后需要去重，去重结果才等于全部在线customerId
 	CustomerIds []string `protobuf:"bytes,1,rep,name=customerIds,proto3" json:"customerIds,omitempty"`
 }
 

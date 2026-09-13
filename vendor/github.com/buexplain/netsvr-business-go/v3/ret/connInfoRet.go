@@ -29,9 +29,19 @@ type ConnInfoRet struct {
 func (c *ConnInfoRet) ToMap() map[string]*netsvrProtocol.ConnInfoRespItem {
 	ret := make(map[string]*netsvrProtocol.ConnInfoRespItem)
 	for _, v := range c.Data {
-		for uniqId, item := range v.Items {
+		for uniqId, item := range v.GetItems() {
 			ret[uniqId] = item
 		}
 	}
 	return ret
+}
+
+// Get 获取某个uniqId的连接信息；一个连接只属于一个网关，命中即返回
+func (c *ConnInfoRet) Get(uniqId string) (*netsvrProtocol.ConnInfoRespItem, bool) {
+	for _, v := range c.Data {
+		if item, ok := v.GetItems()[uniqId]; ok {
+			return item, true
+		}
+	}
+	return nil, false
 }

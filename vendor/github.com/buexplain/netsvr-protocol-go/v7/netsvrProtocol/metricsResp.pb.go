@@ -42,6 +42,9 @@ type MetricsResp struct {
 	unknownFields protoimpl.UnknownFields
 
 	// key是统计的项，value是统计结果
+	// 本响应只包含当前网关自己的统计，不跨网关聚合
+	// 单网关部署：结果即为全网关的统计
+	// 多网关部署：每个网关各自统计；count 类指标可相加，meanRate/rate1/rate5/rate15 是各网关独立计算的速率，相加无意义，应按网关分别查看或按业务需要自行聚合
 	Items map[int32]*MetricsRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

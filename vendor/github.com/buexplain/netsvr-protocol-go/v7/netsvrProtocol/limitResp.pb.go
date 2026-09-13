@@ -36,14 +36,15 @@ const (
 )
 
 // 网关响应业务进程，返回网关中的限流配置的真实情况
+// 限流配置由每个网关各自维护，本响应只返回当前网关的配置
 type LimitResp struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关允许每秒转发多少个连接打开事件到业务进程
+	// 当前网关允许每秒转发多少个连接打开事件到业务进程
 	OnOpen int32 `protobuf:"varint,1,opt,name=onOpen,proto3" json:"onOpen,omitempty"`
-	// 网关允许每秒转发多少个消息到业务进程
+	// 当前网关允许每秒转发多少个消息到业务进程
 	OnMessage int32 `protobuf:"varint,2,opt,name=onMessage,proto3" json:"onMessage,omitempty"`
 }
 

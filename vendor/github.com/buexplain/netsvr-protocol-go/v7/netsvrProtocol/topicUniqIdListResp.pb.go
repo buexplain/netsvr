@@ -41,8 +41,10 @@ type TopicUniqIdListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// key是topic，value是该主题包含的uniqId
+	// key是topic，value是该主题在当前网关内包含的uniqId
 	// 如果请求的topic没找到，则items中不会有该topic
+	// 单网关部署：结果即为这些主题的全部订阅连接
+	// 多网关部署：一个连接只属于一个网关，把各网关返回的同名主题的uniqId合并即为全部，不会重复
 	Items map[string]*TopicUniqIdListRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

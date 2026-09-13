@@ -41,7 +41,9 @@ type ConnInfoResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// key是uniqId,value是其在网关中存储的数据
+	// key是uniqId，value是其在当前网关中存储的数据
+	// 单网关部署：结果即为命中的全部连接信息
+	// 多网关部署：一个连接只属于一个网关，把各网关返回的items合并即为命中的全部连接信息，不会重复
 	Items map[string]*ConnInfoRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

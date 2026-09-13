@@ -41,8 +41,10 @@ type TopicCustomerIdListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// key是topic，value是该topic包含的customerId
+	// key是topic，value是该topic在当前网关内包含的customerId（网关内已去重）
 	// 如果请求的topic没找到，则items中不会有该topic
+	// 单网关部署：结果即为这些主题的全部客户
+	// 多网关部署：同一个客户可能有多台设备连接到不同网关并订阅了同一主题，把各网关返回的同名主题的customerId合并后需要去重，去重结果才等于这些主题的全部客户
 	Items map[string]*TopicCustomerIdListRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

@@ -41,7 +41,9 @@ type CheckOnlineResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 已经存在的uniqId
+	// 当前网关中已经存在的uniqId
+	// 单网关部署：结果即为在线的uniqId
+	// 多网关部署：一个连接只属于一个网关，把各网关返回的uniqId合并即为在线的连接，不会重复
 	UniqIds []string `protobuf:"bytes,1,rep,name=uniqIds,proto3" json:"uniqIds,omitempty"`
 }
 

@@ -41,8 +41,11 @@ type TopicCustomerIdToUniqIdsListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// key是topic，value是该topic包含的customerId以及customerId对应的uniqId列表
+	// key是topic，value是该topic下出现过的customerId，以及每个customerId对应的uniqId列表
+	// 注意：customerId 对应的 uniqId 列表是该客户在当前网关内的全部连接，不限于该主题
 	// 如果请求的topic没找到，则items中不会有该topic
+	// 单网关部署：结果即为这些主题下出现过的客户，以及各客户在当前网关内的全部连接
+	// 多网关部署：同一个客户可能在不同网关都有连接，把各网关返回的同一customerId的uniqId列表合并，才是该客户的全部连接
 	Items map[string]*TopicCustomerIdToUniqIdsListRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -90,7 +93,7 @@ type TopicCustomerIdToUniqIdsListRespItem struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 当前topic包含的customerId以及customerId对应的uniqId列表
+	// 该topic下出现过的customerId，以及每个customerId在当前网关内的全部连接
 	Items map[string]*CustomerIdToUniqIdsRespItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -138,7 +141,7 @@ type CustomerIdToUniqIdsRespItem struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 当前customerId包含的uniqId列表
+	// 该customerId在当前网关内的全部连接（不限于所属topic）
 	UniqIds []string `protobuf:"bytes,1,rep,name=uniqIds,proto3" json:"uniqIds,omitempty"`
 }
 

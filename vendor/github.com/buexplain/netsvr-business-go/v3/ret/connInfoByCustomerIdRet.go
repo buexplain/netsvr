@@ -24,3 +24,25 @@ import (
 type ConnInfoByCustomerIdRet struct {
 	Data map[string]*netsvrProtocol.ConnInfoByCustomerIdResp
 }
+
+// ToMap 合并所有网关的结果，返回「customerId → 该客户的全部连接」；同一个客户可能连接到多个网关
+func (c *ConnInfoByCustomerIdRet) ToMap() map[string][]*netsvrProtocol.ConnInfoByCustomerIdRespItem {
+	ret := make(map[string][]*netsvrProtocol.ConnInfoByCustomerIdRespItem)
+	for _, v := range c.Data {
+		for customerId, items := range v.GetItems() {
+			ret[customerId] = append(ret[customerId], items.GetItems()...)
+		}
+	}
+	return ret
+}
+
+// Get 获取某个customerId的全部连接；同一个客户可能连接到多个网关，各网关的连接会合并
+func (c *ConnInfoByCustomerIdRet) Get(customerId string) []*netsvrProtocol.ConnInfoByCustomerIdRespItem {
+	var ret []*netsvrProtocol.ConnInfoByCustomerIdRespItem
+	for _, v := range c.Data {
+		if items, ok := v.GetItems()[customerId]; ok {
+			ret = append(ret, items.GetItems()...)
+		}
+	}
+	return ret
+}

@@ -41,7 +41,9 @@ type TopicListResp struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// 网关中现存的主题
+	// 当前网关中全部去重后的主题
+	// 单网关部署：结果即为全部主题
+	// 多网关部署：同一个主题的订阅者可能分布在不同网关，各网关返回的列表合并后需要去重，去重结果才等于全部主题
 	Topics []string `protobuf:"bytes,1,rep,name=topics,proto3" json:"topics,omitempty"`
 }
 
